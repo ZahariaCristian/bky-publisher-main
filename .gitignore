@@ -1,0 +1,6 @@
+core
+/node_modules
+.cache
+*.jpg
+*.png
+.env

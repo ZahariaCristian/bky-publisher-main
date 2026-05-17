@@ -1,0 +1,16 @@
+[
+  {
+    "name": "SESS22dab8d4dd54578e0dadc7a2f4d6d0d3",
+    "value": "ouHf8R5uqBLsgLZZaJLxbPfUn9zmJvutICEgQ6RflWQ",
+    "domain": ".mega.3590edafb1833fedd78135b343b5f931b4273aec.xyz",
+    "path": "/",
+    "expires": 1781040771.490391,
+    "size": 79,
+    "httpOnly": true,
+    "secure": false,
+    "session": false,
+    "priority": "Medium",
+    "sourceScheme": "Secure",
+    "sourcePort": 443
+  }
+]
