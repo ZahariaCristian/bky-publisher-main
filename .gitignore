@@ -3,4 +3,4 @@ core
 .cache
 *.jpg
 *.png
-.env
+
