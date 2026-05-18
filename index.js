@@ -150,7 +150,7 @@ async function CreateGroupsBot() {
         var owner = await ctx.tblUser.findOne({ where: { OID: group.owner } });
         if (owner.isActive) {
             //Add platforms in groupFiltered by Zaharia
-            var platforms = await ctx.tblPlatform.findAll({ where: { gruppi: group.id }, raw: true })
+            var platforms = await ctx.tblPlatform.findAll({ where: { gruppi: group.id, status: 'active' }, raw: true })
             //Add BK in platforms
             platforms.push({
                 id: "",
