@@ -144,3 +144,8 @@ Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_I
 Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: connect EHOSTUNREACH 81.180.80.13:12323
 Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
 Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher ERROR during trovagnocca operation: TypeError: platform.bot.publish is not a function
+    at postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:759:55)
+    at mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:537:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:960:21)
