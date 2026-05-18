@@ -375,15 +375,33 @@ async function mainLoop(group, platform) {
                         }]
                     });
 
+                    const picsLimit = s.platform == "trovagnocca" ? 6 : 5;
+                    if (!galleriaSchedulazione.length && annuncio.tblDonne?.getTblGalleria) {
+                        const fallbackGallery = await annuncio.tblDonne.getTblGalleria({
+                            limit: picsLimit,
+                            where: {
+                                isHidden: 0,
+                                GCRecord: null
+                            },
+                            order: [["id", "ASC"]]
+                        });
+                        galleriaSchedulazione = fallbackGallery.map((gallery) => ({
+                            tblGallerium: gallery,
+                            isAnteprima: false
+                        }));
+                    }
+
                     for (const photo of galleriaSchedulazione) {
-                        if (pics.length < 5) {
-                            if (pics.includes(`${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`) == false) {
+                        if (pics.length < picsLimit) {
+                            const gallery = photo.tblGallerium || photo;
+                            if (!gallery?.origin) continue;
+                            if (pics.includes(`${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${gallery.origin}`) == false) {
                                 picsAudit.push({
-                                    path: `${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`,
-                                    applyPhone: photo.tblGallerium.applyPhone,
-                                    crop: photo.tblGallerium.crop
+                                    path: `${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${gallery.origin}`,
+                                    applyPhone: gallery.applyPhone,
+                                    crop: gallery.crop
                                 })
-                                pics.push(`${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`);
+                                pics.push(`${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${gallery.origin}`);
                             }
                         }
                     }

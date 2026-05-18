@@ -4,6 +4,7 @@ const puppeteer = require("puppeteer-extra");
 const RecaptchaPlugin = require("puppeteer-extra-plugin-recaptcha");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const TwoCaptcha = require("@2captcha/captcha-solver");
+const { publishAd } = require("../adsManage/trovagnocca/publishAds");
 
 const LOGIN_URL = "https://www.trovagnocca.com/auth/login";
 const HOME_URL = "https://www.trovagnocca.com/";
@@ -46,6 +47,11 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isEnabled(value) {
+  if (value === true || value === 1) return true;
+  return ["1", "true", "yes", "si", "on", "checked"].includes(`${value || ""}`.trim().toLowerCase());
+}
+
 class TrovagnoccaBot {
   constructor(email, password, credit, platform) {
     this.email = email || process.env.TROVAGNOCCA_EMAIL || "";
@@ -67,12 +73,8 @@ class TrovagnoccaBot {
   async launch() {
     if (this.browser) return;
 
-    const headless = process.env.TROVAGNOCCA_HEADLESS === "false" || process.env.HEADLESS === "false"
-      ? false
-      : "new";
-
     this.browser = await puppeteer.launch({
-      headless,
+      headless: false,
       executablePath: puppeteer.executablePath(),
       args: [
         "--no-sandbox",
@@ -81,10 +83,10 @@ class TrovagnoccaBot {
         "--disable-blink-features=AutomationControlled",
         "--window-size=1366,900"
       ],
-      defaultViewport: {
-        width: 1366,
-        height: 900
-      }
+      // defaultViewport: {
+      //   width: 1366,
+      //   height: 900
+      // }
     });
   }
 
@@ -490,6 +492,64 @@ class TrovagnoccaBot {
       console.error("Trovagnocca Error in refresh2:", error.message);
       return { error: error.message };
     }
+  }
+
+  buildPublishData(ad) {
+    return {
+      title: ad?.title || "",
+      description: ad?.description || "",
+      city: ad?.annunci_city || ad?.city || "",
+      location: ad?.location || "",
+      age: ad?.age || ad?.years || "",
+      phone: ad?.phone || "",
+      categorie: ad?.categorie || ad?.sono || "DONNAUOMO",
+      sono: ad?.sono || ad?.categorie || "DONNAUOMO",
+      serviceNazionalita: ad?.serviceNazionalita || ad?.nationality || "",
+      serviceSNaturale: ad?.serviceSNaturale,
+      serviceSRifatto: ad?.serviceSRifatto,
+      serviceCBiondi: ad?.serviceCBiondi,
+      serviceCMarroni: ad?.serviceCMarroni,
+      serviceCNeri: ad?.serviceCNeri,
+      serviceCRossi: ad?.serviceCRossi,
+      serviceMagro: ad?.serviceMagro,
+      serviceFormoso: ad?.serviceFormoso,
+      serviceOrale: ad?.serviceOrale,
+      serviceAnale: ad?.serviceAnale,
+      serviceSadomaso: ad?.serviceSadomaso,
+      serviceEsperienzaFidanzata: ad?.serviceEsperienzaFidanzata,
+      serviceAttriciPorno: ad?.serviceAttriciPorno,
+      serviceEiaculazioneSulCorpo: ad?.serviceEiaculazioneSulCorpo,
+      serviceMassaggioErotico: ad?.serviceMassaggioErotico,
+      serviceMassaggioTantrico: ad?.serviceMassaggioTantrico,
+      serviceFetish: ad?.serviceFetish,
+      serviceBacioAllaFrancese: ad?.serviceBacioAllaFrancese,
+      serviceGiocoDiRuolo: ad?.serviceGiocoDiRuolo,
+      serviceTrio: ad?.serviceTrio,
+      serviceSexting: ad?.serviceSexting,
+      serviceVideoChiamata: ad?.serviceVideoChiamata,
+      serviceUomini: ad?.serviceUomini,
+      serviceDonne: ad?.serviceDonne,
+      serviceCoppie: ad?.serviceCoppie,
+      serviceDisabili: ad?.serviceDisabili,
+      serviceACasa: ad?.serviceACasa,
+      serviceEventiEFeste: ad?.serviceEventiEFeste,
+      serviceAlbergoMotel: ad?.serviceAlbergoMotel,
+      serviceClubs: ad?.serviceClubs,
+      serviceVisitaADomicilio: ad?.serviceVisitaADomicilio,
+      hasWhatapp: isEnabled(ad?.hasWhatapp) || isEnabled(ad?.whatsapp),
+      note: ad?.note || "",
+      pics: ad?.pics || [],
+      images: ad?.pics || []
+    };
+  }
+
+  async publish(ad) {
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+    const publishData = this.buildPublishData(ad);
+
+    return publishAd(page, publishData, {
+      solveRecaptcha: this.solveRecaptcha.bind(this)
+    });
   }
 
   async restartBrowser(reason) {
