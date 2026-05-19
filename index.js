@@ -129,6 +129,29 @@ async function ensureSession(bot, email) {
     return await loginPromise;
 }
 
+async function ensurePlatformBot(platform) {
+    if (!platform || platform.platform !== "trovagnocca") return platform?.bot;
+    if (!platform.bot) return null;
+    if (typeof platform.bot?.publish === "function") return platform.bot;
+
+    logger.Write(`Publisher WARNING: rebuilding Trovagnocca bot for ${platform.username || "unknown"} because publish() is missing`);
+    console.warn("[trovagnocca] Rebuilding bot instance. Current bot shape:", {
+        type: platform.bot?.constructor?.name,
+        keys: platform.bot ? Object.keys(platform.bot) : []
+    });
+
+    const decryptedPassword = platform.password ? decryptPassword(platform.password) : "";
+    platform.bot = new TrovagnoccaBot(platform.username, decryptedPassword, platform.credit, platform.platform);
+    platform.cookie = await ensureSession(platform.bot, platform.username);
+    platform.needRefresh = true;
+
+    if (typeof platform.bot?.publish !== "function") {
+        throw new Error("Trovagnocca bot publish() is unavailable after rebuild.");
+    }
+
+    return platform.bot;
+}
+
 async function CreateGroupsBot() {
     logger.Write(`[i] Test di connessione al database...`);
     try {
@@ -716,6 +739,7 @@ async function postThis(ad, group, platform) {
     } else {
         try {
             console.log(ad.state, `${platform.platform} ad management`);
+            await ensurePlatformBot(platform);
             switch (ad.state) {
                 case 'EDIT':
                     logger.Write(`Publisher: Updating Bakeca ad n. ${ad.annuncio}, schedule n. ${ad.id}, group ${group.id}`);
@@ -929,6 +953,8 @@ async function runGroupLoop(group) {
 
             for (const platform of group.platforms) {
                 try {
+                    await ensurePlatformBot(platform);
+
                     if (!platform.bot) {
                         console.log(`No bot found for platform ${platform.platform}`);
                         continue;

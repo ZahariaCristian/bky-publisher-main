@@ -81,7 +81,7 @@ class TrovagnoccaBot {
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-blink-features=AutomationControlled",
-        "--window-size=1366,900"
+        "--window-size=1366,900",
       ],
       // defaultViewport: {
       //   width: 1366,
@@ -241,25 +241,63 @@ class TrovagnoccaBot {
     return page.evaluate(() => {
       const frame = document.querySelector("iframe[src*='recaptcha']");
       const widget = document.querySelector(".g-recaptcha, [data-sitekey]");
-      const token = document.querySelector("[name='g-recaptcha-response']")?.value || "";
-      return Boolean((frame || widget) && !token);
+      const responses = Array.from(document.querySelectorAll("[name='g-recaptcha-response']"));
+      const hasToken = responses.some((node) => (node.value || "").trim());
+      return Boolean((frame || widget) && !hasToken);
     });
   }
 
   async injectRecaptchaToken(page, token) {
     await page.evaluate((captchaToken) => {
-      let response = document.querySelector("textarea[name='g-recaptcha-response'], input[name='g-recaptcha-response']");
-      if (!response) {
-        response = document.createElement("textarea");
+      window.__trovagnoccaRecaptchaToken = captchaToken;
+      const dispatchValueEvents = (node) => {
+        node.dispatchEvent(new Event("input", { bubbles: true }));
+        node.dispatchEvent(new Event("change", { bubbles: true }));
+        node.dispatchEvent(new Event("blur", { bubbles: true }));
+      };
+      const callCallback = (callback, value) => {
+        if (typeof callback !== "function") return;
+        try {
+          callback(value);
+        } catch {
+          // Ignore page callback errors; visible validation is checked by the caller.
+        }
+      };
+      const walkCaptchaClients = (value) => {
+        const clients = window.___grecaptcha_cfg?.clients || {};
+        const seen = new Set();
+        const walk = (node) => {
+          if (!node || typeof node !== "object" || seen.has(node)) return;
+          seen.add(node);
+          for (const item of Object.values(node)) {
+            if (typeof item === "function") {
+              callCallback(item, value);
+            } else if (item && typeof item === "object") {
+              if (typeof item.callback === "function") callCallback(item.callback, value);
+              if (typeof item["callback"] === "function") callCallback(item["callback"], value);
+              walk(item);
+            }
+          }
+        };
+
+        Object.values(clients).forEach(walk);
+      };
+
+      let responses = Array.from(document.querySelectorAll("textarea[name='g-recaptcha-response'], input[name='g-recaptcha-response']"));
+      if (!responses.length) {
+        const response = document.createElement("textarea");
         response.name = "g-recaptcha-response";
         response.style.display = "none";
         document.body.appendChild(response);
+        responses = [response];
       }
 
-      response.value = captchaToken;
-      response.setAttribute("value", captchaToken);
-      response.dispatchEvent(new Event("input", { bubbles: true }));
-      response.dispatchEvent(new Event("change", { bubbles: true }));
+      for (const response of responses) {
+        response.value = captchaToken;
+        response.innerHTML = captchaToken;
+        response.setAttribute("value", captchaToken);
+        dispatchValueEvents(response);
+      }
 
       document.querySelectorAll(".g-recaptcha[data-callback], [data-callback]").forEach((node) => {
         const callbackName = node.getAttribute("data-callback");
@@ -270,10 +308,12 @@ class TrovagnoccaBot {
           callback(captchaToken);
         }
       });
+      walkCaptchaClients(captchaToken);
     }, token);
   }
 
   async solveRecaptcha(page) {
+    console.log(page.url(), 'solveRecaptcha')
     if (!(await this.recaptchaNeedsSolving(page))) return false;
     if (!solver) throw new Error("2Captcha API key not configured for Trovagnocca login.");
 
@@ -302,7 +342,38 @@ class TrovagnoccaBot {
     await this.injectRecaptchaToken(page, token);
     console.log("[i] Trovagnocca reCAPTCHA token injected.");
     await delay(1000);
-    return true;
+    return token;
+  }
+
+  async getCaptchaToken(page, siteKey = RECAPTCHA_SITEKEY) {
+    try {
+      console.log("[2captcha] Requesting solve for page url:", page.url());
+
+      const solution = await solver.recaptcha({
+        googlekey: siteKey,
+        pageurl: page.url(),
+        userAgent: USER_AGENT,
+        // proxy: "beast1124:8hsNLLhAQr9el7QY_country-it@geo.iproyal.com:12321",
+        // proxytype: "HTTP"
+      });
+
+      // Use solution (the variable defined above) to extract the token
+      if (solution && solution.data) {
+        return solution.data;
+      }
+
+      // Handle different library return formats
+      const tokenStr = typeof solution === 'string' ? solution : (solution?.request || solution?.code);
+
+      if (tokenStr && typeof tokenStr === 'string') {
+        return tokenStr;
+      }
+
+      throw new Error("2Captcha returned an unexpected response format");
+    } catch (err) {
+      console.error("[2captcha] Error during solve:", err.message);
+      return null;
+    }
   }
 
   async submitLogin(page, passwordSelector) {
@@ -548,7 +619,8 @@ class TrovagnoccaBot {
     const publishData = this.buildPublishData(ad);
 
     return publishAd(page, publishData, {
-      solveRecaptcha: this.solveRecaptcha.bind(this)
+      solveRecaptcha: this.solveRecaptcha.bind(this),
+      getCaptchaToken: this.getCaptchaToken.bind(this)
     });
   }
 
