@@ -2018,3 +2018,18 @@ Publisher ERROR during trovagnocca operation: Error: Trovagnocca photo file not 
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher: Deleting Bakeca ad n. 1942, schedule n. 6, group 15
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca requires at least one existing photo before publishing.
+    at uploadImages (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:526:11)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:895:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher: Deleting Bakeca ad n. 1397, schedule n. 8, group 15

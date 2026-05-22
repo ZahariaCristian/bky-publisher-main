@@ -578,7 +578,8 @@ class TrovagnoccaBot {
       hasWhatapp: isEnabled(ad?.hasWhatapp) || isEnabled(ad?.whatsapp),
       note: ad?.note || "",
       pics: ad?.pics || [],
-      images: ad?.pics || []
+      images: ad?.pics || [],
+      picsAudit: ad?.picsAudit || []
     };
   }
 

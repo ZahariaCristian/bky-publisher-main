@@ -512,10 +512,13 @@ function resolveImagePaths(images = []) {
     .map(resolveExistingImage);
 }
 
-async function uploadImages(page, images = []) {
+async function uploadImages(page, images = [], picsAudit = []) {
   await waitForPhotoStep(page);
 
-  const resolved = resolveImagePaths(images);
+  const auditPaths = picsAudit
+    .map((item) => item?.path || item?.src || item?.origin)
+    .filter(Boolean);
+  const resolved = resolveImagePaths([...images, ...auditPaths]);
   const missing = resolved.filter((imagePath) => !fs.existsSync(imagePath));
   if (missing.length) {
     console.warn(`[trovagnocca:publish] Skipping missing photo files: ${missing.join(", ")}`);
@@ -523,7 +526,9 @@ async function uploadImages(page, images = []) {
 
   const existing = resolved.filter((imagePath) => fs.existsSync(imagePath));
   if (!existing.length) {
-    throw new Error("Trovagnocca requires at least one existing photo before publishing.");
+    console.warn("[trovagnocca:publish] No existing photo files found. Continuing without uploading photos.");
+    await delay(500);
+    return 0;
   }
 
   const input = await page.$('input[type="file"][name="items[]"], input[type="file"][name="inputFile"], .dropArea input[type="file"], input[type="file"][accept*="image"], input[type="file"]');
@@ -713,7 +718,8 @@ function buildPublishData(adData = {}) {
     telegram: isEnabled(adData.telegram) || Boolean(contactNote.telegram || contactNote.telegramNumber || contactNote.telegramUrl),
     nationality: firstNonEmpty(adData.serviceNazionalita, adData.nationality, adData.nazionalita),
     tags: buildTagSelections(adData),
-    images: Array.isArray(adData.images) ? adData.images : (Array.isArray(adData.pics) ? adData.pics : [])
+    images: Array.isArray(adData.images) ? adData.images : (Array.isArray(adData.pics) ? adData.pics : []),
+    picsAudit: Array.isArray(adData.picsAudit) ? adData.picsAudit : []
   };
 }
 
@@ -892,7 +898,7 @@ async function publishAd(page, adData = {}, options = {}) {
     throw new Error(`Trovagnocca did not advance to tags step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
   }
   await clickNext(page);
-  await uploadImages(page, data.images);
+  await uploadImages(page, data.images, data.picsAudit);
   await clickNext(page);
   await setSwitch(page, "ck_term", true);
 
