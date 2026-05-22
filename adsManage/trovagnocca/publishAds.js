@@ -274,9 +274,10 @@ function parseTrovagnoccaNote(note) {
   }
 }
 
-async function waitForDmcApp(page) {
-  await page.goto(POST_URL, { waitUntil: "networkidle2", timeout: 90000 });
+async function waitForDmcApp(page, postUrl = POST_URL) {
+  await page.goto(postUrl, { waitUntil: "networkidle2", timeout: 90000 });
   await page.waitForSelector("#app", { timeout: 60000 });
+  await closeEditNoticeModal(page);
   await page.waitForFunction(() => {
     const text = document.body.innerText || "";
     return (
@@ -284,6 +285,30 @@ async function waitForDmcApp(page) {
       (/seleziona categorie|select categories|category/i.test(text))
     );
   }, { timeout: 60000 });
+}
+
+async function closeEditNoticeModal(page) {
+  const hasModal = await page.waitForFunction(() => {
+    const popup = document.querySelector(".swal2-popup.swal2-show");
+    if (!popup) return false;
+
+    const text = (popup.textContent || "").replace(/\s+/g, " ").trim();
+    return /modifica dell'annuncio|non lo fa risalire|ho capito/i.test(text);
+  }, { timeout: 5000 }).then(() => true).catch(() => false);
+
+  if (!hasModal) return false;
+
+  await page.evaluate(() => {
+    const popup = document.querySelector(".swal2-popup.swal2-show");
+    const confirmButton = popup?.querySelector(".swal2-confirm");
+    if (!confirmButton) return;
+    confirmButton.scrollIntoView({ block: "center", inline: "center" });
+    confirmButton.click();
+  });
+
+  await page.waitForFunction(() => !document.querySelector(".swal2-popup.swal2-show"), { timeout: 10000 }).catch(() => null);
+  await delay(500);
+  return true;
 }
 
 async function setWrappedSelect(page, wrapperName, wanted) {
@@ -296,7 +321,7 @@ async function setWrappedSelect(page, wrapperName, wanted) {
 
     const wrapper = document.querySelector(`[name="${wrapperName}"]`);
     const wrapperSelect = wrapper?.querySelector("select");
-    if (wrapperSelect) return true;
+    if (wrapperSelect) return optionMatches(wrapperSelect);
 
     return Array.from(document.querySelectorAll("select")).some(optionMatches);
   }, { timeout: 30000 }, { wrapperName, wanted });
@@ -333,13 +358,28 @@ async function setWrappedSelect(page, wrapperName, wanted) {
       throw new Error(`Select option not found for ${wrapperName}: ${wanted}; options=${JSON.stringify(options)}`);
     }
 
-    select.value = option ? option.value : wanted;
+    const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")?.set;
+    if (nativeValueSetter) {
+      nativeValueSetter.call(select, option.value);
+    } else {
+      select.value = option.value;
+    }
+    option.selected = true;
     select.dispatchEvent(new Event("input", { bubbles: true }));
     select.dispatchEvent(new Event("change", { bubbles: true }));
+
+    if (`${select.value}` !== `${option.value}`) {
+      throw new Error(`Select ${wrapperName} did not keep value ${option.value}; current=${select.value}`);
+    }
   }, { wrapperName, wanted });
 }
 
 async function setWrappedInput(page, wrapperName, value) {
+  await page.waitForFunction((name) => {
+    const wrapper = document.querySelector(`[name="${name}"]`);
+    return Boolean(wrapper?.querySelector("input, textarea"));
+  }, { timeout: 30000 }, wrapperName);
+
   await page.evaluate(({ wrapperName, value }) => {
     const wrapper = document.querySelector(`[name="${wrapperName}"]`);
     const input = wrapper?.querySelector("input, textarea");
@@ -349,6 +389,73 @@ async function setWrappedInput(page, wrapperName, value) {
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
   }, { wrapperName, value });
+}
+
+async function setContactMethod(page, method = "phone") {
+  const wantedValue = method === "email_phone" ? "2" : method === "email" ? "3" : "1";
+  const wantedPattern = method === "email_phone"
+    ? /email\s*e\s*telefono|email.*phone/i
+    : method === "email"
+      ? /solo\s*email|email\s*only/i
+      : /solo\s*telefono|phone\s*only/i;
+
+  const selected = await page.evaluate(({ patternSource, wantedValue }) => {
+    const pattern = new RegExp(patternSource, "i");
+    const isVisible = (node) => {
+      if (!node) return false;
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+
+    const contactField = document.querySelector('[name="contact_type"]');
+    const valueInput = contactField?.querySelector(`input[type="radio"][value="${wantedValue}"]`) ||
+      document.querySelector(`[name="contact_type"] input[type="radio"][value="${wantedValue}"]`) ||
+      document.querySelector(`input[type="radio"][name="radius"][value="${wantedValue}"]`);
+
+    if (valueInput && isVisible(valueInput.closest(".custom-control") || valueInput)) {
+      valueInput.click();
+      valueInput.dispatchEvent(new Event("input", { bubbles: true }));
+      valueInput.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    }
+
+    const searchRoot = contactField || document;
+    const candidates = Array.from(searchRoot.querySelectorAll("label, button, .btn, .custom-control, .form-check, .contact, .card, div"));
+    const target = candidates.find((node) => isVisible(node) && pattern.test(node.textContent || ""));
+    if (!target) return false;
+
+    const input =
+      target.querySelector("input[type='radio'], input[type='checkbox']") ||
+      (target.getAttribute("for") ? document.getElementById(target.getAttribute("for")) : null) ||
+      target.closest("label")?.querySelector("input[type='radio'], input[type='checkbox']");
+
+    const clickable = input || target.closest("label, button, .btn, .custom-control, .form-check, .contact, .card") || target;
+    clickable.scrollIntoView({ block: "center", inline: "center" });
+    clickable.click();
+    if (input) {
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    return true;
+  }, { patternSource: wantedPattern.source, wantedValue }).catch(() => false);
+
+  if (!selected) {
+    console.warn(`[trovagnocca:publish] Contact method '${method}' option not found. Continuing with current selection.`);
+  }
+
+  await delay(500);
+  return selected;
+}
+
+async function waitForInfoStepExit(page) {
+  return page.waitForFunction(() => {
+    const text = document.body.innerText || "";
+    const hasTagsControls = Boolean(document.querySelector(".tagsCard, button.tags_btn"));
+    const hasPhotoInput = Boolean(document.querySelector('input[type="file"][name="items[]"], input[type="file"][name="inputFile"], input[type="file"][accept*="image"]'));
+    const stillOnContacts = /i tuoi contatti|come vuoi essere contattato|solo telefono|email e telefono|solo email/i.test(text);
+    return hasTagsControls || hasPhotoInput || !stillOnContacts;
+  }, { timeout: 15000 }).then(() => true).catch(() => false);
 }
 
 async function setTextarea(page, selector, value) {
@@ -473,6 +580,91 @@ async function waitForPhotoStep(page) {
   }, { timeout: 30000 });
 }
 
+async function countUploadedPhotoPreviews(page) {
+  return page.evaluate(() => {
+    const selectors = [
+      ".thumb-img",
+      ".thumb-media img",
+      ".preview img",
+      ".image-preview img",
+      ".file-preview img",
+      ".dropArea img[src^='blob:']",
+      ".dropArea img[src^='data:image']",
+      "img[src^='blob:']",
+      "img[src^='data:image']"
+    ];
+
+    const isVisible = (node) => {
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+
+    return Array.from(document.querySelectorAll(selectors.join(","))).filter(isVisible).length;
+  }).catch(() => 0);
+}
+
+async function clearUploadedImages(page) {
+  const maxPasses = 8;
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    const removed = await page.evaluate(() => {
+      const isVisible = (node) => {
+        if (!node) return false;
+        const style = window.getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      };
+
+      const previewSelectors = [
+        ".thumb-img",
+        ".thumb-media img",
+        ".preview img",
+        ".image-preview img",
+        ".file-preview img",
+        "img[src^='blob:']",
+        "img[src^='data:image']"
+      ];
+      const actionPattern = /delete|remove|rimuovi|elimina|cancella|close|chiudi|×/i;
+      const previews = Array.from(document.querySelectorAll(previewSelectors.join(","))).filter(isVisible);
+
+      for (const preview of previews) {
+        const scope = preview.closest(".thumb, .thumb-media, .preview, .image-preview, .file-preview, .col, .row, li, div") || preview.parentElement;
+        const controls = Array.from((scope || document).querySelectorAll("button, .btn, i, a, span"))
+          .filter(isVisible)
+          .filter((node) => {
+            const text = `${node.textContent || ""} ${node.getAttribute("title") || ""} ${node.getAttribute("aria-label") || ""} ${node.className || ""}`;
+            return actionPattern.test(text) || /delete|trash|close|remove|times|cancel/i.test(text);
+          });
+
+        const control = controls[0];
+        if (!control) continue;
+        control.scrollIntoView({ block: "center", inline: "center" });
+        control.click();
+        return true;
+      }
+
+      return false;
+    }).catch(() => false);
+
+    if (!removed) break;
+
+    await delay(500);
+    await page.evaluate(() => {
+      const confirmButton = document.querySelector(".swal2-popup.swal2-show .swal2-confirm");
+      if (confirmButton) confirmButton.click();
+    }).catch(() => null);
+    await delay(700);
+  }
+
+  await page.evaluate(() => {
+    for (const input of document.querySelectorAll('input[type="file"]')) {
+      input.value = "";
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }).catch(() => null);
+}
+
 function resolveImagePaths(images = []) {
   const resolveExistingImage = (imagePath) => {
     const normalizedPath = `${imagePath}`.replace(/\\/g, "/");
@@ -506,19 +698,30 @@ function resolveImagePaths(images = []) {
     return candidates[0] || path.resolve(process.cwd(), imagePath);
   };
 
-  return images
-    .filter(Boolean)
-    .slice(0, 6)
-    .map(resolveExistingImage);
+  const seen = new Set();
+  const resolved = [];
+
+  for (const image of images.filter(Boolean)) {
+    const imagePath = resolveExistingImage(image);
+    const key = imagePath.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    resolved.push(imagePath);
+    if (resolved.length >= 6) break;
+  }
+
+  return resolved;
 }
 
 async function uploadImages(page, images = [], picsAudit = []) {
   await waitForPhotoStep(page);
+  await clearUploadedImages(page);
 
   const auditPaths = picsAudit
     .map((item) => item?.path || item?.src || item?.origin)
     .filter(Boolean);
-  const resolved = resolveImagePaths([...images, ...auditPaths]);
+  const uploadSources = images.length ? images : auditPaths;
+  const resolved = resolveImagePaths(uploadSources);
   const missing = resolved.filter((imagePath) => !fs.existsSync(imagePath));
   if (missing.length) {
     console.warn(`[trovagnocca:publish] Skipping missing photo files: ${missing.join(", ")}`);
@@ -534,7 +737,7 @@ async function uploadImages(page, images = [], picsAudit = []) {
   const input = await page.$('input[type="file"][name="items[]"], input[type="file"][name="inputFile"], .dropArea input[type="file"], input[type="file"][accept*="image"], input[type="file"]');
   if (!input) throw new Error("Photo upload input not found");
 
-  const thumbnailCountBefore = await page.$$eval(".thumb-img, .thumb-media img, .dropArea img, img[src^='blob:'], img[src^='data:image']", (nodes) => nodes.length).catch(() => 0);
+  const thumbnailCountBefore = await countUploadedPhotoPreviews(page);
 
   await input.uploadFile(...existing);
 
@@ -601,7 +804,7 @@ async function fillTagsStep(page, data) {
     const text = document.body.innerText || "";
     const hasTagsControls = Boolean(document.querySelector(".tagsCard, button.tags_btn"));
     return hasTagsControls || /tags|tag|about you|su di me|nazionalita|nationality/i.test(text);
-  }, { timeout: 12000 }).then(() => true).catch(() => false);
+  }, { timeout: 20000 }).then(() => true).catch(() => false);
 
   if (!reachedTags) {
     console.warn("[trovagnocca:publish] Tags step not reached", JSON.stringify(await collectPublishDiagnostics(page)));
@@ -723,8 +926,8 @@ function buildPublishData(adData = {}) {
   };
 }
 
-async function solveStep1Recaptcha(page, options = {}) {
-  // Bridge browser logs to Node terminal
+async function solveRecaptcha(page, options = {}) {
+  // Bridge browser logs to Node terminal for debugging
   page.on('console', msg => {
     if (msg.text().includes('[Captcha]')) console.log(`[Browser] ${msg.text()}`);
   });
@@ -733,127 +936,113 @@ async function solveStep1Recaptcha(page, options = {}) {
   console.log('[trovagnocca] Solving reCAPTCHA on Stepper...');
 
   const siteKey = '6LeghE4gAAAAAPMCvQ_nOzXwunnt9wfu_SCc3Zu_';
+  
+  // 1. Get token from solver
+  // Ensure your options.getCaptchaToken passes the current page URL and siteKey
   const token = await options.getCaptchaToken(page, siteKey);
 
   if (!token) throw new Error('Failed to get reCAPTCHA token');
   console.log('[trovagnocca] reCAPTCHA token obtained');
 
   const result = await page.evaluate((token) => {
-    console.log("[Captcha] Starting Stepper-Aware Injection...");
+    console.log("[Captcha] Starting Universal Stepper Injection...");
 
-    // 1. Set values in all possible reCAPTCHA textareas
-    // Your HTML shows: id="g-recaptcha-response-1"
-    const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"]');
+    const triggerEvents = (el) => {
+      ['input', 'change', 'blur'].forEach(ev => {
+        el.dispatchEvent(new Event(ev, { bubbles: true }));
+      });
+    };
+
+    // 1. Fill all reCAPTCHA response fields found in the DOM
+    const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"], .g-recaptcha-response');
     textareas.forEach(t => {
       t.value = token;
       t.innerHTML = token;
-      t.dispatchEvent(new Event('input', { bubbles: true }));
+      triggerEvents(t);
     });
 
-    // 2. Execute the reCAPTCHA callback (Crucial for enabling 'Prosegui')
-    let callbackFound = false;
+    // 2. Deep Search and Execute reCAPTCHA Callback
+    let callbackExecuted = false;
     if (typeof ___grecaptcha_cfg !== 'undefined') {
-        try {
-            const findAndExecute = (obj, depth = 0) => {
-                if (depth > 10 || !obj || callbackFound) return;
-                
-                for (let key in obj) {
-                    try {
-                        // Check if this property is the callback
-                        if (key === 'callback' && typeof obj[key] === 'function') {
-                            console.log(`[Captcha] Found callback at depth ${depth}. Executing...`);
-                            obj[key](token);
-                            callbackFound = true;
-                            return;
-                        }
-                        // If it's an object, search inside it
-                        if (typeof obj[key] === 'object' && obj[key] !== null) {
-                            findAndExecute(obj[key], depth + 1);
-                        }
-                    } catch (e) {}
-                }
-            };
-            
-            // Search all registered reCAPTCHA clients
-            const clients = ___grecaptcha_cfg.clients;
-            for (let id in clients) {
-                findAndExecute(clients[id]);
+      try {
+        const clients = ___grecaptcha_cfg.clients;
+        for (let id in clients) {
+          const client = clients[id];
+          const findAndRun = (obj) => {
+            for (let k in obj) {
+              if (obj[k] && typeof obj[k].callback === 'function') {
+                obj[k].callback(token);
+                callbackExecuted = true;
+                console.log(`[Captcha] Executed callback at ${k}`);
+              } else if (typeof obj[k] === 'object' && obj[k] !== null && k !== 'parent') {
+                findAndRun(obj[k]);
+              }
             }
-        } catch (e) {
-            console.log("[Captcha] Error during deep search: " + e.message);
+          };
+          findAndRun(client);
         }
+      } catch (e) {
+        console.log("[Captcha] Callback search error: " + e.message);
+      }
     }
 
-    if (!callbackFound) {
-        console.log("[Captcha] CRITICAL: No callback found in ___grecaptcha_cfg. Trying manual Vue injection...");
-        // Manual Fallback for Trovagnocca's Vue structure
-        try {
-            const app = document.querySelector('#app');
-            if (app && app.__vue_app__) {
-                const updateVue = (instance) => {
-                    if (!instance || callbackFound) return;
-                    if (instance.proxy && 'adsRecaptcha' in instance.proxy) {
-                        instance.proxy.adsRecaptcha = token;
-                        console.log("[Captcha] Manually set proxy.adsRecaptcha");
-                        callbackFound = true;
-                    }
-                    if (instance.subTree) {
-                         const children = Array.isArray(instance.subTree.children) ? instance.subTree.children : [instance.subTree.children];
-                         children.forEach(c => c && updateVue(c.component));
-                    }
-                };
-                updateVue(app.__vue_app__._instance);
+    // 3. Fallback: Force Vue instance variables
+    if (!callbackExecuted) {
+      try {
+        const app = document.querySelector('#app');
+        if (app && app.__vue_app__) {
+          const walk = (comp) => {
+            if (!comp) return;
+            if (comp.proxy) {
+              ['adsRecaptcha', 'recaptchaToken', 'token'].forEach(p => {
+                if (p in comp.proxy) {
+                  comp.proxy[p] = token;
+                  console.log(`[Captcha] Manually set Vue property: ${p}`);
+                  callbackExecuted = true;
+                }
+              });
             }
-        } catch (e) {}
+            if (comp.subTree && comp.subTree.component) walk(comp.subTree.component);
+          };
+          walk(app.__vue_app__._instance);
+        }
+      } catch (e) {}
     }
 
-    // 3. Stepper-aware next button click
-    const findActiveButton = () => {
-      const stepperButton = document
-        .querySelector('#currentStep_0')
-        ?.closest('.stepper-button.next, .stepper-button, .btn');
+    // 4. Aggressive button click with visibility check
+    return new Promise((resolve) => {
+      // Small delay for Vue reactivity cycle
+      setTimeout(() => {
+        const candidates = Array.from(document.querySelectorAll('button, .btn, .toggler_next, div[role="button"]'));
+        
+        const nextBtn = candidates.find(el => {
+          const text = (el.innerText || el.textContent || '').toLowerCase();
+          const isVisible = !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+          // Check for 'Prosegui' or 'Avanti' but ignore 'Indietro' (back)
+          return isVisible && 
+                 (text.includes('prosegui') || text.includes('avanti')) && 
+                 !text.includes('indietro');
+        });
 
-      const allElements = [
-        stepperButton,
-        ...Array.from(document.querySelectorAll('button, .btn.stepper-button.next, .btn.next, .stepper-button, .toggler_next'))
-      ].filter(Boolean);
-
-      console.log(allElements, 'allElements Action Buttons')
-      const btn = allElements.find(el => {
-        const text = (el.innerText || el.textContent || '').toLowerCase();
-        const isVisible = !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-        const disabled = el.disabled || el.classList.contains('disabled') || el.classList.contains('deactivated');
-        return isVisible && !disabled && (text.includes('prosegui') || text.includes('avanti'));
-      });
-
-      if (btn) {
-        btn.disabled = false;
-        btn.classList.remove('disabled', 'deactivated');
-        btn.scrollIntoView({ block: 'center', inline: 'center' });
-        btn.click();
-        console.log("[Captcha] Found and clicked the visible stepper next button");
-        return true;
-      }
-
-      // Fallback: If no visible button, click the first one that exists at all
-      const anyBtn = allElements.find(el => /prosegui|avanti/i.test(el.innerText || el.textContent || ''));
-      if (anyBtn) {
-        console.log("[Captcha] Force clicking first available stepper next button");
-        anyBtn.click();
-        return true;
-      }
-
-      return false;
-    };
-
-    const clickedResult = findActiveButton();
-    return clickedResult;
+        if (nextBtn) {
+          nextBtn.disabled = false;
+          nextBtn.classList.remove('disabled', 'deactivated');
+          nextBtn.scrollIntoView({ block: 'center' });
+          nextBtn.click();
+          console.log("[Captcha] Next button clicked: " + nextBtn.innerText);
+          resolve(true);
+        } else {
+          console.log("[Captcha] ERROR: No visible Next button found");
+          resolve(false);
+        }
+      }, 800);
+    });
   }, token);
 
-  console.log('[trovagnocca] Injection finished. Button found:', result);
+  console.log('[trovagnocca] Injection finished. Button clicked:', result);
 
-  // Wait for the accordion to transition or navigation to happen
-  await new Promise(r => setTimeout(r, 4000));
+  // Buffer for transition
+  await new Promise(r => setTimeout(r, 4500));
 
   const finalUrl = page.url();
   console.log('[trovagnocca] Current URL after step:', finalUrl);
@@ -871,7 +1060,7 @@ async function publishAd(page, adData = {}, options = {}) {
     images: data.images.length
   });
 
-  await waitForDmcApp(page);
+  await waitForDmcApp(page, options.postUrl || POST_URL);
 
   await setWrappedSelect(page, "category", data.category);
   await delay(500);
@@ -884,13 +1073,19 @@ async function publishAd(page, adData = {}, options = {}) {
   await setTextarea(page, "#txtAdsText", data.description);
 
   await setWrappedInput(page, "phone", data.phone);
+  await setContactMethod(page, "phone");
   await setSwitch(page, "whatsapp", data.whatsapp);
   await setSwitch(page, "telegram", data.telegram);
 
   // SOLVE reCAPTCHA HERE - RIGHT BEFORE CLICKING NEXT
-  const step1Captcha = await solveStep1Recaptcha(page, options);
+  const step1Captcha = await solveRecaptcha(page, options);
   if (!step1Captcha.clickedNext) {
     await clickNext(page);
+  }
+
+  const leftInfoStep = await waitForInfoStepExit(page);
+  if (!leftInfoStep) {
+    throw new Error(`Trovagnocca did not leave contacts step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
   }
 
   const tagsReached = await fillTagsStep(page, data);
@@ -907,12 +1102,16 @@ async function publishAd(page, adData = {}, options = {}) {
   const publishResult = await waitForPublishResult(page);
 
   const url = page.url();
-  const remoteId = await page.evaluate(() => {
-    const hrefs = Array.from(document.querySelectorAll("a[href]")).map((link) => link.href);
-    hrefs.push(window.location.href);
-    const idMatch = hrefs.join(" ").match(/(?:annuncio|ads|post|id|manage|edit)[^\d]*(\d{4,})/i);
-    return idMatch ? idMatch[1] : "";
-  }).catch(() => "");
+  const urlIdMatch = url.match(/\/ads\/manage\/(\d{4,})\b/i);
+  const remoteId = urlIdMatch
+    ? urlIdMatch[1]
+    : await page.evaluate(() => {
+      const hrefs = Array.from(document.querySelectorAll("a[href]")).map((link) => link.href);
+      hrefs.push(window.location.href);
+      const idMatch = hrefs.join(" ").match(/\/ads\/manage\/(\d{4,})\b/i) ||
+        hrefs.join(" ").match(/(?:annuncio|ads|post|id|manage|edit)[^\d]*(\d{4,})/i);
+      return idMatch ? idMatch[1] : "";
+    }).catch(() => "");
 
   if (publishResult.hasError || (!publishResult.hasSuccess && !publishModal.published && !remoteId)) {
     throw new Error(`Trovagnocca publish did not confirm success: ${JSON.stringify(publishResult.diagnostics)}`);

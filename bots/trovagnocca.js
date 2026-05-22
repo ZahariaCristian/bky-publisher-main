@@ -5,6 +5,7 @@ const RecaptchaPlugin = require("puppeteer-extra-plugin-recaptcha");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const TwoCaptcha = require("@2captcha/captcha-solver");
 const { publishAd } = require("../adsManage/trovagnocca/publishAds");
+const { updateAd } = require("../adsManage/trovagnocca/updateAd");
 
 const LOGIN_URL = "https://www.trovagnocca.com/auth/login";
 const HOME_URL = "https://www.trovagnocca.com/";
@@ -91,7 +92,7 @@ class TrovagnoccaBot {
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-blink-features=AutomationControlled",
-        "--window-size=1366,900"
+        "--window-size=1366,900",
       ],
       // defaultViewport: {
       //   width: 1366,
@@ -102,12 +103,15 @@ class TrovagnoccaBot {
 
   async newPage() {
     await this.launch();
+    
     this.page = await this.browser.newPage();
     this.page.setDefaultTimeout(30000);
     this.page.setDefaultNavigationTimeout(60000);
     await this.page.setUserAgent(USER_AGENT);
     return this.page;
   }
+
+
 
   async waitTillHTMLRendered(page, timeout = 30000) {
     const checkInterval = 1000;
@@ -588,6 +592,30 @@ class TrovagnoccaBot {
     const publishData = this.buildPublishData(ad);
 
     return publishAd(page, publishData, {
+      browser: this.browser,
+      solveRecaptcha: this.solveRecaptcha.bind(this),
+      getCaptchaToken: this.getCaptchaToken.bind(this)
+    });
+  }
+
+  async resolveRemoteId(ad) {
+    return extractRemoteAdId(ad?.remotePostID || ad?.urlBK || ad?.idpriv || ad?.remoteId);
+  }
+
+  async update(ad) {
+    const remoteId = ad?.remotePostID || await this.resolveRemoteId(ad);
+    if (!remoteId) {
+      throw new Error(`Trovagnocca remotePostID missing for EDIT state on schedule ${ad?.id || ""}`);
+    }
+
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+    const publishData = {
+      ...this.buildPublishData(ad),
+      remotePostID: remoteId
+    };
+
+    return updateAd(page, publishData, {
+      remoteId,
       browser: this.browser,
       solveRecaptcha: this.solveRecaptcha.bind(this),
       getCaptchaToken: this.getCaptchaToken.bind(this)

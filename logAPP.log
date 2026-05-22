@@ -2033,3 +2033,220 @@ Publisher ERROR during trovagnocca operation: Error: Trovagnocca requires at lea
 Publisher INFO: login success for Raffa21's Team / trovagnocca
 Publisher INFO: login success for Raffa21's Team / bakecaincontrii
 Publisher: Deleting Bakeca ad n. 1397, schedule n. 8, group 15
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi non compilati","Prosegui","Il tuo annuncio * Campi non compilati","Prosegui","I tuoi contatti * Campi non compilati","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:898:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi non compilati","Prosegui","Il tuo annuncio * Campi non compilati","Prosegui","I tuoi contatti * Campi non compilati","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:898:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi non compilati","Prosegui","Il tuo annuncio * Campi non compilati","Prosegui","I tuoi contatti * Campi non compilati","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:898:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi non compilati","Prosegui","Il tuo annuncio * Campi non compilati","Prosegui","I tuoi contatti * Campi non compilati","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:898:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Navigating frame was detached
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi non compilati","Prosegui","Il tuo annuncio * Campi non compilati","Prosegui","I tuoi contatti * Campi non compilati","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:898:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi non compilati","Prosegui","Il tuo annuncio * Campi non compilati","Prosegui","I tuoi contatti * Campi non compilati","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:898:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher ERROR: TypeError: Cannot read properties of null (reading 'authenticate')
+Try restart bot of group Raffa21's Team platform trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher ERROR: TimeoutError: Waiting for selector `input[type='password'], input[name='password']` failed
+Try restart bot of group Raffa21's Team platform trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher ERROR: TimeoutError: Waiting for selector `input[type='password'], input[name='password']` failed
+Try restart bot of group Raffa21's Team platform trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi non compilati","Prosegui","Il tuo annuncio * Campi non compilati","Prosegui","I tuoi contatti * Campi non compilati","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:884:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher: Deleting Bakeca ad n. 1937, schedule n. 14, group 15
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher: Deleting Bakeca ad n. 1937, schedule n. 1, group 15
+Publisher: Deleting Bakeca ad n. 1937, schedule n. 2, group 15
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not leave contacts step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi non compilati","Prosegui","Il tuo annuncio * Campi non compilati","Prosegui","I tuoi contatti * Campi non compilati","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1053:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+Publisher: Deleting Bakeca ad n. 1946, schedule n. 4, group 15
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not leave contacts step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi non compilati","Prosegui","Il tuo annuncio * Campi non compilati","Prosegui","I tuoi contatti * Campi non compilati","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1053:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+Publisher: Deleting Bakeca ad n. 1947, schedule n. 5, group 15
+Publisher: Deleting Bakeca ad n. 1948, schedule n. 7, group 15
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not leave contacts step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi non compilati","Prosegui","Il tuo annuncio * Campi non compilati","Prosegui","I tuoi contatti * Campi non compilati","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1053:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+Publisher: Updating Bakeca ad n. 1945, schedule n. 8, group 15
+Publisher ERROR during trovagnocca operation: TypeError: platform.bot.update is not a function
+    at postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:753:61)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+Publisher: Updating Bakeca ad n. 1945, schedule n. 10, group 15
+Publisher ERROR during trovagnocca operation: TypeError: platform.bot.update is not a function
+    at postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:753:61)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+Publisher: Updating Bakeca ad n. 1945, schedule n. 10, group 15
+Publisher ERROR during trovagnocca operation: TypeError: platform.bot.update is not a function
+    at postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:753:61)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher: Updating Bakeca ad n. 1945, schedule n. 10, group 15
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher: Deleting Bakeca ad n. 1945, schedule n. 10, group 15
+Publisher: Deleting Bakeca ad n. 1950, schedule n. 1, group 15
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca DELETE ad 123123 failed: 404  {"success":false,"message":"Not Found","btnClose":"Chiudi"}
+    at TrovagnoccaBot.requestAdResource (E:\Web\Node\Dev\bky-publisher-main\bots\trovagnocca.js:683:13)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:767:42)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher: Updating Bakeca ad n. 1950, schedule n. 2, group 15
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not leave contacts step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post/9170543","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK","×","Ho capito, non mostrare più","No","Cancel"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * Campi obbligatori IL TUO ANNUNCIO * Campi obbligatori * Età * Titolo Minimo 5 caratteri * Testo Minimo 20 caratteri PROSEGUI I TUOI CONTATTI * Campi obbligatori Termini e condizioni Leggi qui AVANTI keyboard_arrow_right Home Gestione Annunci Contatti Termini e Condizioni Privacy Policy Prodotti Links Amici Trovagnocca Itaincontri Empirescort Cerca siti per adulti Blog Pubblica annuncio in: 🇮🇹 Italia 🇦🇷 Argentina 🇦🇺 Australia 🇧🇴 Bolivia 🇧🇷 Brasil 🇨🇱 Chile 🇨🇴 Colombia 🇨🇷 Costa Rica 🇩🇴 República Dominicana 🇪🇨 Ecuador 🇪🇸 España 🇬🇹 Guatemala 🇮🇪 Ireland 🇮🇳 India 🇮🇹 Italia 🇲🇽 México 🇳🇿 New Zealand 🇵🇦 Panama 🇵🇪 Perú 🇵🇾 Paraguay 🇸🇬 Singapore 🇬🇧 United Kingdom 🇺🇾 Uruguay 🇻🇪 Venezuela All copyrights reserved © 2026 Top La modifica dell'annuncio NON lo fa risalire sul listato ma, una volta modificato, rimarrà nella posizione in cui è. Se vuoi fare risalire un annuncio identico a quello che hai già pubblicato potrai cliccare Il tasto \"Duplica\". Ho capito, non mostrare più"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1063:11)
+    at async updateAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\updateAd.js:35:18)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:753:42)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+Publisher ERROR during trovagnocca operation: TimeoutError: Waiting for selector `#txtAdsTitle` failed
+    at CSSQueryHandler.waitFor (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\QueryHandler.js:214:46)
+    at async CdpFrame.waitForSelector (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:544:21)
+    at async CdpPage.waitForSelector (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:1391:20)
+    at async setTextarea (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:437:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1047:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+Publisher: Updating Bakeca ad n. 1950, schedule n. 2, group 15
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher: Deleting Bakeca ad n. 1950, schedule n. 1, group 15
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher: Deleting Bakeca ad n. 1950, schedule n. 2, group 15

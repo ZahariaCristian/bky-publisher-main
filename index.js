@@ -399,7 +399,7 @@ async function mainLoop(group, platform) {
                     });
 
                     const picsLimit = s.platform == "trovagnocca" ? 6 : 5;
-                    if (!galleriaSchedulazione.length && annuncio.tblDonne?.getTblGalleria) {
+                    if (!galleriaSchedulazione.length && s.platform != "trovagnocca" && annuncio.tblDonne?.getTblGalleria) {
                         const fallbackGallery = await annuncio.tblDonne.getTblGalleria({
                             limit: picsLimit,
                             where: {

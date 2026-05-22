@@ -18,7 +18,9 @@ function normalizeCategory(category, fallback = "escort") {
     const value = firstNonEmpty(category).toLowerCase();
     if (value.includes("massaggi")) return "massaggi";
     if (value.includes("trans")) return "trans";
+    if (value.includes("uomodonna") || value.includes("uomo donna") || value.includes("uomo cerca donna")) return "gigolo";
     if (value.includes("uomouomo") || value.includes("uomo uomo") || value.includes("gay")) return "gay";
+    if (value.includes("donnadonna") || value.includes("donna donna") || value.includes("donna cerca donna")) return "escort";
     if (value.includes("copp")) return "coppia";
     if (value.includes("donnauomo") || value.includes("donna uomo")) return "escort";
     return normalizeAdType(value || fallback);

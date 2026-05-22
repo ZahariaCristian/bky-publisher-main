@@ -33,6 +33,24 @@ const CREDIT = "https://www.bakeca.it/miabakeca/crediti/acquista/";
 const PUBLISH_URL = "https://www.bakeca.it/pubblica/annuncio/idPriv/";
 const MODIFY_URL = "https://www.bakeca.it/modifica/annuncio/idpriv/";
 
+const normalizeBakecaCategory = (category) => {
+  const value = `${category || ""}`.toLowerCase();
+  if (value.includes("massaggi") || value.includes("benessere")) return "massaggi-benessere";
+  return "incontri-amore";
+};
+
+const normalizeBakecaContactType = (value) => {
+  const normalized = `${value || ""}`.toLowerCase();
+  if (normalized.includes("donnauomo") || normalized.includes("donna uomo") || normalized.includes("donna cerca uomo")) return "donna";
+  if (normalized.includes("uomodonna") || normalized.includes("uomo donna") || normalized.includes("uomo cerca donna")) return "uomo";
+  if (normalized.includes("uomouomo") || normalized.includes("uomo uomo") || normalized.includes("uomo cerca uomo")) return "uomo";
+  if (normalized.includes("donnadonna") || normalized.includes("donna donna") || normalized.includes("donna cerca donna")) return "donna";
+  if (normalized.includes("trans")) return "trans";
+  if (normalized.includes("copp")) return "coppia";
+  if (normalized.includes("uomo")) return "uomo";
+  return "donna";
+};
+
 // puppeteer.use(StealthPlugin());
 puppeteer.use(
   StealthPlugin(),
@@ -480,10 +498,8 @@ class BakecaBot {
   }
 
   async publish(ad, group, platform) {
-    let publishUrl = PUBLISH_INCONTRI_URL;
-    if (ad.categorie != 'incontri-amore') {
-      publishUrl = PUBLISH_MASSAGGI_URL;
-    }
+    const bakecaCategory = normalizeBakecaCategory(ad.categorie);
+    let publishUrl = bakecaCategory === "massaggi-benessere" ? PUBLISH_MASSAGGI_URL : PUBLISH_INCONTRI_URL;
 
     await openPublishPage(this.page, publishUrl)
     // console.log(ad.promo, ad.sono, 'ad promo')
@@ -492,15 +508,13 @@ class BakecaBot {
       titolo: ad?.title || '',
       testo: ad.description || '',
       email: ad.username,
-      cercoamoreincontri: ad.sono || "trans",
+      cercoamoreincontri: normalizeBakecaContactType(ad.sono || ad.categorie),
       contattotelefonico: ad.phone,
       tiporeply: "4",
       comune: ad.annunci_city,
       sel_provincia: "roma",
       sel_comune: "058091",
-      categoria: ['incontri-amore', 'massaggi-benessere'].includes(ad.categorie)
-        ? ad.categorie
-        : 'incontri-amore',
+      categoria: bakecaCategory,
       sezione: "cita",
       images: ad.pics,
       typeAnnuncio: ad.promo.visibility,
@@ -527,19 +541,18 @@ class BakecaBot {
     await this.waitTillHTMLRendered(this.page).catch(() => { });
     await this.delay(1000);
 
+    const bakecaCategory = normalizeBakecaCategory(ad.categorie);
     let publishData = {
       titolo: ad?.title || '',
       testo: ad.description || '',
       email: ad.username,
-      cercoamoreincontri: ad.sono || "trans",
+      cercoamoreincontri: normalizeBakecaContactType(ad.sono || ad.categorie),
       contattotelefonico: ad.phone,
       tiporeply: "4",
       comune: ad.annunci_city,
       sel_provincia: "roma",
       sel_comune: "058091",
-      categoria: ['incontri-amore', 'massaggi-benessere'].includes(ad.categorie)
-        ? ad.categorie
-        : 'incontri-amore',
+      categoria: bakecaCategory,
       sezione: "cita",
       images: ad.pics
     }
