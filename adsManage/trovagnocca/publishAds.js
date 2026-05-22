@@ -515,14 +515,15 @@ function resolveImagePaths(images = []) {
 async function uploadImages(page, images = []) {
   await waitForPhotoStep(page);
 
-  const existing = resolveImagePaths(images);
-  if (!existing.length) {
-    throw new Error("Trovagnocca requires at least one photo before publishing.");
+  const resolved = resolveImagePaths(images);
+  const missing = resolved.filter((imagePath) => !fs.existsSync(imagePath));
+  if (missing.length) {
+    console.warn(`[trovagnocca:publish] Skipping missing photo files: ${missing.join(", ")}`);
   }
 
-  const missing = existing.filter((imagePath) => !fs.existsSync(imagePath));
-  if (missing.length) {
-    throw new Error(`Trovagnocca photo file not found: ${missing[0]}`);
+  const existing = resolved.filter((imagePath) => fs.existsSync(imagePath));
+  if (!existing.length) {
+    throw new Error("Trovagnocca requires at least one existing photo before publishing.");
   }
 
   const input = await page.$('input[type="file"][name="items[]"], input[type="file"][name="inputFile"], .dropArea input[type="file"], input[type="file"][accept*="image"], input[type="file"]');

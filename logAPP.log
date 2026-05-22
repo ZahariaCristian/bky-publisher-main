@@ -1994,3 +1994,27 @@ Publisher ERROR during trovagnocca operation: ReferenceError: aliases is not def
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_NETWORK_CHANGED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Navigating frame was detached
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca photo file not found: E:\Web\Node\website\girls\3396010585\pics\5.jpg
+    at uploadImages (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:525:11)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:894:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:801:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:578:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1004:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
