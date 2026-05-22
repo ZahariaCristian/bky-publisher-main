@@ -583,7 +583,14 @@ class TrovagnoccaBot {
       note: ad?.note || "",
       pics: ad?.pics || [],
       images: ad?.pics || [],
-      picsAudit: ad?.picsAudit || []
+      picsAudit: ad?.picsAudit || [],
+      typeAnnuncio: ad?.typeAnnuncio || ad?.promo?.visibility || "Free",
+      period: ad?.period || ad?.promo?.schedule || "",
+      promo: ad?.promo || {
+        active: ad?.typeAnnuncio && ad.typeAnnuncio !== "Free",
+        visibility: ad?.typeAnnuncio || "Free",
+        schedule: ad?.period || ""
+      }
     };
   }
 

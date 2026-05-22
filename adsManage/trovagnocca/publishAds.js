@@ -826,6 +826,215 @@ async function waitForPromoStep(page) {
   }, { timeout: 30000 });
 }
 
+function getGoldDuration(typeAnnuncio = "") {
+  const value = `${typeAnnuncio || ""}`.toLowerCase();
+  if (value.includes("1x7") || value.includes("7")) return "7";
+  if (value.includes("1x3") || value.includes("3")) return "3";
+  return "1";
+}
+
+function normalizeGoldGroup(value = "") {
+  const text = normalizeKey(value);
+  if (text.includes("all") || text.includes("intero")) return "ALLDAY";
+  if (text.includes("matt")) return "MATTINA";
+  if (text.includes("pomer")) return "POMERIGGIO";
+  if (text.includes("sera")) return "SERA";
+  if (text.includes("nott")) return "NOTTE";
+  return "";
+}
+
+function goldGroupForHour(hour) {
+  if (hour >= 6 && hour < 12) return "MATTINA";
+  if (hour >= 12 && hour < 18) return "POMERIGGIO";
+  if (hour >= 18 && hour < 24) return "SERA";
+  return "NOTTE";
+}
+
+function expandRangeSlots(period = "") {
+  const periodText = `${period || ""}`.trim();
+  const match = periodText.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+  if (!match) return [];
+
+  const startHour = Number(match[1]) % 24;
+  const endHour = Number(match[3]) % 24;
+  if (!Number.isFinite(startHour) || !Number.isFinite(endHour)) return [];
+
+  return [{
+    group: goldGroupForHour(startHour),
+    label: periodText.replace(/\s*-\s*/g, "-")
+  }];
+}
+
+function parseGoldPeriods(period = "") {
+  if (!period) return [];
+
+  try {
+    const parsed = JSON.parse(period);
+    if (Array.isArray(parsed)) {
+      return parsed.flatMap((item) => {
+        if (typeof item === "string") return parseGoldPeriods(item);
+
+        const group = normalizeGoldGroup(item?.group);
+        const slots = Array.isArray(item?.slots) ? item.slots : [];
+        if (group === "ALLDAY") return [{ group, label: "ALLDAY" }];
+        return slots.map((slot) => ({
+          group: group || goldGroupForHour(Number(`${slot}`.match(/\d{1,2}/)?.[0] || 0)),
+          label: `${slot || ""}`.trim()
+        })).filter((slot) => slot.label);
+      });
+    }
+  } catch {
+    // Legacy period values are handled below.
+  }
+
+  const group = normalizeGoldGroup(period);
+  if (group === "ALLDAY") return [{ group, label: "ALLDAY" }];
+
+  const rangeSlots = expandRangeSlots(period);
+  if (rangeSlots.length) return rangeSlots;
+
+  return [{ group: group || "", label: `${period}`.trim() }].filter((slot) => slot.label);
+}
+
+function groupGoldSlots(period = "") {
+  const slots = parseGoldPeriods(period);
+  const result = {};
+
+  for (const slot of slots) {
+    const group = normalizeGoldGroup(slot.group) || goldGroupForHour(Number(`${slot.label}`.match(/\d{1,2}/)?.[0] || 0));
+    if (!result[group]) result[group] = [];
+    result[group].push(slot.label);
+  }
+
+  return result;
+}
+
+async function selectGoldDuration(page, duration) {
+  await page.evaluate((durationValue) => {
+    const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+    const select = Array.from(document.querySelectorAll("select")).find((node) => {
+      const sectionText = clean(node.closest(".section, div")?.textContent);
+      const options = Array.from(node.options || []).map((option) => `${option.value}:${clean(option.textContent)}`);
+      return /giorni|days/.test(sectionText) || options.some((option) => /1|3|7/.test(option));
+    });
+
+    if (!select) throw new Error("Gold Plan duration select not found");
+    const option = Array.from(select.options || []).find((item) => `${item.value}` === `${durationValue}`);
+    if (!option) throw new Error(`Gold Plan duration option not found: ${durationValue}`);
+
+    const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")?.set;
+    if (nativeValueSetter) nativeValueSetter.call(select, option.value);
+    else select.value = option.value;
+    option.selected = true;
+    select.dispatchEvent(new Event("input", { bubbles: true }));
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  }, duration);
+
+  await delay(700);
+}
+
+async function selectGoldAllDay(page) {
+  const selected = await page.evaluate(() => {
+    const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+    const groups = Array.from(document.querySelectorAll(".group, .group-allday, div"));
+    const group = groups.find((node) => /intero giorno/i.test(clean(node.textContent || "")));
+    const button = group?.querySelector("button");
+    if (!button) return false;
+    button.scrollIntoView({ block: "center", inline: "center" });
+    button.click();
+    return true;
+  });
+
+  if (!selected) throw new Error("Gold Plan all-day selector not found");
+  await delay(700);
+}
+
+async function selectGoldGroupSlots(page, groupedSlots) {
+  for (const [groupName, slots] of Object.entries(groupedSlots)) {
+    if (groupName === "ALLDAY") {
+      await selectGoldAllDay(page);
+      continue;
+    }
+
+    const opened = await page.evaluate((groupLabel) => {
+      const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+      const wanted = clean(groupLabel);
+      const groups = Array.from(document.querySelectorAll(".group"));
+      const group = groups.find((node) => clean(node.querySelector(".group-title")?.textContent || node.textContent).includes(wanted));
+      if (!group) return false;
+
+      const toggle = group.querySelector('button[role="switch"], button.toggle, .toggle');
+      if (toggle && toggle.getAttribute("aria-checked") !== "true") {
+        toggle.scrollIntoView({ block: "center", inline: "center" });
+        toggle.click();
+      } else {
+        group.scrollIntoView({ block: "center", inline: "center" });
+      }
+      return true;
+    }, groupName);
+
+    if (!opened) throw new Error(`Gold Plan group not found: ${groupName}`);
+    await delay(700);
+
+    for (const slotLabel of slots) {
+      const clicked = await page.evaluate((label) => {
+        const normalize = (value) => `${value || ""}`
+          .replace(/\s*-\s*/g, "-")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLowerCase();
+        const wanted = normalize(label);
+        const controls = Array.from(document.querySelectorAll("button, label, .btn, .slot, .time-slot, .custom-control"));
+        const target = controls.find((node) => normalize(node.textContent).includes(wanted));
+        if (!target) return false;
+
+        const input = target.querySelector?.("input[type='checkbox'], input[type='radio']") ||
+          (target.getAttribute?.("for") ? document.getElementById(target.getAttribute("for")) : null);
+        const clickable = input || target;
+        clickable.scrollIntoView({ block: "center", inline: "center" });
+        clickable.click();
+        return true;
+      }, slotLabel);
+
+      if (!clicked) {
+        console.warn(`[trovagnocca:publish] Gold Plan slot not found: ${groupName} ${slotLabel}`);
+      }
+      await delay(250);
+    }
+  }
+}
+
+async function clickGoldPublish(page) {
+  await page.evaluate(() => {
+    const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+    const candidates = Array.from(document.querySelectorAll("button, .btn"));
+    const button = candidates.find((node) => {
+      const text = clean(node.textContent);
+      const disabled = node.disabled || node.classList.contains("disabled");
+      return !disabled && !node.matches("#ads-post-free") && /pubblica|acquista|conferma|procedi|paga/i.test(text);
+    });
+
+    if (!button) throw new Error("Gold Plan publish/purchase button not found");
+    button.scrollIntoView({ block: "center", inline: "center" });
+    button.click();
+  });
+  await delay(1000);
+}
+
+async function clickGoldPublishFlow(page, data) {
+  await waitForPromoStep(page);
+  await selectGoldDuration(page, getGoldDuration(data.typeAnnuncio));
+
+  const groupedSlots = groupGoldSlots(data.period);
+  if (!Object.keys(groupedSlots).length) {
+    await selectGoldAllDay(page);
+  } else {
+    await selectGoldGroupSlots(page, groupedSlots);
+  }
+
+  await clickGoldPublish(page);
+}
+
 async function clickPublish(page) {
   await waitForPromoStep(page);
 
@@ -908,6 +1117,7 @@ async function waitForPublishResult(page) {
 
 function buildPublishData(adData = {}) {
   const contactNote = parseTrovagnoccaNote(adData.note);
+  const typeAnnuncio = firstNonEmpty(adData.typeAnnuncio, adData.promo?.visibility, "Free");
   return {
     category: normalizeCategory(adData.categorie || adData.sono || adData.category),
     city: CITY_VALUES[normalizeKey(firstNonEmpty(adData.city, adData.annunci_city, adData.comune))] || firstNonEmpty(adData.city, adData.annunci_city, adData.comune),
@@ -922,7 +1132,14 @@ function buildPublishData(adData = {}) {
     nationality: firstNonEmpty(adData.serviceNazionalita, adData.nationality, adData.nazionalita),
     tags: buildTagSelections(adData),
     images: Array.isArray(adData.images) ? adData.images : (Array.isArray(adData.pics) ? adData.pics : []),
-    picsAudit: Array.isArray(adData.picsAudit) ? adData.picsAudit : []
+    picsAudit: Array.isArray(adData.picsAudit) ? adData.picsAudit : [],
+    typeAnnuncio,
+    period: firstNonEmpty(adData.period, adData.promo?.schedule),
+    promo: {
+      active: isEnabled(adData.promo?.active) || typeAnnuncio !== "Free",
+      visibility: typeAnnuncio,
+      schedule: firstNonEmpty(adData.period, adData.promo?.schedule)
+    }
   };
 }
 
@@ -1097,7 +1314,11 @@ async function publishAd(page, adData = {}, options = {}) {
   await clickNext(page);
   await setSwitch(page, "ck_term", true);
 
-  await clickPublish(page);
+  if (data.promo.active) {
+    await clickGoldPublishFlow(page, data);
+  } else {
+    await clickPublish(page);
+  }
   const publishModal = await confirmFreePublishWarning(page);
   const publishResult = await waitForPublishResult(page);
 
