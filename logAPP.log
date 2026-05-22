@@ -149,3 +149,819 @@ Publisher ERROR during trovagnocca operation: TypeError: platform.bot.publish is
     at mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:537:23)
     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
     at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:960:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Select wrapper not found: city
+    at evaluate (evaluate at setWrappedSelect (E:\Web\Node\Dev\bky-publisher-main1\adsManage\trovagnocca\publishAds.js:283:14), <anonymous>:3:23)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main1\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main1\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main1\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main1\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main1\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async setWrappedSelect (E:\Web\Node\Dev\bky-publisher-main1\adsManage\trovagnocca\publishAds.js:283:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main1\adsManage\trovagnocca\publishAds.js:656:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main1\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main1\index.js:555:17)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Select wrapper not found: city
+    at evaluate (evaluate at setWrappedSelect (E:\Web\Node\Dev\bky-publisher-main1\adsManage\trovagnocca\publishAds.js:283:14), <anonymous>:3:23)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main1\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main1\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main1\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main1\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main1\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async setWrappedSelect (E:\Web\Node\Dev\bky-publisher-main1\adsManage\trovagnocca\publishAds.js:283:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main1\adsManage\trovagnocca\publishAds.js:656:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main1\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main1\index.js:555:17)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher ERROR during trovagnocca operation: TypeError: option.getCaptchaToken is not a function
+    at solveStep1Recaptcha (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:592:30)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:669:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher ERROR: Error: Trovagnocca login validation failed. Current URL: https://www.trovagnocca.com/
+Try restart bot of group Raffa21's Team platform trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: TypeError: options.getCaptchaToken is not a function
+    at solveStep1Recaptcha (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:592:31)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:669:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Select wrapper not found: city
+    at evaluate (evaluate at setWrappedSelect (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:283:14), <anonymous>:3:23)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async setWrappedSelect (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:283:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:693:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: ReferenceError: delay is not defined
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:728:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: TypeError: page.waitForTimeout is not a function
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:728:14)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+Publisher ERROR during trovagnocca operation: TypeError: page.waitForTimeout is not a function
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:728:14)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Failed to get reCAPTCHA token
+    at solveStep1Recaptcha (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:670:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:746:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: TimeoutError: Waiting failed: 30000ms exceeded
+    at new WaitTask (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\WaitTask.js:49:34)
+    at IsolatedWorld.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Realm.js:25:26)
+    at CdpFrame.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:583:43)
+    at CdpFrame.<anonymous> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\util\decorators.js:109:27)
+    at CdpPage.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:1451:37)
+    at fillTagsStep (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:548:14)
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:768:9)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:777:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:777:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:777:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+Publisher ERROR during trovagnocca operation: TypeError: Object.defineProperty called on non-object
+Object.defineProperty (<anonymous>)
+    at evaluate (evaluate at solveStep1Recaptcha (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:703:14), <anonymous>:27:13)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async solveStep1Recaptcha (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:703:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:772:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1010:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: ReferenceError: getCaptchaToken is not defined
+    at solveStep1Recaptcha (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:725:17)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:833:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher ERROR: APIError: An Unexpected Error has occured. Please submit an issue on GitHub detailing this event.
+Try restart bot of group Raffa21's Team platform trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: TypeError: page.waitForTimeout is not a function
+    at solveStep1Recaptcha (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:719:14)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:783:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:788:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: ProtocolError: Network.setCacheDisabled timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.
+    at <instance_members_initializer> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:103:14)
+    at new Callback (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:107:16)
+    at CallbackRegistry.create (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:25:26)
+    at Connection._rawSend (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\Connection.js:108:26)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\CdpSession.js:74:33)
+    at #applyProtocolCacheDisabled (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\NetworkManager.js:265:26)
+    at #applyProtocolRequestInterception (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\NetworkManager.js:239:53)
+    at E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\NetworkManager.js:170:20
+    at Array.map (<anonymous>)
+    at #applyToAllClients (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\NetworkManager.js:169:60)
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Navigation timeout of 60000 ms exceeded
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:840:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:840:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:840:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: TypeError: page.delay is not a function
+    at solveStep1Recaptcha (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:811:16)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:844:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: ReferenceError: getCaptchaToken is not defined
+    at solveStep1Recaptcha (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:640:17)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:834:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:839:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:864:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:864:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: ReferenceError: browser is not defined
+    at solveStep1Recaptcha (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:664:25)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:843:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:848:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:848:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Navigation timeout of 30000 ms exceeded
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Waiting failed: 30000ms exceeded
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Navigation timeout of 30000 ms exceeded
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher ERROR: Error: net::ERR_CONNECTION_RESET at https://www.trovagnocca.com/auth/login
+Try restart bot of group Raffa21's Team platform trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: TimeoutError: Waiting failed: 60000ms exceeded
+    at new WaitTask (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\WaitTask.js:49:34)
+    at IsolatedWorld.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Realm.js:25:26)
+    at CdpFrame.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:583:43)
+    at CdpFrame.<anonymous> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\util\decorators.js:109:27)
+    at CdpPage.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:1451:37)
+    at waitForDmcApp (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:277:14)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:731:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:755:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: ReferenceError: clicked is not defined
+    at solveStep1Recaptcha (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:712:46)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:743:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:740:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:746:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:757:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:757:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Next/Prosegui button not found
+    at evaluate (evaluate at clickNext (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:419:14), <anonymous>:7:23)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async clickNext (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:419:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:799:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:795:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+Publisher ERROR during trovagnocca operation: Error: Next/Prosegui button not found
+    at evaluate (evaluate at clickNext (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:419:14), <anonymous>:7:23)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async clickNext (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:419:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:799:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not advance to tags step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi obbligatori","Prosegui","Il tuo annuncio * Campi obbligatori","Prosegui","I tuoi contatti * Campi obbligatori","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity label photo_camera beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viter"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:796:11)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher WARNING: Turnstile non risolto per raffaelesorrentino74@yahoo.it. Utente disabilitato temporaneamente, nuovo login tra 10s (tentativo 1).
+Publisher INFO: utente raffaelesorrentino74@yahoo.it riabilitato dopo login riuscito.
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: ProtocolError: Protocol error (Runtime.callFunctionOn): Target crashed
+    at <instance_members_initializer> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:103:14)
+    at new Callback (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:107:16)
+    at CallbackRegistry.create (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:25:26)
+    at Connection._rawSend (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\Connection.js:108:26)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\CdpSession.js:74:33)
+    at next (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-extra-plugin-stealth\evasions\sourceurl\index.js:34:41)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-extra-plugin-stealth\evasions\sourceurl\index.js:75:16)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:363:50)
+    at ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:36)
+    at IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:30)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Next/Prosegui button not found
+    at evaluate (evaluate at clickNext (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:419:14), <anonymous>:7:23)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async clickNext (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:419:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:809:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Waiting failed: 30000ms exceeded
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Next/Prosegui button not found
+    at evaluate (evaluate at clickNext (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:419:14), <anonymous>:7:23)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async clickNext (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:419:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:809:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: ReferenceError: existing is not defined
+    at uploadImages (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:497:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:808:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_NETWORK_CHANGED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.trovagnocca.com/dmc/account#/credits
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_INTERNET_DISCONNECTED at https://www.bakecaincontrii.com/u/account/dashboard/
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher ERROR: TimeoutError: Waiting failed: 10000ms exceeded
+Try restart bot of group Raffa21's Team platform trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca photo file not found: /web/Node/website/girls/3396010585/pics/0.jpeg
+    at uploadImages (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:502:11)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:871:3)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:777:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher: Suspending Bakeca ad n. 1942, schedule n. 1, group 15
+Publisher ERROR during trovagnocca operation: TypeError: platform.bot.suspend is not a function
+    at postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:757:62)
+    at mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:555:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:978:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher: Suspending Bakeca ad n. 1942, schedule n. 1, group 15

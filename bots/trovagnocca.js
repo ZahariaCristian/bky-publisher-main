@@ -8,6 +8,7 @@ const { publishAd } = require("../adsManage/trovagnocca/publishAds");
 
 const LOGIN_URL = "https://www.trovagnocca.com/auth/login";
 const HOME_URL = "https://www.trovagnocca.com/";
+const ACCOUNT_URL = "https://www.trovagnocca.com/dmc/account";
 const CREDIT_URL = "https://www.trovagnocca.com/dmc/account#/credits";
 
 const RECAPTCHA_SITEKEY = "6LeghE4gAAAAAPMCvQ_nOzXwunnt9wfu_SCc3Zu_";
@@ -50,6 +51,15 @@ function delay(ms) {
 function isEnabled(value) {
   if (value === true || value === 1) return true;
   return ["1", "true", "yes", "si", "on", "checked"].includes(`${value || ""}`.trim().toLowerCase());
+}
+
+function extractRemoteAdId(remoteId) {
+  const value = `${remoteId || ""}`;
+  const manageMatch = value.match(/ads\/manage\/(\d+)/i);
+  if (manageMatch) return manageMatch[1];
+
+  const numericMatch = value.match(/\b(\d{4,})\b/);
+  return numericMatch ? numericMatch[1] : "";
 }
 
 class TrovagnoccaBot {
@@ -271,6 +281,35 @@ class TrovagnoccaBot {
         }
       });
     }, token);
+  }
+
+  async getCaptchaToken(page, siteKey = RECAPTCHA_SITEKEY) {
+    try {
+      console.log("[2captcha] Requesting solve for page url:", page.url());
+
+      const solution = await solver.recaptcha({
+        googlekey: siteKey,
+        pageurl: page.url(),
+        userAgent: USER_AGENT,
+      });
+
+      // Use solution (the variable defined above) to extract the token
+      if (solution && solution.data) {
+        return solution.data;
+      }
+
+      // Handle different library return formats
+      const tokenStr = typeof solution === 'string' ? solution : (solution?.request || solution?.code);
+
+      if (tokenStr && typeof tokenStr === 'string') {
+        return tokenStr;
+      }
+
+      throw new Error("2Captcha returned an unexpected response format");
+    } catch (err) {
+      console.error("[2captcha] Error during solve:", err.message);
+      return null;
+    }
   }
 
   async solveRecaptcha(page) {
@@ -548,8 +587,89 @@ class TrovagnoccaBot {
     const publishData = this.buildPublishData(ad);
 
     return publishAd(page, publishData, {
-      solveRecaptcha: this.solveRecaptcha.bind(this)
+      browser: this.browser,
+      solveRecaptcha: this.solveRecaptcha.bind(this),
+      getCaptchaToken: this.getCaptchaToken.bind(this)
     });
+  }
+
+  async requestAdResource(remoteId, method, payload = null) {
+    const id = extractRemoteAdId(remoteId);
+    if (!id) throw new Error(`Trovagnocca remote ad id missing or invalid: ${remoteId}`);
+
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+    const manageUrl = `${ACCOUNT_URL}#/ads/manage/${id}`;
+
+    await page.goto(manageUrl, { waitUntil: "networkidle2", timeout: 60000 });
+    await this.waitTillHTMLRendered(page);
+
+    if (page.url().includes("/auth/login")) {
+      throw new Error("Trovagnocca ad action redirected to login. Cookies are missing or expired.");
+    }
+
+    const result = await page.evaluate(async ({ id, method, payload }) => {
+      const readCookie = (name) => {
+        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const match = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
+        return match ? decodeURIComponent(match[1]) : "";
+      };
+
+      const csrfToken =
+        document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ||
+        document.querySelector('input[name="_token"]')?.value ||
+        readCookie("XSRF-TOKEN");
+
+      const headers = {
+        accept: "application/json",
+        "x-requested-with": "XMLHttpRequest"
+      };
+
+      if (csrfToken) headers["x-csrf-token"] = csrfToken;
+      if (payload !== null) headers["content-type"] = "application/json";
+
+      const response = await fetch(`/api/v1/resource/ad/${id}`, {
+        method,
+        headers,
+        credentials: "same-origin",
+        body: payload === null ? null : JSON.stringify(payload)
+      });
+
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = text;
+      }
+
+      return {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        data
+      };
+    }, { id, method, payload });
+
+    if (!result.ok) {
+      throw new Error(`Trovagnocca ${method} ad ${id} failed: ${result.status} ${result.statusText} ${JSON.stringify(result.data)}`);
+    }
+
+    return {
+      ok: true,
+      id,
+      url: manageUrl,
+      action: method === "DELETE" ? "delete" : "suspend",
+      status: result.status,
+      data: result.data
+    };
+  }
+
+  async suspend(remoteId) {
+    return this.requestAdResource(remoteId, "PUT", { status: "paused" });
+  }
+
+  async delete(remoteId) {
+    return this.requestAdResource(remoteId, "DELETE");
   }
 
   async restartBrowser(reason) {

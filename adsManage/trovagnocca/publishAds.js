@@ -1,4 +1,11 @@
+const fs = require("fs");
+const path = require("path");
+
 const POST_URL = "https://www.trovagnocca.com/dmc/account#/ads-post";
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 const CATEGORY_VALUES = {
   DONNAUOMO: "1",
@@ -280,16 +287,51 @@ async function waitForDmcApp(page) {
 }
 
 async function setWrappedSelect(page, wrapperName, wanted) {
-  await page.evaluate(({ wrapperName, wanted }) => {
-    const wrapper = document.querySelector(`[name="${wrapperName}"]`);
-    const select = wrapper?.querySelector("select");
-    if (!select) throw new Error(`Select wrapper not found: ${wrapperName}`);
-
+  await page.waitForFunction(({ wrapperName, wanted }) => {
     const normalizedWanted = `${wanted || ""}`.trim().toLowerCase();
+    const optionMatches = (select) => Array.from(select.options || []).some((item) => (
+      `${item.value}` === `${wanted}` ||
+      (item.textContent || "").trim().toLowerCase() === normalizedWanted
+    ));
+
+    const wrapper = document.querySelector(`[name="${wrapperName}"]`);
+    const wrapperSelect = wrapper?.querySelector("select");
+    if (wrapperSelect) return true;
+
+    return Array.from(document.querySelectorAll("select")).some(optionMatches);
+  }, { timeout: 30000 }, { wrapperName, wanted });
+
+  await page.evaluate(({ wrapperName, wanted }) => {
+    const normalizedWanted = `${wanted || ""}`.trim().toLowerCase();
+    const optionMatches = (select) => Array.from(select.options || []).some((item) => (
+      `${item.value}` === `${wanted}` ||
+      (item.textContent || "").trim().toLowerCase() === normalizedWanted
+    ));
+
+    const wrapper = document.querySelector(`[name="${wrapperName}"]`);
+    const select = wrapper?.querySelector("select") ||
+      Array.from(document.querySelectorAll("select")).find(optionMatches);
+    if (!select) {
+      const diagnostics = Array.from(document.querySelectorAll("[name], select")).slice(0, 40).map((node) => ({
+        tag: node.tagName.toLowerCase(),
+        name: node.getAttribute("name") || "",
+        text: `${node.textContent || ""}`.replace(/\s+/g, " ").trim().slice(0, 120),
+        options: node.tagName.toLowerCase() === "select"
+          ? Array.from(node.options || []).slice(0, 12).map((option) => `${option.value}:${(option.textContent || "").trim()}`)
+          : []
+      }));
+      throw new Error(`Select wrapper not found: ${wrapperName}; diagnostics=${JSON.stringify(diagnostics)}`);
+    }
+
     const option = Array.from(select.options).find((item) => (
       `${item.value}` === `${wanted}` ||
       (item.textContent || "").trim().toLowerCase() === normalizedWanted
     ));
+
+    if (!option) {
+      const options = Array.from(select.options || []).slice(0, 20).map((item) => `${item.value}:${(item.textContent || "").trim()}`);
+      throw new Error(`Select option not found for ${wrapperName}: ${wanted}; options=${JSON.stringify(options)}`);
+    }
 
     select.value = option ? option.value : wanted;
     select.dispatchEvent(new Event("input", { bubbles: true }));
@@ -388,7 +430,7 @@ async function clickNext(page) {
     button.scrollIntoView({ block: "center", inline: "center" });
     button.click();
   });
-  await page.waitForTimeout(800);
+  await delay(800);
 }
 
 async function collectPublishDiagnostics(page) {
@@ -423,7 +465,7 @@ async function collectPublishDiagnostics(page) {
 async function waitForPhotoStep(page) {
   await page.waitForFunction(() => {
     const text = document.body.innerText || "";
-    const imageInput = document.querySelector('input[type="file"][name="inputFile"], input[type="file"][accept*="image"]');
+    const imageInput = document.querySelector('input[type="file"][name="items[]"], input[type="file"][name="inputFile"], input[type="file"][accept*="image"]');
     return Boolean(imageInput) && (
       /guidelines for posting photos|linee guida.*foto|photo|foto/i.test(text) ||
       /maximum of 6 photos|massimo.*6 foto/i.test(text)
@@ -431,30 +473,73 @@ async function waitForPhotoStep(page) {
   }, { timeout: 30000 });
 }
 
+function resolveImagePaths(images = []) {
+  const resolveExistingImage = (imagePath) => {
+    const normalizedPath = `${imagePath}`.replace(/\\/g, "/");
+    const candidates = [];
+
+    if (/^\/web\/node\//i.test(normalizedPath)) {
+      candidates.push(path.join("E:\\Web\\Node", normalizedPath.replace(/^\/web\/node\//i, "")));
+    }
+
+    if (path.isAbsolute(imagePath)) {
+      candidates.push(imagePath);
+    } else {
+      candidates.push(
+        path.resolve(process.cwd(), imagePath),
+        path.resolve(__dirname, imagePath),
+        path.resolve(__dirname, "..", "..", imagePath)
+      );
+    }
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) return candidate;
+
+      const parsed = path.parse(candidate);
+      const extensionCandidates = [".jpg", ".jpeg", ".png", ".webp"];
+      for (const ext of extensionCandidates) {
+        const alternate = path.join(parsed.dir, `${parsed.name}${ext}`);
+        if (fs.existsSync(alternate)) return alternate;
+      }
+    }
+
+    return candidates[0] || path.resolve(process.cwd(), imagePath);
+  };
+
+  return images
+    .filter(Boolean)
+    .slice(0, 6)
+    .map(resolveExistingImage);
+}
+
 async function uploadImages(page, images = []) {
   await waitForPhotoStep(page);
 
-  const existing = images.filter(Boolean).slice(0, 6);
+  const existing = resolveImagePaths(images);
   if (!existing.length) {
     throw new Error("Trovagnocca requires at least one photo before publishing.");
   }
 
-  const input = await page.$('input[type="file"][name="inputFile"], input[type="file"][accept*="image"], input[type="file"]');
+  const missing = existing.filter((imagePath) => !fs.existsSync(imagePath));
+  if (missing.length) {
+    throw new Error(`Trovagnocca photo file not found: ${missing[0]}`);
+  }
+
+  const input = await page.$('input[type="file"][name="items[]"], input[type="file"][name="inputFile"], .dropArea input[type="file"], input[type="file"][accept*="image"], input[type="file"]');
   if (!input) throw new Error("Photo upload input not found");
 
-  const thumbnailCountBefore = await page.$$eval(".thumb-img, .thumb-media img", (nodes) => nodes.length).catch(() => 0);
+  const thumbnailCountBefore = await page.$$eval(".thumb-img, .thumb-media img, .dropArea img, img[src^='blob:'], img[src^='data:image']", (nodes) => nodes.length).catch(() => 0);
 
   await input.uploadFile(...existing);
 
-  await page.waitForFunction((previousCount) => {
-    const images = Array.from(document.querySelectorAll(".thumb-img, .thumb-media img"));
-    return images.length > previousCount || images.some((img) => {
-      const src = img.getAttribute("src") || "";
-      return src.startsWith("data:image") || src.startsWith("blob:");
-    });
-  }, { timeout: 30000 }, thumbnailCountBefore).catch(() => null);
+  await page.waitForFunction((expectedCount, previousCount) => {
+    const fileInputs = Array.from(document.querySelectorAll('input[type="file"]'));
+    const hasSelectedFiles = fileInputs.some((node) => node.files && node.files.length >= expectedCount);
+    const previews = Array.from(document.querySelectorAll(".thumb-img, .thumb-media img, .dropArea img, img[src^='blob:'], img[src^='data:image']"));
+    return hasSelectedFiles || previews.length > previousCount || previews.length >= expectedCount;
+  }, { timeout: 30000 }, existing.length, thumbnailCountBefore);
 
-  await page.waitForTimeout(1000);
+  await delay(1000);
   return existing.length;
 }
 
@@ -506,13 +591,20 @@ function buildTagSelections(adData = {}) {
 }
 
 async function fillTagsStep(page, data) {
-  await page.waitForFunction(() => {
+  const reachedTags = await page.waitForFunction(() => {
     const text = document.body.innerText || "";
-    return /tags|tag|about you|su di me|nazionalita|nationality/i.test(text);
-  }, { timeout: 30000 });
+    const hasTagsControls = Boolean(document.querySelector(".tagsCard, button.tags_btn"));
+    return hasTagsControls || /tags|tag|about you|su di me|nazionalita|nationality/i.test(text);
+  }, { timeout: 12000 }).then(() => true).catch(() => false);
+
+  if (!reachedTags) {
+    console.warn("[trovagnocca:publish] Tags step not reached", JSON.stringify(await collectPublishDiagnostics(page)));
+    return false;
+  }
 
   await setNationality(page, data.nationality);
   await clickTagButtons(page, data.tags);
+  return true;
 }
 
 async function waitForPromoStep(page) {
@@ -541,6 +633,46 @@ async function clickPublish(page) {
   });
 }
 
+async function confirmFreePublishWarning(page) {
+  const clickSweetAlertConfirm = async (labelPattern, timeout = 10000) => {
+    const confirmVisible = await page.waitForFunction((labelSource) => {
+      const confirmButton = document.querySelector(".swal2-popup.swal2-show .swal2-confirm");
+      if (!confirmButton) return false;
+
+      const text = (confirmButton.textContent || "").replace(/\s+/g, " ").trim();
+      const style = window.getComputedStyle(confirmButton);
+      const rect = confirmButton.getBoundingClientRect();
+      const visible = style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+
+      return visible && new RegExp(labelSource, "i").test(text);
+    }, { timeout }, labelPattern.source).then(() => true).catch(() => false);
+
+    if (!confirmVisible) return false;
+
+    await page.evaluate(() => {
+      const confirmButton = document.querySelector(".swal2-popup.swal2-show .swal2-confirm");
+      if (!confirmButton) return;
+      confirmButton.scrollIntoView({ block: "center", inline: "center" });
+      confirmButton.click();
+    });
+
+    await delay(800);
+    return true;
+  };
+
+  const continued = await clickSweetAlertConfirm(/continua|continue/i);
+  const published = await page.waitForFunction(() => {
+    const popup = document.querySelector(".swal2-popup.swal2-show");
+    if (!popup) return false;
+
+    const text = (popup.textContent || "").replace(/\s+/g, " ").trim();
+    return /annuncio.*visibile online|annuncio.*pubblicato.*successo|pubblicato con successo|published successfully/i.test(text);
+  }, { timeout: 45000 }).then(() => true).catch(() => false);
+
+  const closedSuccess = published ? await clickSweetAlertConfirm(/chiudi|close/i, 5000) : false;
+  return { continued, published, closedSuccess };
+}
+
 async function waitForPublishResult(page) {
   await Promise.race([
     page.waitForNavigation({ waitUntil: "networkidle2", timeout: 45000 }).catch(() => null),
@@ -551,7 +683,7 @@ async function waitForPublishResult(page) {
     }, { timeout: 45000 }).catch(() => null)
   ]);
 
-  await page.waitForTimeout(1500);
+  await delay(1500);
 
   const diagnostics = await collectPublishDiagnostics(page);
   const text = `${diagnostics.bodyText} ${diagnostics.alerts.join(" ")}`;
@@ -584,6 +716,144 @@ function buildPublishData(adData = {}) {
   };
 }
 
+async function solveStep1Recaptcha(page, options = {}) {
+  // Bridge browser logs to Node terminal
+  page.on('console', msg => {
+    if (msg.text().includes('[Captcha]')) console.log(`[Browser] ${msg.text()}`);
+  });
+
+  await page.waitForSelector('iframe[title="reCAPTCHA"]', { timeout: 15000 });
+  console.log('[trovagnocca] Solving reCAPTCHA on Stepper...');
+
+  const siteKey = '6LeghE4gAAAAAPMCvQ_nOzXwunnt9wfu_SCc3Zu_';
+  const token = await options.getCaptchaToken(page, siteKey);
+
+  if (!token) throw new Error('Failed to get reCAPTCHA token');
+  console.log('[trovagnocca] reCAPTCHA token obtained');
+
+  const result = await page.evaluate((token) => {
+    console.log("[Captcha] Starting Stepper-Aware Injection...");
+
+    // 1. Set values in all possible reCAPTCHA textareas
+    // Your HTML shows: id="g-recaptcha-response-1"
+    const textareas = document.querySelectorAll('textarea[name="g-recaptcha-response"]');
+    textareas.forEach(t => {
+      t.value = token;
+      t.innerHTML = token;
+      t.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    // 2. Execute the reCAPTCHA callback (Crucial for enabling 'Prosegui')
+    let callbackFound = false;
+    if (typeof ___grecaptcha_cfg !== 'undefined') {
+        try {
+            const findAndExecute = (obj, depth = 0) => {
+                if (depth > 10 || !obj || callbackFound) return;
+                
+                for (let key in obj) {
+                    try {
+                        // Check if this property is the callback
+                        if (key === 'callback' && typeof obj[key] === 'function') {
+                            console.log(`[Captcha] Found callback at depth ${depth}. Executing...`);
+                            obj[key](token);
+                            callbackFound = true;
+                            return;
+                        }
+                        // If it's an object, search inside it
+                        if (typeof obj[key] === 'object' && obj[key] !== null) {
+                            findAndExecute(obj[key], depth + 1);
+                        }
+                    } catch (e) {}
+                }
+            };
+            
+            // Search all registered reCAPTCHA clients
+            const clients = ___grecaptcha_cfg.clients;
+            for (let id in clients) {
+                findAndExecute(clients[id]);
+            }
+        } catch (e) {
+            console.log("[Captcha] Error during deep search: " + e.message);
+        }
+    }
+
+    if (!callbackFound) {
+        console.log("[Captcha] CRITICAL: No callback found in ___grecaptcha_cfg. Trying manual Vue injection...");
+        // Manual Fallback for Trovagnocca's Vue structure
+        try {
+            const app = document.querySelector('#app');
+            if (app && app.__vue_app__) {
+                const updateVue = (instance) => {
+                    if (!instance || callbackFound) return;
+                    if (instance.proxy && 'adsRecaptcha' in instance.proxy) {
+                        instance.proxy.adsRecaptcha = token;
+                        console.log("[Captcha] Manually set proxy.adsRecaptcha");
+                        callbackFound = true;
+                    }
+                    if (instance.subTree) {
+                         const children = Array.isArray(instance.subTree.children) ? instance.subTree.children : [instance.subTree.children];
+                         children.forEach(c => c && updateVue(c.component));
+                    }
+                };
+                updateVue(app.__vue_app__._instance);
+            }
+        } catch (e) {}
+    }
+
+    // 3. Stepper-aware next button click
+    const findActiveButton = () => {
+      const stepperButton = document
+        .querySelector('#currentStep_0')
+        ?.closest('.stepper-button.next, .stepper-button, .btn');
+
+      const allElements = [
+        stepperButton,
+        ...Array.from(document.querySelectorAll('button, .btn.stepper-button.next, .btn.next, .stepper-button, .toggler_next'))
+      ].filter(Boolean);
+
+      console.log(allElements, 'allElements Action Buttons')
+      const btn = allElements.find(el => {
+        const text = (el.innerText || el.textContent || '').toLowerCase();
+        const isVisible = !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+        const disabled = el.disabled || el.classList.contains('disabled') || el.classList.contains('deactivated');
+        return isVisible && !disabled && (text.includes('prosegui') || text.includes('avanti'));
+      });
+
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove('disabled', 'deactivated');
+        btn.scrollIntoView({ block: 'center', inline: 'center' });
+        btn.click();
+        console.log("[Captcha] Found and clicked the visible stepper next button");
+        return true;
+      }
+
+      // Fallback: If no visible button, click the first one that exists at all
+      const anyBtn = allElements.find(el => /prosegui|avanti/i.test(el.innerText || el.textContent || ''));
+      if (anyBtn) {
+        console.log("[Captcha] Force clicking first available stepper next button");
+        anyBtn.click();
+        return true;
+      }
+
+      return false;
+    };
+
+    const clickedResult = findActiveButton();
+    return clickedResult;
+  }, token);
+
+  console.log('[trovagnocca] Injection finished. Button found:', result);
+
+  // Wait for the accordion to transition or navigation to happen
+  await new Promise(r => setTimeout(r, 4000));
+
+  const finalUrl = page.url();
+  console.log('[trovagnocca] Current URL after step:', finalUrl);
+
+  return { token, clickedNext: result };
+}
+
 async function publishAd(page, adData = {}, options = {}) {
   const data = buildPublishData(adData);
 
@@ -597,6 +867,7 @@ async function publishAd(page, adData = {}, options = {}) {
   await waitForDmcApp(page);
 
   await setWrappedSelect(page, "category", data.category);
+  await delay(500);
   await setWrappedSelect(page, "city", data.city);
   if (data.address) await setWrappedInput(page, "address", data.address);
   if (data.zone) await setWrappedInput(page, "zone", data.zone);
@@ -609,20 +880,23 @@ async function publishAd(page, adData = {}, options = {}) {
   await setSwitch(page, "whatsapp", data.whatsapp);
   await setSwitch(page, "telegram", data.telegram);
 
-  await clickNext(page);
-  await fillTagsStep(page, data);
+  // SOLVE reCAPTCHA HERE - RIGHT BEFORE CLICKING NEXT
+  const step1Captcha = await solveStep1Recaptcha(page, options);
+  if (!step1Captcha.clickedNext) {
+    await clickNext(page);
+  }
+
+  const tagsReached = await fillTagsStep(page, data);
+  if (!tagsReached) {
+    throw new Error(`Trovagnocca did not advance to tags step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
+  }
   await clickNext(page);
   await uploadImages(page, data.images);
   await clickNext(page);
   await setSwitch(page, "ck_term", true);
 
-  if (typeof options.solveRecaptcha === "function") {
-    await options.solveRecaptcha(page).catch((error) => {
-      console.warn("[trovagnocca:publish] Recaptcha solve failed:", error.message);
-    });
-  }
-
   await clickPublish(page);
+  const publishModal = await confirmFreePublishWarning(page);
   const publishResult = await waitForPublishResult(page);
 
   const url = page.url();
@@ -633,7 +907,7 @@ async function publishAd(page, adData = {}, options = {}) {
     return idMatch ? idMatch[1] : "";
   }).catch(() => "");
 
-  if (publishResult.hasError || (!publishResult.hasSuccess && !remoteId)) {
+  if (publishResult.hasError || (!publishResult.hasSuccess && !publishModal.published && !remoteId)) {
     throw new Error(`Trovagnocca publish did not confirm success: ${JSON.stringify(publishResult.diagnostics)}`);
   }
 
