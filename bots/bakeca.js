@@ -194,7 +194,7 @@ class BakecaBot {
 
       if (!this.browser) {
         this.browser = await puppeteer.launch({
-          headless: true,
+          headless: false,
           executablePath: puppeteer.executablePath(),
           args: [
             '--no-sandbox',
