@@ -667,12 +667,12 @@ async function clearUploadedImages(page) {
 
 function resolveImagePaths(images = []) {
   const resolveExistingImage = (imagePath) => {
-    const normalizedPath = `${imagePath}`.replace(/\\/g, "/");
+    // const normalizedPath = `${imagePath}`.replace(/\\/g, "/");
     const candidates = [];
 
-    if (/^\/web\/node\//i.test(normalizedPath)) {
-      candidates.push(path.join("E:\\Web\\Node", normalizedPath.replace(/^\/web\/node\//i, "")));
-    }
+    // if (/^\/web\/node\//i.test(normalizedPath)) {
+    //   candidates.push(path.join("E:\\Web\\Node", normalizedPath.replace(/^\/web\/node\//i, "")));
+    // }
 
     if (path.isAbsolute(imagePath)) {
       candidates.push(imagePath);
@@ -728,6 +728,7 @@ async function uploadImages(page, images = [], picsAudit = []) {
   }
 
   const existing = resolved.filter((imagePath) => fs.existsSync(imagePath));
+  console.log(existing.length, 'existing images length')
   if (!existing.length) {
     console.warn("[trovagnocca:publish] No existing photo files found. Continuing without uploading photos.");
     await delay(500);
@@ -1079,16 +1080,27 @@ async function confirmFreePublishWarning(page) {
   };
 
   const continued = await clickSweetAlertConfirm(/continua|continue/i);
-  const published = await page.waitForFunction(() => {
+  const publishState = await page.waitForFunction(() => {
     const popup = document.querySelector(".swal2-popup.swal2-show");
-    if (!popup) return false;
+    if (!popup) return "";
 
     const text = (popup.textContent || "").replace(/\s+/g, " ").trim();
-    return /annuncio.*visibile online|annuncio.*pubblicato.*successo|pubblicato con successo|published successfully/i.test(text);
-  }, { timeout: 45000 }).then(() => true).catch(() => false);
+    if (/annuncio.*visibile online|annuncio.*pubblicato.*successo|pubblicato con successo|published successfully/i.test(text)) {
+      return "published";
+    }
+    if (/annuncio\s+non.*ancora\s+pubblicato|fase di approvazione|riceverai una mail di conferma/i.test(text)) {
+      return "pendingApproval";
+    }
+    return "";
+  }, { timeout: 45000 }).then((handle) => handle.jsonValue()).catch(() => "");
 
-  const closedSuccess = published ? await clickSweetAlertConfirm(/chiudi|close/i, 5000) : false;
-  return { continued, published, closedSuccess };
+  const closedSuccess = publishState ? await clickSweetAlertConfirm(/chiudi|close/i, 5000) : false;
+  return {
+    continued,
+    published: publishState === "published",
+    pendingApproval: publishState === "pendingApproval",
+    closedSuccess
+  };
 }
 
 async function waitForPublishResult(page) {
@@ -1153,7 +1165,7 @@ async function solveRecaptcha(page, options = {}) {
   console.log('[trovagnocca] Solving reCAPTCHA on Stepper...');
 
   const siteKey = '6LeghE4gAAAAAPMCvQ_nOzXwunnt9wfu_SCc3Zu_';
-  
+
   // 1. Get token from solver
   // Ensure your options.getCaptchaToken passes the current page URL and siteKey
   const token = await options.getCaptchaToken(page, siteKey);
@@ -1223,7 +1235,7 @@ async function solveRecaptcha(page, options = {}) {
           };
           walk(app.__vue_app__._instance);
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 4. Aggressive button click with visibility check
@@ -1231,14 +1243,14 @@ async function solveRecaptcha(page, options = {}) {
       // Small delay for Vue reactivity cycle
       setTimeout(() => {
         const candidates = Array.from(document.querySelectorAll('button, .btn, .toggler_next, div[role="button"]'));
-        
+
         const nextBtn = candidates.find(el => {
           const text = (el.innerText || el.textContent || '').toLowerCase();
           const isVisible = !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
           // Check for 'Prosegui' or 'Avanti' but ignore 'Indietro' (back)
-          return isVisible && 
-                 (text.includes('prosegui') || text.includes('avanti')) && 
-                 !text.includes('indietro');
+          return isVisible &&
+            (text.includes('prosegui') || text.includes('avanti')) &&
+            !text.includes('indietro');
         });
 
         if (nextBtn) {
@@ -1268,13 +1280,15 @@ async function solveRecaptcha(page, options = {}) {
 }
 
 async function publishAd(page, adData = {}, options = {}) {
+  console.log(adData, "adData in PublishAd function")
+  const publishedId = adData?.remotePostID;
   const data = buildPublishData(adData);
 
   console.log("[trovagnocca:publish] Publishing ad", {
     title: data.title,
     city: data.city,
     category: data.category,
-    images: data.images.length
+    images: data.images
   });
 
   await waitForDmcApp(page, options.postUrl || POST_URL);
@@ -1300,6 +1314,44 @@ async function publishAd(page, adData = {}, options = {}) {
     await clickNext(page);
   }
 
+  // let responseAdId = null;
+  // page.on("response", async (response) => {
+  //   const url = response.url();
+  //   const method = response.request().method();
+
+  //   if (!url.includes("/api/v1/resource/ad")) return;
+
+  //   const parsedUrl = new URL(url);
+
+  //   console.log("[debug url]", {
+  //     raw: JSON.stringify(url),
+  //     origin: parsedUrl.origin,
+  //     pathname: parsedUrl.pathname,
+  //     method,
+  //     status: response.status()
+  //   });
+
+  //   if (
+  //     parsedUrl.pathname === "/api/v1/resource/ad" &&
+  //     method === "POST"
+  //   ) {
+  //     let body = null;
+
+  //     try {
+  //       body = await response.json();
+  //     } catch {
+  //       try {
+  //         body = JSON.parse(await response.text());
+  //       } catch {
+  //         body = null;
+  //       }
+  //     }
+
+  //     responseAdId = body?.data?.id
+  //   }
+  // });
+
+  console.log(responseAdId, "remoteAdId");
   const leftInfoStep = await waitForInfoStepExit(page);
   if (!leftInfoStep) {
     throw new Error(`Trovagnocca did not leave contacts step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
@@ -1310,7 +1362,9 @@ async function publishAd(page, adData = {}, options = {}) {
     throw new Error(`Trovagnocca did not advance to tags step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
   }
   await clickNext(page);
-  await uploadImages(page, data.images, data.picsAudit);
+  await clearUploadedImages(page);
+  const uploadImageslength = await uploadImages(page, data.images, data.picsAudit);
+  console.log(uploadImageslength, 'uploaded images count')
   await clickNext(page);
   await setSwitch(page, "ck_term", true);
 
@@ -1323,29 +1377,56 @@ async function publishAd(page, adData = {}, options = {}) {
   const publishResult = await waitForPublishResult(page);
 
   const url = page.url();
-  const urlIdMatch = url.match(/\/ads\/manage\/(\d{4,})\b/i);
-  const remoteId = urlIdMatch
-    ? urlIdMatch[1]
-    : await page.evaluate(() => {
-      const hrefs = Array.from(document.querySelectorAll("a[href]")).map((link) => link.href);
-      hrefs.push(window.location.href);
-      const idMatch = hrefs.join(" ").match(/\/ads\/manage\/(\d{4,})\b/i) ||
-        hrefs.join(" ").match(/(?:annuncio|ads|post|id|manage|edit)[^\d]*(\d{4,})/i);
-      return idMatch ? idMatch[1] : "";
-    }).catch(() => "");
-
-  if (publishResult.hasError || (!publishResult.hasSuccess && !publishModal.published && !remoteId)) {
-    throw new Error(`Trovagnocca publish did not confirm success: ${JSON.stringify(publishResult.diagnostics)}`);
-  }
-
-  return {
-    ok: true,
+  let response = {
+    ok: false,
     url,
     payload: {
-      idpriv: remoteId || null,
+      idpriv: publishedId,
       data
     }
-  };
+  }
+
+  if (publishedId) {//Status Edit
+    response.ok = true;
+  } else {// New publish
+    const urlIdMatch = url.match(/\/ads\/manage\/(\d{4,})\b/i);
+    const remoteId = urlIdMatch
+      ? urlIdMatch[1]
+      : await page.evaluate(() => {
+        const hrefs = Array.from(document.querySelectorAll("a[href]")).map((link) => link.href);
+        hrefs.push(window.location.href);
+        const idMatch = hrefs.join(" ").match(/\/ads\/manage\/(\d{4,})\b/i) ||
+          hrefs.join(" ").match(/(?:annuncio|ads|post|id|manage|edit)[^\d]*(\d{4,})/i);
+        return idMatch ? idMatch[1] : "";
+      }).catch(() => "");
+
+    const publishLink = await page.evaluate(() => {
+      const previewLabel = Array.from(document.querySelectorAll("p, span, div"))
+        .find((node) => (node.textContent || "").trim().toLowerCase() === "anteprima");
+
+      const container = previewLabel?.parentElement;
+      const link = container?.querySelector("a[href]");
+
+      return link?.href || "";
+    });
+
+    console.log(publishLink, remoteId, "publishLink");
+
+    if (publishResult.hasError || (!publishResult.hasSuccess && !publishModal.published && !publishModal.pendingApproval && !remoteId)) {
+      throw new Error(`Trovagnocca publish did not confirm success: ${JSON.stringify(publishResult.diagnostics)}`);
+    }
+
+    if (remoteId) {
+      response.ok = true;
+      response.url = publishLink
+      response.payload = {
+        idpriv: remoteId,
+        data
+      }
+    }
+  }
+
+  return response;
 }
 
 module.exports = {

@@ -30,6 +30,7 @@ async function updateAd(page, adData = {}, options = {}) {
     adData.idpriv ||
     adData.remoteId ||
     adData.id;
+
   const updateUrl = buildUpdateUrl(remoteId);
 
   const result = await publishAd(page, adData, {
@@ -37,12 +38,14 @@ async function updateAd(page, adData = {}, options = {}) {
     postUrl: updateUrl
   });
 
+  console.log(result.url, 'update result');
   return {
     ...result,
-    url: result.url || updateUrl,
+    ok: true,
+    // url: updateUrl,
     payload: {
       ...(result.payload || {}),
-      idpriv: extractRemoteAdId(remoteId),
+      idpriv: remoteId,
       data: result.payload?.data || buildPublishData(adData)
     }
   };

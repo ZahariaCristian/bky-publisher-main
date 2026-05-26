@@ -85,7 +85,7 @@ class TrovagnoccaBot {
     if (this.browser) return;
 
     this.browser = await puppeteer.launch({
-      headless: false,
+      headless: true,
       executablePath: puppeteer.executablePath(),
       args: [
         "--no-sandbox",

@@ -86,7 +86,6 @@ async function ensureSession(bot, email) {
     if (sessionInflight.has(email)) {//If Login finished
         const cookies = await sessionInflight.get(email);
         const ok = await bot.initWithCookies?.(cookies);
-        console.log(cookies, 'session cookies')
         if (ok) return cookies;
         sessionCache.delete(email);
     }
@@ -268,6 +267,7 @@ async function mainLoop(group, platform) {
             console.log('refresh', platform.platform);
             var cr = await activeBot.refresh2();         // get Credit andCookies
 
+            // console.log(cr, platform.platform, 'refresh2 result')
             const refreshErr = cr && typeof cr === "object" && !Array.isArray(cr)
                 ? (cr.err || cr.error || null)
                 : null;
@@ -382,10 +382,21 @@ async function mainLoop(group, platform) {
                 var t = s.data;
                 t.setMinutes(t.getMinutes() + t.getTimezoneOffset());
 
+                if (platform.platform != "bakecaincontrii") {//Add this section by Zaharia
+                    var beforePlan = new Date(t);
+                    // subtract 1 minutes
+                    beforePlan.setMinutes(beforePlan.getMinutes() - 1);
+
+                    if (Math.round(day.getTime() / 1000) > Math.round(beforePlan.getTime() / 1000) && Math.round(day.getTime() / 1000) < Math.round(t.getTime() / 1000)) {
+                        platform.needRefresh = true; // refresh2 again for 1 min
+                    }
+                }
+
                 //If Ads need to Publish or Update 
                 if (Math.round(day.getTime() / 1000) > Math.round(t.getTime() / 1000) || s.state == "EDIT") {
                     var galleriaSchedulazione = await s.getTblGalleriaAnnuncios({
                         where: {
+                            schedulazione: s.id, 
                             GCRecord: null
                         },
                         order: [['isAnteprima', 'DESC']],
@@ -398,33 +409,17 @@ async function mainLoop(group, platform) {
                         }]
                     });
 
-                    const picsLimit = s.platform == "trovagnocca" ? 6 : 5;
-                    if (!galleriaSchedulazione.length && s.platform != "trovagnocca" && annuncio.tblDonne?.getTblGalleria) {
-                        const fallbackGallery = await annuncio.tblDonne.getTblGalleria({
-                            limit: picsLimit,
-                            where: {
-                                isHidden: 0,
-                                GCRecord: null
-                            },
-                            order: [["id", "ASC"]]
-                        });
-                        galleriaSchedulazione = fallbackGallery.map((gallery) => ({
-                            tblGallerium: gallery,
-                            isAnteprima: false
-                        }));
-                    }
-
+                    console.log(galleriaSchedulazione.length, "gallery images length");
+                    let picLimit = platform.platform === "trovagnocca" ? 6 : 5
                     for (const photo of galleriaSchedulazione) {
-                        if (pics.length < picsLimit) {
-                            const gallery = photo.tblGallerium || photo;
-                            if (!gallery?.origin) continue;
-                            if (pics.includes(`${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${gallery.origin}`) == false) {
+                        if (pics.length < picLimit) {
+                            if (pics.includes(`${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`) == false) {
                                 picsAudit.push({
-                                    path: `${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${gallery.origin}`,
-                                    applyPhone: gallery.applyPhone,
-                                    crop: gallery.crop
+                                    path: `${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`,
+                                    applyPhone: photo.tblGallerium.applyPhone,
+                                    crop: photo.tblGallerium.crop
                                 })
-                                pics.push(`${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${gallery.origin}`);
+                                pics.push(`${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`);
                             }
                         }
                     }
@@ -1042,17 +1037,17 @@ async function startAllGroupLoops(groups) {
 
 CreateGroupsBot().then(async (groups) => {
     if (groups) {
-        // await startCheckPhoneBot();
+        await startCheckPhoneBot();
         await startAllGroupLoops(groups);
 
-        // setInterval(() => {
-        //     clearInterval(checkPhoneMailLoop);
-        //     //botCheckPhone.browser.close();
-        //     restartGroups();
-        //     setTimeout(() => {
-        //         startCheckPhoneBot();
-        //         // console.log("after startCheckBot in setTimeout")
-        //     }, 100);
-        // }, (1000 * 60 * 120));
+        setInterval(() => {
+            clearInterval(checkPhoneMailLoop);
+            //botCheckPhone.browser.close();
+            // restartGroups();
+            setTimeout(() => {
+                startCheckPhoneBot();
+                // console.log("after startCheckBot in setTimeout")
+            }, 100);
+        }, (1000 * 60 * 120));
     }
 });

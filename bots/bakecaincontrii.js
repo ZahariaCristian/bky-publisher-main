@@ -22,7 +22,7 @@ const PUBLISH_URL = "https://bakecaincontrii.com/u/post-insert/";
 const MANAGE_POST = "https://bakecaincontrii.com/u/post-manage/";
 const PURCHASE_SUM = "https://bakecaincontrii.com/u/purchase-summary/";
 const PAGE_DASHBOARD = "https://www.bakecaincontrii.com/u/account/dashboard/";
-const CREDIT_SELECTOR = "#app > main > div > div.row > div.col-md-7.order-md-0 > div:nth-child(1) > div:nth-child(2) > div > div > div > div > div > ul > li:nth-child(1) > span";
+const CREDIT_SELECTOR = "#app > main > div > div.row > div.col-md-7.order-md-0 > div:nth-child(1) > div:nth-child(2) > div > div > div > div > div > ul > li:nth-child(1) > span.badge";
 
 puppeteer.use(
   StealthPlugin(),
@@ -889,7 +889,7 @@ class BakecaincontriiBot {
       adv: this.transformObject(info),
       cookies: this.formatCookies(cookie)
     })
-    
+
     // Send the API request
     const API_RESPONSE = await axios.post("http://localhost:9999", {
       adv: this.transformObject(info),
