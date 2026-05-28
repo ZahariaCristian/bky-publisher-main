@@ -4953,3 +4953,105 @@ Publisher ERROR during trovagnocca operation: Error: Gold Plan duration select n
     at async clickGoldPublishFlow (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1027:3)
     at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1372:5)
     at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:796:36)
+Publisher ERROR during trovagnocca operation: Error: Gold Plan duration select not found
+    at evaluate (evaluate at selectGoldDuration (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:914:14), <anonymous>:8:23)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async selectGoldDuration (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:914:3)
+    at async clickGoldPublishFlow (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1027:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1372:5)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:796:36)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Promo Gold card not found
+    at openGoldPromoCard (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:857:22)
+    at async clickGoldPublishFlow (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1058:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1405:5)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:796:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:573:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:999:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher ERROR during trovagnocca operation: Error: Promo Gold card not found: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","Pubblica gratis","keyboard_arrow_left Indietro","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi done done done beenhere Torna alla lista Pubblica gratis Pubblica anche su Itaincontri.com keyboard_arrow_left INDIETRO Home Gestione Annunci Contatti Termini e Condizioni Privacy Policy Prodotti Links Amici Trovagnocca Itaincontri Empirescort Cerca siti per adulti Blog Pubblica annuncio in: 🇮🇹 Italia 🇦🇷 Argentina 🇦🇺 Australia 🇧🇴 Bolivia 🇧🇷 Brasil 🇨🇱 Chile 🇨🇴 Colombia 🇨🇷 Costa Rica 🇩🇴 República Dominicana 🇪🇨 Ecuador 🇪🇸 España 🇬🇹 Guatemala 🇮🇪 Ireland 🇮🇳 India 🇮🇹 Italia 🇲🇽 México 🇳🇿 New Zealand 🇵🇦 Panama 🇵🇪 Perú 🇵🇾 Paraguay 🇸🇬 Singapore 🇬🇧 United Kingdom 🇺🇾 Uruguay 🇻🇪 Venezuela All copyrights reserved © 2026"}
+    at openGoldPromoCard (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:875:11)
+    at async clickGoldPublishFlow (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1077:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1424:5)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:796:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:573:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:999:21)
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Gold Plan publish/purchase button not found
+    at evaluate (evaluate at clickGoldPublish (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1063:14), <anonymous>:9:23)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async clickGoldPublish (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1063:3)
+    at async clickGoldPublishFlow (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1091:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1428:5)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:796:36)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca publish did not confirm success: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi non compilati","Prosegui","Il tuo annuncio * Campi non compilati","Prosegui","I tuoi contatti * Campi non compilati","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity done done beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie Seleziona categorie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vi"}
+    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1512:13)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:796:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:573:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:999:21)
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher ERROR: ProtocolError: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.
+Try restart bot of group Raffa21's Team platform trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii

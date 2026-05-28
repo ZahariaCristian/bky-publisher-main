@@ -827,6 +827,60 @@ async function waitForPromoStep(page) {
   }, { timeout: 30000 });
 }
 
+async function openGoldPromoCard(page) {
+  await waitForPromoStep(page);
+  await page.waitForFunction(() => {
+    const text = document.body?.innerText || "";
+    return Boolean(document.querySelector("#promo-collapse-300")) || /promo\s*(gold|oro)/i.test(text);
+  }, { timeout: 20000 }).catch(() => null);
+
+  const opened = await page.evaluate(() => {
+    const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+    const isVisible = (node) => {
+      if (!node) return false;
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+
+    const existingGoldPanel = document.querySelector("#promo-collapse-300");
+    if (existingGoldPanel && isVisible(existingGoldPanel) && existingGoldPanel.textContent.trim()) return true;
+
+    const goldCollapse = document.querySelector("#promo-collapse-300");
+    if (goldCollapse) {
+      const promoItem = goldCollapse.closest(".promo-item");
+      const clickable = promoItem?.querySelector(".promo-card-btn, .promo-card-custom, .card, button, a");
+      if (clickable && isVisible(clickable)) {
+        clickable.scrollIntoView({ block: "center", inline: "center" });
+        clickable.click();
+        return true;
+      }
+    }
+
+    const candidates = Array.from(document.querySelectorAll(".promo-item, .promo-card-btn, .promo-card-custom, .card, button, a, div"));
+    const card = candidates.find((node) => {
+      const text = clean(node.textContent);
+      return isVisible(node) && (
+        /promo\s*(gold|oro)/i.test(text) ||
+        (/plan your visibility|pianifica|visibility|visibilit/i.test(text) && /promo/i.test(text))
+      );
+    });
+
+    if (!card) return false;
+
+    const clickable = card.closest(".promo-item")?.querySelector(".promo-card-btn, .card, button, a") || card;
+    clickable.scrollIntoView({ block: "center", inline: "center" });
+    clickable.click();
+    return true;
+  });
+
+  if (!opened) {
+    const diagnostics = await collectPublishDiagnostics(page);
+    throw new Error(`Promo Gold card not found: ${JSON.stringify(diagnostics)}`);
+  }
+  await delay(1000);
+}
+
 function getGoldDuration(typeAnnuncio = "") {
   const value = `${typeAnnuncio || ""}`.toLowerCase();
   if (value.includes("1x7") || value.includes("7")) return "7";
@@ -984,9 +1038,31 @@ async function selectGoldGroupSlots(page, groupedSlots) {
           .replace(/\s+/g, " ")
           .trim()
           .toLowerCase();
+        const parseRange = (value) => {
+          const match = `${value || ""}`.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+          if (!match) return null;
+          return {
+            startHour: Number(match[1]),
+            startMinute: Number(match[2]),
+            endHour: Number(match[3]),
+            endMinute: Number(match[4])
+          };
+        };
+        const rangesMatch = (left, right) => {
+          const a = parseRange(left);
+          const b = parseRange(right);
+          if (!a || !b) return false;
+          return a.startHour === b.startHour &&
+            a.startMinute === b.startMinute &&
+            a.endHour === b.endHour &&
+            a.endMinute === b.endMinute;
+        };
         const wanted = normalize(label);
         const controls = Array.from(document.querySelectorAll("button, label, .btn, .slot, .time-slot, .custom-control"));
-        const target = controls.find((node) => normalize(node.textContent).includes(wanted));
+        const target = controls.find((node) => {
+          const text = node.textContent || "";
+          return normalize(text).includes(wanted) || rangesMatch(text, label);
+        });
         if (!target) return false;
 
         const input = target.querySelector?.("input[type='checkbox'], input[type='radio']") ||
@@ -1006,24 +1082,43 @@ async function selectGoldGroupSlots(page, groupedSlots) {
 }
 
 async function clickGoldPublish(page) {
-  await page.evaluate(() => {
-    const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
-    const candidates = Array.from(document.querySelectorAll("button, .btn"));
-    const button = candidates.find((node) => {
-      const text = clean(node.textContent);
-      const disabled = node.disabled || node.classList.contains("disabled");
-      return !disabled && !node.matches("#ads-post-free") && /pubblica|acquista|conferma|procedi|paga/i.test(text);
+  const clickActionButton = async (required = true) => {
+    const clicked = await page.evaluate(() => {
+      const isVisible = (node) => {
+        if (!node) return false;
+        const style = window.getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      };
+      const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+      const candidates = Array.from(document.querySelectorAll("button, .btn"));
+      const button = candidates.find((node) => {
+        const text = clean(node.textContent);
+        const disabled = node.disabled || node.classList.contains("disabled");
+        return isVisible(node) && !disabled && !node.matches("#ads-post-free") &&
+          /continua|continue|pubblica|acquista|conferma|procedi|paga/i.test(text);
+      });
+
+      if (!button) return false;
+      button.scrollIntoView({ block: "center", inline: "center" });
+      button.click();
+      return true;
     });
 
-    if (!button) throw new Error("Gold Plan publish/purchase button not found");
-    button.scrollIntoView({ block: "center", inline: "center" });
-    button.click();
-  });
+    if (!clicked && required) throw new Error("Gold Plan publish/purchase button not found");
+    if (clicked) await delay(1200);
+    return clicked;
+  };
+
+  await clickActionButton(true);
+  await clickActionButton(false);
+  await clickActionButton(false);
   await delay(1000);
 }
 
 async function clickGoldPublishFlow(page, data) {
   await waitForPromoStep(page);
+  await openGoldPromoCard(page);
   await selectGoldDuration(page, getGoldDuration(data.typeAnnuncio));
 
   const groupedSlots = groupGoldSlots(data.period);
@@ -1079,8 +1174,12 @@ async function confirmFreePublishWarning(page) {
     return true;
   };
 
-  const continued = await clickSweetAlertConfirm(/continua|continue/i);
-  const publishState = await page.waitForFunction(() => {
+  const continued = await clickSweetAlertConfirm(/continua|continue|ok|chiudi|close/i);
+  const reachedManagePage = await page.waitForFunction(() => (
+    /\/ads\/manage\/\d{4,}\b/i.test(window.location.href)
+  ), { timeout: 15000 }).then(() => true).catch(() => false);
+
+  const publishState = reachedManagePage ? "published" : await page.waitForFunction(() => {
     const popup = document.querySelector(".swal2-popup.swal2-show");
     if (!popup) return "";
 
@@ -1094,12 +1193,19 @@ async function confirmFreePublishWarning(page) {
     return "";
   }, { timeout: 45000 }).then((handle) => handle.jsonValue()).catch(() => "");
 
-  const closedSuccess = publishState ? await clickSweetAlertConfirm(/chiudi|close/i, 5000) : false;
+  const closedSuccess = publishState && !reachedManagePage
+    ? await clickSweetAlertConfirm(/continua|continue|ok|chiudi|close/i, 5000)
+    : false;
+  const reachedManageAfterClose = reachedManagePage || await page.waitForFunction(() => (
+    /\/ads\/manage\/\d{4,}\b/i.test(window.location.href)
+  ), { timeout: 15000 }).then(() => true).catch(() => false);
+
   return {
     continued,
     published: publishState === "published",
     pendingApproval: publishState === "pendingApproval",
-    closedSuccess
+    closedSuccess,
+    reachedManagePage: reachedManageAfterClose
   };
 }
 
@@ -1130,6 +1236,7 @@ async function waitForPublishResult(page) {
 function buildPublishData(adData = {}) {
   const contactNote = parseTrovagnoccaNote(adData.note);
   const typeAnnuncio = firstNonEmpty(adData.typeAnnuncio, adData.promo?.visibility, "Free");
+  const isFreePublication = `${typeAnnuncio || ""}`.trim().toLowerCase() === "free";
   return {
     category: normalizeCategory(adData.categorie || adData.sono || adData.category),
     city: CITY_VALUES[normalizeKey(firstNonEmpty(adData.city, adData.annunci_city, adData.comune))] || firstNonEmpty(adData.city, adData.annunci_city, adData.comune),
@@ -1148,7 +1255,7 @@ function buildPublishData(adData = {}) {
     typeAnnuncio,
     period: firstNonEmpty(adData.period, adData.promo?.schedule),
     promo: {
-      active: isEnabled(adData.promo?.active) || typeAnnuncio !== "Free",
+      active: !isFreePublication,
       visibility: typeAnnuncio,
       schedule: firstNonEmpty(adData.period, adData.promo?.schedule)
     }
@@ -1314,55 +1421,56 @@ async function publishAd(page, adData = {}, options = {}) {
     await clickNext(page);
   }
 
-  // let responseAdId = null;
-  // page.on("response", async (response) => {
-  //   const url = response.url();
-  //   const method = response.request().method();
+  let responseAdId = null;
+  page.on("response", async (response) => {
+    const url = response.url();
+    const method = response.request().method();
 
-  //   if (!url.includes("/api/v1/resource/ad")) return;
+    if (!url.includes("/api/v1/resource/ad")) return;
 
-  //   const parsedUrl = new URL(url);
+    const parsedUrl = new URL(url);
 
-  //   console.log("[debug url]", {
-  //     raw: JSON.stringify(url),
-  //     origin: parsedUrl.origin,
-  //     pathname: parsedUrl.pathname,
-  //     method,
-  //     status: response.status()
-  //   });
+    console.log("[debug url]", {
+      raw: JSON.stringify(url),
+      origin: parsedUrl.origin,
+      pathname: parsedUrl.pathname,
+      method,
+      status: response.status(),
+      responseAdId: body?.data?.id
+    });
 
-  //   if (
-  //     parsedUrl.pathname === "/api/v1/resource/ad" &&
-  //     method === "POST"
-  //   ) {
-  //     let body = null;
+    if (
+      parsedUrl.pathname === "/api/v1/resource/ad" &&
+      method === "POST"
+    ) {
+      let body = null;
 
-  //     try {
-  //       body = await response.json();
-  //     } catch {
-  //       try {
-  //         body = JSON.parse(await response.text());
-  //       } catch {
-  //         body = null;
-  //       }
-  //     }
+      try {
+        body = await response.json();
+      } catch {
+        try {
+          body = JSON.parse(await response.text());
+        } catch {
+          body = null;
+        }
+      }
 
-  //     responseAdId = body?.data?.id
-  //   }
-  // });
+      responseAdId = body?.data?.id
+    }
+  });
 
-  // console.log(responseAdId, "remoteAdId");
-  // const leftInfoStep = await waitForInfoStepExit(page);
-  // if (!leftInfoStep) {
-  //   throw new Error(`Trovagnocca did not leave contacts step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
-  // }
+  console.log(responseAdId, "remoteAdId");
+  const leftInfoStep = await waitForInfoStepExit(page);
+  if (!leftInfoStep) {
+    throw new Error(`Trovagnocca did not leave contacts step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
+  }
 
   const tagsReached = await fillTagsStep(page, data);
   if (!tagsReached) {
     throw new Error(`Trovagnocca did not advance to tags step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
   }
   await clickNext(page);
-  // await clearUploadedImages(page);
+  await clearUploadedImages(page);
   const uploadImageslength = await uploadImages(page, data.images, data.picsAudit);
   console.log(uploadImageslength, 'uploaded images count')
   await clickNext(page);
@@ -1418,7 +1526,7 @@ async function publishAd(page, adData = {}, options = {}) {
 
     if (remoteId) {
       response.ok = true;
-      response.url = publishLink
+      response.url = publishLink || page.url();
       response.payload = {
         idpriv: remoteId,
         data

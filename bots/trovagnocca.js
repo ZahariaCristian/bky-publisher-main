@@ -95,7 +95,7 @@ class TrovagnoccaBot {
         "--disable-dev-shm-usage",
         "--disable-blink-features=AutomationControlled",
         "--window-size=1366,900",
-        // `--proxy-server=http://${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`
+        `--proxy-server=http://${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`
       ],
       // defaultViewport: {
       //   width: 1366,
@@ -108,17 +108,15 @@ class TrovagnoccaBot {
     await this.launch();
 
     this.page = await this.browser.newPage();
-    // await this.page.authenticate({
-    //   username: RESIDENTIAL_PROXY.username,
-    //   password: RESIDENTIAL_PROXY.password
-    // });
+    await this.page.authenticate({
+      username: RESIDENTIAL_PROXY.username,
+      password: RESIDENTIAL_PROXY.password
+    });
     this.page.setDefaultTimeout(30000);
     this.page.setDefaultNavigationTimeout(60000);
     await this.page.setUserAgent(USER_AGENT);
     return this.page;
   }
-
-
 
   async waitTillHTMLRendered(page, timeout = 30000) {
     const checkInterval = 1000;

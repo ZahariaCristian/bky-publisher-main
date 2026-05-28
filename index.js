@@ -1,5 +1,6 @@
 const dotenv = require('dotenv');
 const fs = require("fs");
+const http = require("http");
 const { dirname } = require('path');
 const appDir = dirname(require.main.filename);
 // const { EOF } = require("dns");
@@ -43,6 +44,8 @@ const rawLoginConcurrency = Number.parseInt(process.env.BAKECA_LOGIN_CONCURRENCY
 const MAX_CONCURRENT_LOGINS = Number.isFinite(rawLoginConcurrency) && rawLoginConcurrency > 0 ? rawLoginConcurrency : 4;
 let activeLoginCount = 0;
 const loginWaitQueue = [];
+const PUBLISHER_API_PORT = Number.parseInt(process.env.PUBLISHER_API_PORT || "9998", 10);
+let publisherApiServer = null;
 
 const getLastNumber = (str) => {
     const parts = str.split("x");
@@ -149,6 +152,162 @@ async function ensurePlatformBot(platform) {
     }
 
     return platform.bot;
+}
+
+function sendJson(res, statusCode, payload) {
+    const body = JSON.stringify(payload);
+    res.writeHead(statusCode, {
+        "content-type": "application/json; charset=utf-8",
+        "content-length": Buffer.byteLength(body)
+    });
+    res.end(body);
+}
+
+function readJsonBody(req) {
+    return new Promise((resolve, reject) => {
+        let body = "";
+        req.on("data", (chunk) => {
+            body += chunk;
+            if (body.length > 1024 * 1024) {
+                req.destroy();
+                reject(new Error("Request body is too large."));
+            }
+        });
+        req.on("end", () => {
+            if (!body) return resolve({});
+            try {
+                resolve(JSON.parse(body));
+            } catch (error) {
+                reject(new Error("Invalid JSON request body."));
+            }
+        });
+        req.on("error", reject);
+    });
+}
+
+function normalizePublisherTimeSlots(timeSlots = []) {
+    return [...new Set(
+        (Array.isArray(timeSlots) ? timeSlots : [timeSlots])
+            .map((slot) => parseInt(slot, 10))
+            .filter(Number.isFinite)
+    )];
+}
+
+function findTrovagnoccaPlatform({ username } = {}) {
+    for (const group of groups) {
+        const platform = (group.platforms || []).find((candidate) => {
+            if (candidate.platform !== "trovagnocca") return false;
+            if (!username) return true;
+            return `${candidate.username || ""}`.toLowerCase() === `${username}`.toLowerCase();
+        });
+
+        if (platform) return { group, platform };
+    }
+
+    return null;
+}
+
+function getErrorDetails(error) {
+    if (!error) return null;
+    const message = error.message || `${error}`;
+
+    try {
+        return JSON.parse(message);
+    } catch {
+        return message;
+    }
+}
+
+async function calculateTrovagnoccaPriceFromPublisher(payload = {}) {
+    const numberDays = parseInt(payload.numberDays, 10) || 1;
+    const timeSlots = normalizePublisherTimeSlots(payload.timeSlots);
+
+    if (!timeSlots.length) {
+        const error = new Error("At least one Trovagnocca time slot is required.");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const target = findTrovagnoccaPlatform({ username: payload.username });
+    if (!target?.platform) {
+        const error = new Error("No active Trovagnocca platform found in publisher.");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const { platform } = target;
+    await ensurePlatformBot(platform);
+
+    if (!platform.bot) {
+        const error = new Error("Trovagnocca bot is not initialized.");
+        error.statusCode = 503;
+        throw error;
+    }
+
+    if (!platform.cookie) {
+        platform.cookie = await ensureSession(platform.bot, platform.username);
+        platform.needRefresh = true;
+    }
+
+    const decryptedPassword = platform.password ? decryptPassword(platform.password) : "";
+    const priceBot = new TrovagnoccaBot(platform.username, decryptedPassword, platform.credit, platform.platform);
+
+    try {
+        let sessionReady = false;
+        if (platform.cookie) {
+            sessionReady = await priceBot.initWithCookies(platform.cookie);
+        }
+
+        if (!sessionReady) {
+            platform.cookie = await ensureSession(priceBot, platform.username);
+            platform.needRefresh = true;
+        }
+
+        return await priceBot.getPrice({ numberDays, timeSlots });
+    } finally {
+        await closeBotBrowser(priceBot, "trovagnocca price calculation").catch(() => { });
+    }
+}
+
+function startPublisherApiServer() {
+    if (publisherApiServer) return;
+
+    publisherApiServer = http.createServer(async (req, res) => {
+        const url = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
+
+        if (req.method === "GET" && url.pathname === "/health") {
+            return sendJson(res, 200, { ok: true });
+        }
+
+        if (req.method !== "POST" || url.pathname !== "/api/trovagnocca/price") {
+            return sendJson(res, 404, { error: "Publisher API route not found." });
+        }
+
+        try {
+            const payload = await readJsonBody(req);
+            const data = await calculateTrovagnoccaPriceFromPublisher(payload);
+            return sendJson(res, 200, data);
+        } catch (error) {
+            const statusCode = error.statusCode || error.response?.status || 500;
+            console.error("[publisher-api] Trovagnocca price error:", error);
+            return sendJson(res, statusCode, {
+                error: "Unable to calculate Trovagnocca price.",
+                details: error.response?.data || getErrorDetails(error)
+            });
+        }
+    });
+
+    publisherApiServer.on("error", (error) => {
+        publisherApiServer = null;
+        console.error("[publisher-api] Server error:", error.message);
+        logger.Write(`Publisher API ERROR: ${error.message}`);
+    });
+
+    publisherApiServer.listen(PUBLISHER_API_PORT, "127.0.0.1", () => {
+        const message = `[publisher-api] Listening on http://127.0.0.1:${PUBLISHER_API_PORT}`;
+        console.log(message);
+        logger.Write(message);
+    });
 }
 
 async function CreateGroupsBot() {
