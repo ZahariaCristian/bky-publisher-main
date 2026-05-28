@@ -4805,3 +4805,151 @@ Publisher ERROR during trovagnocca operation: ProtocolError: Runtime.callFunctio
 [i] Gruppo di lavoro "Raffa21's Team" definito
 Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
 Publisher INFO: login success for Raffa21's Team / trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: ProtocolError: Protocol error (Runtime.callFunctionOn): Target crashed
+    at <instance_members_initializer> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:103:14)
+    at new Callback (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:107:16)
+    at CallbackRegistry.create (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:25:26)
+    at Connection._rawSend (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\Connection.js:108:26)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\CdpSession.js:74:33)
+    at next (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-extra-plugin-stealth\evasions\sourceurl\index.js:34:41)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-extra-plugin-stealth\evasions\sourceurl\index.js:75:16)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:363:50)
+    at ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:36)
+    at IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:30)
+Publisher ERROR during trovagnocca operation: ProtocolError: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.
+    at <instance_members_initializer> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:103:14)
+    at new Callback (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:107:16)
+    at CallbackRegistry.create (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:25:26)
+    at Connection._rawSend (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\Connection.js:108:26)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\CdpSession.js:74:33)
+    at next (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-extra-plugin-stealth\evasions\sourceurl\index.js:34:41)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-extra-plugin-stealth\evasions\sourceurl\index.js:75:16)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:363:50)
+    at ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:36)
+    at IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:30)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher ERROR during trovagnocca operation: ProtocolError: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.
+    at <instance_members_initializer> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:103:14)
+    at new Callback (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:107:16)
+    at CallbackRegistry.create (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:25:26)
+    at Connection._rawSend (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\Connection.js:108:26)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\CdpSession.js:74:33)
+    at next (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-extra-plugin-stealth\evasions\sourceurl\index.js:34:41)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-extra-plugin-stealth\evasions\sourceurl\index.js:75:16)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:363:50)
+    at ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:36)
+    at IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:30)
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: ProtocolError: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.
+    at <instance_members_initializer> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:103:14)
+    at new Callback (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:107:16)
+    at CallbackRegistry.create (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:25:26)
+    at Connection._rawSend (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\Connection.js:108:26)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\CdpSession.js:74:33)
+    at next (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-extra-plugin-stealth\evasions\sourceurl\index.js:34:41)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-extra-plugin-stealth\evasions\sourceurl\index.js:75:16)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:363:50)
+    at ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:36)
+    at IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:30)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher ERROR: TimeoutError: Waiting for selector `input[type='password'], input[name='password']` failed
+Try restart bot of group Raffa21's Team platform trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: ProtocolError: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.
+    at <instance_members_initializer> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:103:14)
+    at new Callback (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:107:16)
+    at CallbackRegistry.create (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\CallbackRegistry.js:25:26)
+    at Connection._rawSend (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\Connection.js:108:26)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\CdpSession.js:74:33)
+    at next (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-extra-plugin-stealth\evasions\sourceurl\index.js:34:41)
+    at CdpCDPSession.send (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-extra-plugin-stealth\evasions\sourceurl\index.js:75:16)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:363:50)
+    at ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:36)
+    at IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:30)
+Publisher ERROR during trovagnocca operation: Error: Waiting failed
+    at <instance_members_initializer> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\WaitTask.js:24:21)
+    at new WaitTask (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\WaitTask.js:30:16)
+    at IsolatedWorld.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Realm.js:25:26)
+    at CdpFrame.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:583:43)
+    at CdpFrame.<anonymous> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\util\decorators.js:109:27)
+    at CdpPage.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:1451:37)
+    at uploadImages (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:745:14)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1366:30)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:796:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:573:17)
+Publisher ERROR during trovagnocca operation: TimeoutError: Waiting failed: 30000ms exceeded
+    at new WaitTask (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\WaitTask.js:49:34)
+    at IsolatedWorld.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Realm.js:25:26)
+    at CdpFrame.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:583:43)
+    at CdpFrame.<anonymous> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\util\decorators.js:109:27)
+    at CdpPage.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:1451:37)
+    at uploadImages (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:745:14)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1366:30)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:796:36)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:573:17)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher ERROR: ReferenceError: ture is not defined
+Try restart bot of group Raffa21's Team platform trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Gold Plan duration select not found
+    at evaluate (evaluate at selectGoldDuration (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:914:14), <anonymous>:8:23)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async selectGoldDuration (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:914:3)
+    at async clickGoldPublishFlow (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1027:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1372:5)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:796:36)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during trovagnocca operation: Error: Gold Plan duration select not found
+    at evaluate (evaluate at selectGoldDuration (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:914:14), <anonymous>:8:23)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async selectGoldDuration (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:914:3)
+    at async clickGoldPublishFlow (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1027:3)
+    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1372:5)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:796:36)

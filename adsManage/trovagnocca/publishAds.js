@@ -667,12 +667,12 @@ async function clearUploadedImages(page) {
 
 function resolveImagePaths(images = []) {
   const resolveExistingImage = (imagePath) => {
-    // const normalizedPath = `${imagePath}`.replace(/\\/g, "/");
+    const normalizedPath = `${imagePath}`.replace(/\\/g, "/");
     const candidates = [];
 
-    // if (/^\/web\/node\//i.test(normalizedPath)) {
-    //   candidates.push(path.join("E:\\Web\\Node", normalizedPath.replace(/^\/web\/node\//i, "")));
-    // }
+    if (/^\/web\/node\//i.test(normalizedPath)) {
+      candidates.push(path.join("E:\\Web\\Node", normalizedPath.replace(/^\/web\/node\//i, "")));
+    }
 
     if (path.isAbsolute(imagePath)) {
       candidates.push(imagePath);
@@ -1352,17 +1352,17 @@ async function publishAd(page, adData = {}, options = {}) {
   // });
 
   // console.log(responseAdId, "remoteAdId");
-  const leftInfoStep = await waitForInfoStepExit(page);
-  if (!leftInfoStep) {
-    throw new Error(`Trovagnocca did not leave contacts step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
-  }
+  // const leftInfoStep = await waitForInfoStepExit(page);
+  // if (!leftInfoStep) {
+  //   throw new Error(`Trovagnocca did not leave contacts step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
+  // }
 
   const tagsReached = await fillTagsStep(page, data);
   if (!tagsReached) {
     throw new Error(`Trovagnocca did not advance to tags step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
   }
   await clickNext(page);
-  await clearUploadedImages(page);
+  // await clearUploadedImages(page);
   const uploadImageslength = await uploadImages(page, data.images, data.picsAudit);
   console.log(uploadImageslength, 'uploaded images count')
   await clickNext(page);
