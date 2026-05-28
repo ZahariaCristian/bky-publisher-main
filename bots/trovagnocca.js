@@ -18,6 +18,8 @@ const SCREENSHOT_DIR = path.join(__dirname, "..", "screenshots", "trovagnocca-lo
 const API_KEY_FILE = path.join(__dirname, "settings", "2captchaApiKey.txt");
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
+const { RESIDENTIAL_PROXY, PROXY } = require("../const")
+
 const getCaptchaApiKey = () => {
   if (process.env.TWOCAPTCHA_API_KEY) return process.env.TWOCAPTCHA_API_KEY.trim();
   if (fs.existsSync(API_KEY_FILE)) return fs.readFileSync(API_KEY_FILE, "utf-8").trim();
@@ -85,7 +87,7 @@ class TrovagnoccaBot {
     if (this.browser) return;
 
     this.browser = await puppeteer.launch({
-      headless: true,
+      headless: false,
       executablePath: puppeteer.executablePath(),
       args: [
         "--no-sandbox",
@@ -93,6 +95,7 @@ class TrovagnoccaBot {
         "--disable-dev-shm-usage",
         "--disable-blink-features=AutomationControlled",
         "--window-size=1366,900",
+        `--proxy-server=http://${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`
       ],
       // defaultViewport: {
       //   width: 1366,
@@ -103,8 +106,12 @@ class TrovagnoccaBot {
 
   async newPage() {
     await this.launch();
-    
+
     this.page = await this.browser.newPage();
+    await this.page.authenticate({
+      username: RESIDENTIAL_PROXY.username,
+      password: RESIDENTIAL_PROXY.password
+    });
     this.page.setDefaultTimeout(30000);
     this.page.setDefaultNavigationTimeout(60000);
     await this.page.setUserAgent(USER_AGENT);

@@ -15,7 +15,15 @@ const PROXY = {
     password: 'f8f3c0a82d'
 };
 
+const PROXY_US = {
+    host: '89.34.224.240',
+    port: '12323',
+    username: '14a88d64c3215',
+    password: 'cdfd40c29c'
+};
+
 module.exports = {
     RESIDENTIAL_PROXY,
     PROXY,
+    PROXY_US
 }

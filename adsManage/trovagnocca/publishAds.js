@@ -1351,7 +1351,7 @@ async function publishAd(page, adData = {}, options = {}) {
   //   }
   // });
 
-  console.log(responseAdId, "remoteAdId");
+  // console.log(responseAdId, "remoteAdId");
   const leftInfoStep = await waitForInfoStepExit(page);
   if (!leftInfoStep) {
     throw new Error(`Trovagnocca did not leave contacts step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);

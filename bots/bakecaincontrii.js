@@ -17,12 +17,13 @@ const API_KEY = fs.readFileSync(__dirname + "/settings/2captchaApiKey.txt", "utf
 });
 const solver = new TwoCaptcha.Solver(API_KEY);
 
-const LOGIN_URL = "https://bakecaincontrii.com/u/login/";
+const LOGIN_URL = "https://www.bakecaincontrii.com/u/login/";
 const PUBLISH_URL = "https://bakecaincontrii.com/u/post-insert/";
 const MANAGE_POST = "https://bakecaincontrii.com/u/post-manage/";
 const PURCHASE_SUM = "https://bakecaincontrii.com/u/purchase-summary/";
 const PAGE_DASHBOARD = "https://www.bakecaincontrii.com/u/account/dashboard/";
 const CREDIT_SELECTOR = "#app > main > div > div.row > div.col-md-7.order-md-0 > div:nth-child(1) > div:nth-child(2) > div > div > div > div > div > ul > li:nth-child(1) > span.badge";
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
 puppeteer.use(
   StealthPlugin(),
@@ -113,12 +114,86 @@ class BakecaincontriiBot {
     this.token = null;
   }
 
+  async configureLoginPage(page) {
+    await page.setUserAgent(USER_AGENT);
+    await page.setExtraHTTPHeaders({
+      "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7"
+    });
+    await page.setViewport({
+      width: 1365 + Math.floor(Math.random() * 80),
+      height: 768 + Math.floor(Math.random() * 80),
+      deviceScaleFactor: 1
+    });
+  }
+
+  async getCloudflareBlockInfo(page) {
+    return page.evaluate(() => {
+      const text = document.body?.innerText || "";
+      const blocked =
+        /sorry,\s*you have been blocked/i.test(text) ||
+        /you are unable to access/i.test(text) ||
+        /cloudflare ray id/i.test(text);
+
+      if (!blocked) return null;
+
+      const rayMatch = text.match(/Cloudflare Ray ID:\s*([a-z0-9]+)/i);
+      return {
+        rayId: rayMatch ? rayMatch[1] : null,
+        title: document.title || "",
+        url: location.href
+      };
+    }).catch(() => null);
+  }
+
+  async assertNotCloudflareBlocked(page, label = "login page") {
+    const blockInfo = await this.getCloudflareBlockInfo(page);
+    if (!blockInfo) return;
+
+    const ray = blockInfo.rayId ? `, ray=${blockInfo.rayId}` : "";
+    throw new Error(`Bakecaincontrii Cloudflare block on ${label} (url=${blockInfo.url}${ray})`);
+  }
+
+  async getLoginSelectors(page) {
+    return page.evaluate(() => {
+      const isVisible = (node) => {
+        if (!node) return false;
+        const style = window.getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      };
+
+      const cssPath = (node) => {
+        if (node.id) return `#${CSS.escape(node.id)}`;
+        const name = node.getAttribute("name");
+        if (name) return `${node.tagName.toLowerCase()}[name="${CSS.escape(name)}"]`;
+        const type = node.getAttribute("type");
+        if (type) return `${node.tagName.toLowerCase()}[type="${CSS.escape(type)}"]`;
+        return node.tagName.toLowerCase();
+      };
+
+      const inputs = Array.from(document.querySelectorAll("input")).filter(isVisible);
+      const emailInput =
+        inputs.find((input) => input.type === "email") ||
+        inputs.find((input) => /email|mail|username|login|user/i.test(`${input.name} ${input.id} ${input.placeholder}`));
+      const passwordInput =
+        inputs.find((input) => input.type === "password") ||
+        inputs.find((input) => /password|pass/i.test(`${input.name} ${input.id} ${input.placeholder}`));
+
+      return {
+        email: emailInput ? cssPath(emailInput) : "input[name='email'], input[type='email']",
+        password: passwordInput ? cssPath(passwordInput) : "input[name='password'], input[type='password']"
+      };
+    });
+  }
+
   async waitForLoginFormReady(page) {
     await page.waitForFunction(() => document.readyState === "complete", { timeout: 30000 }).catch(() => { });
     await this.waitTillHTMLRendered(page);
+    await this.assertNotCloudflareBlocked(page);
 
-    const selectors = ["input[name='email']", "input[name='password']"];
-    for (const selector of selectors) {
+    const selectors = await this.getLoginSelectors(page);
+
+    for (const selector of [selectors.email, selectors.password]) {
       await page.waitForSelector(selector, { visible: true });
       await page.waitForFunction(
         (sel) => {
@@ -131,6 +206,8 @@ class BakecaincontriiBot {
         selector
       );
     }
+
+    return selectors;
   }
 
   async solveAndInjectTurnstile(page, solver) {
@@ -220,12 +297,9 @@ class BakecaincontriiBot {
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
-          // '--disable-blink-features=AutomationControlled',
-          // '--disable-dev-shm-usage',
-          // '--disable-infobars',
-          // '--disable-web-security',
-          // '--disable-features=IsolateOrigins,site-per-process',
-          // '--window-size=1920,1080',
+          '--disable-dev-shm-usage',
+          '--disable-infobars',
+          '--window-size=1365,768',
         ],
         defaultViewport: null,
       });
@@ -235,6 +309,7 @@ class BakecaincontriiBot {
     // this.page = await context.newPage();
 
     this.page = await this.browser.newPage();
+    await this.configureLoginPage(this.page);
 
     // Useful defaults
     this.page.setDefaultTimeout(20000);
@@ -244,6 +319,7 @@ class BakecaincontriiBot {
     // await this.delay(500 + Math.random() * 800);
     await this.delay(500 + Math.random() * 800);
     await this.page.screenshot({ path: `${screenshotDir}/loginBUG1.png`, fullPage: true });
+    await this.assertNotCloudflareBlocked(this.page, "initial login load");
 
     // Close any visible modals
     const modals = await this.page.$$('.modal.show, .modal.fade.show');
@@ -260,12 +336,12 @@ class BakecaincontriiBot {
       await this.delay(400 + Math.random() * 700);
       await this.page.screenshot({ path: `${screenshotDir}/loginBUG${i + 2}.png`, fullPage: true });
     }
-    await this.waitForLoginFormReady(this.page);
+    const selectors = await this.waitForLoginFormReady(this.page);
 
     // Robust typing
-    await this.typeHuman(this.page, "input[name='email']", creds.email);
+    await this.typeHuman(this.page, selectors.email, creds.email);
     await this.page.screenshot({ path: `${screenshotDir}/loginBUG4.png`, fullPage: true });
-    await this.typeHuman(this.page, "input[name='password']", creds.password, { secure: true });
+    await this.typeHuman(this.page, selectors.password, creds.password, { secure: true });
     console.log(`[i] Login password for "${creds.email}": "${creds.password}"`);
     await this.page.screenshot({ path: `${screenshotDir}/loginBUG5.png`, fullPage: true });
 
@@ -300,7 +376,7 @@ class BakecaincontriiBot {
     } catch (e) {
       console.warn("Submit via button failed, trying Enter:", e.message);
       // Fallback: press Enter in password field
-      const pwdHandle = await this.page.$("input[name='password']");
+      const pwdHandle = await this.page.$(selectors.password);
       if (pwdHandle) {
         await pwdHandle.press('Enter');
         await this.page.waitForNavigation({ waitUntil: 'networkidle2' }).catch(() => { });
@@ -481,6 +557,7 @@ class BakecaincontriiBot {
       if (loggedGroup == false) return new Error("Login timeout");
     }, 1000 * 120);
 
+    await this.configureLoginPage(this.page);
     await this.page.goto(LOGIN_URL);
     await this.delay(Math.random() * 1000 + 1000);
     // Accepting age
@@ -500,8 +577,8 @@ class BakecaincontriiBot {
       await this.page.click("#exampleModalCenter > div > div > div > button")
     } catch (e) {
     }
-    await this.waitForLoginFormReady(this.page);
-    await this.typeHuman(this.page, "input[name='email']", creds.email);
+    const selectors = await this.waitForLoginFormReady(this.page);
+    await this.typeHuman(this.page, selectors.email, creds.email);
     try {
       await this.page.click("#exampleModalCenter > div > div > div > button")
     } catch (e) {
@@ -509,7 +586,7 @@ class BakecaincontriiBot {
     await this.page.screenshot({
       path: './screenshots/repeat-loginBUG3.png', fullPage: true
     });
-    await this.typeHuman(this.page, "input[name='password']", creds.password, { secure: true });
+    await this.typeHuman(this.page, selectors.password, creds.password, { secure: true });
     console.log(`[i] Login password for "${creds.email}": "${creds.password} in repeat"`);
     try {
       await this.page.click("#exampleModalCenter > div > div > div > button")

@@ -1,0 +1,53 @@
+{
+  "url": "https://www.trovagnocca.com/auth/login",
+  "title": "Trovagnocca: bacheca di annunci di incontri gratuiti",
+  "bodyText": "Accedi\nRegistrati\nCARICA ANNUNCIO\nAccedi\nAccedi\nNon hai un account?\nPassword dimenticata?\n\nHome\nGestione Annunci\nContatti\nTermini e Condizioni\nPrivacy Policy\nProdotti\nLinks Amici\n Trovagnocca\n Itaincontri\n Empirescort\nCerca siti per adulti\n Blog\n\nPubblica annuncio in:\n\n🇮🇹 Italia\n🇦🇷 Argentina\n🇦🇺 Australia\n🇧🇴 Bolivia\n🇧🇷 Brasil\n🇨🇱 Chile\n🇨🇴 Colombia\n🇨🇷 Costa Rica\n🇩🇴 República Dominicana\n🇪🇨 Ecuador\n🇪🇸 España\n🇬🇹 Guatemala\n🇮🇪 Ireland\n🇮🇳 India\n🇮🇹 Italia\n🇲🇽 México\n🇳🇿 New",
+  "htmlLength": 37891,
+  "inputCount": 6,
+  "inputs": [
+    {
+      "type": "hidden",
+      "name": "_token",
+      "id": "_token",
+      "placeholder": "",
+      "visible": false
+    },
+    {
+      "type": "email",
+      "name": "login_email",
+      "id": "login_email",
+      "placeholder": "Inserisci la tua e-email",
+      "visible": true
+    },
+    {
+      "type": "password",
+      "name": "login_password",
+      "id": "login_password",
+      "placeholder": "Password",
+      "visible": true
+    },
+    {
+      "type": "hidden",
+      "name": "recover_password_token",
+      "id": "recover_password_token",
+      "placeholder": "",
+      "visible": false
+    },
+    {
+      "type": "email",
+      "name": "recover_password_email",
+      "id": "recover_password_email",
+      "placeholder": "Inserisci la tua e-email",
+      "visible": false
+    },
+    {
+      "type": "hidden",
+      "name": "ajax_token",
+      "id": "ajax_token",
+      "placeholder": "",
+      "visible": false
+    }
+  ],
+  "isBlank": false,
+  "isBlocked": true
+}
