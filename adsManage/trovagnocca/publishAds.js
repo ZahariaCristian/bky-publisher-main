@@ -750,7 +750,46 @@ async function uploadImages(page, images = [], picsAudit = []) {
   }, { timeout: 30000 }, existing.length, thumbnailCountBefore);
 
   await delay(1000);
+  await clickAnteprimaImageButton(page, existing, picsAudit);
   return existing.length;
+}
+
+async function clickAnteprimaImageButton(page, uploadedImagePaths = [], picsAudit = []) {
+  const anteprimaItem = picsAudit.find((item) => item?.isAnteprima === true);
+  if (!anteprimaItem || !uploadedImagePaths.length) return false;
+
+  const normalizePath = (value) => path.resolve(`${value || ""}`).toLowerCase();
+  const anteprimaPath = normalizePath(anteprimaItem.path || anteprimaItem.src || anteprimaItem.origin);
+  const anteprimaIndex = uploadedImagePaths.findIndex((imagePath) => normalizePath(imagePath) === anteprimaPath);
+  const targetIndex = anteprimaIndex >= 0 ? anteprimaIndex : 0;
+
+  await page.waitForFunction((minCount) => {
+    const isVisible = (node) => Boolean(node && (node.offsetWidth || node.offsetHeight || node.getClientRects().length));
+    return Array.from(document.querySelectorAll("button.btn_cover, button"))
+      .filter((button) => isVisible(button) && /anteprima/i.test(button.textContent || ""))
+      .length >= minCount;
+  }, { timeout: 15000 }, Math.min(uploadedImagePaths.length, targetIndex + 1)).catch(() => null);
+
+  const clicked = await page.evaluate((index) => {
+    const isVisible = (node) => Boolean(node && (node.offsetWidth || node.offsetHeight || node.getClientRects().length));
+    const buttons = Array.from(document.querySelectorAll("button.btn_cover, button"))
+      .filter((button) => isVisible(button) && /anteprima/i.test(button.textContent || ""));
+    const button = buttons[index] || buttons[0];
+    if (!button) return false;
+
+    button.scrollIntoView({ block: "center", inline: "center" });
+    button.click();
+    return true;
+  }, targetIndex);
+
+  if (clicked) {
+    console.log(`[trovagnocca:publish] Anteprima image selected at index ${targetIndex}`);
+    await delay(500);
+  } else {
+    console.warn("[trovagnocca:publish] Anteprima button not found after image upload.");
+  }
+
+  return clicked;
 }
 
 function addTagWhen(tags, condition, label) {
@@ -1322,6 +1361,29 @@ async function getFirstManageCardRemoteId(page) {
   }).catch(() => "");
 }
 
+async function scrapeClimbingCalendar(page) {
+  await page.waitForSelector(".manage_promo_card, .promo_status", { timeout: 15000 }).catch(() => null);
+
+  return page.evaluate(() => {
+    const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+    const cards = Array.from(document.querySelectorAll(".manage_promo_card, .promo_status"));
+
+    for (const card of cards) {
+      const paragraphs = Array.from(card.querySelectorAll("p"))
+        .map((node) => clean(node.textContent))
+        .filter(Boolean);
+      const calendarIndex = paragraphs.findIndex((text) => /Calendario delle risalite/i.test(text));
+      if (calendarIndex < 0) continue;
+
+      return paragraphs
+        .slice(calendarIndex + 1)
+        .filter((text) => /\d{1,2}\s+\S+\s+\d{4}\s+-\s+\d{1,2}:\d{2}/i.test(text));
+    }
+
+    return [];
+  }).catch(() => []);
+}
+
 function buildPublishData(adData = {}) {
   const contactNote = parseTrovagnoccaNote(adData.note);
   const typeAnnuncio = firstNonEmpty(adData.typeAnnuncio, adData.promo?.visibility, "Free");
@@ -1598,6 +1660,9 @@ async function publishAd(page, adData = {}, options = {}) {
         timeout: 60000
       });
     }
+
+    const climbingCalendar = data.promo.active ? await scrapeClimbingCalendar(page) : [];
+    const climbingCalendarText = climbingCalendar.join(" - ");
     
     const currentUrl = page.url();
     const urlIdMatch = currentUrl.match(/\/ads\/manage\/(\d{4,})\b/i);
@@ -1634,6 +1699,8 @@ async function publishAd(page, adData = {}, options = {}) {
       response.url = publishLink || currentUrl;
       response.payload = {
         idpriv: remoteId,
+        climbingCalendar,
+        dateTimeTop: climbingCalendarText,
         data
       }
     }

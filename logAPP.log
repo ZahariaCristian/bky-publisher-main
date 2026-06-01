@@ -5216,3 +5216,89 @@ Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not
 Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
 Publisher INFO: login success for Raffa21's Team / trovagnocca
 Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher ERROR: APIError: An Unexpected Error has occured. Please submit an issue on GitHub detailing this event.
+Try restart bot of group Raffa21's Team platform trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher: Deleting Bakeca ad n. 1961, schedule n. 13, group 15
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found on Trovagnocca credits page.
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher ERROR: ProtocolError: Runtime.callFunctionOn timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.
+Try restart bot of group Raffa21's Team platform trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher: Deleting Bakeca ad n. 1961, schedule n. 10, group 15
+Publisher ERROR during trovagnocca operation: TypeError: Failed to fetch
+    at evaluate (evaluate at TrovagnoccaBot.requestAdResource (E:\Web\Node\Dev\bky-publisher-main\bots\trovagnocca.js:665:31), <anonymous>:20:29)
+    at #evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:391:56)
+    at runNextTicks (node:internal/process/task_queues:60:5)
+    at process.processImmediate (node:internal/timers:454:9)
+    at async ExecutionContext.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\ExecutionContext.js:277:16)
+    at async IsolatedWorld.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\cdp\IsolatedWorld.js:100:16)
+    at async CdpFrame.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:362:20)
+    at async CdpPage.evaluate (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:830:20)
+    at async TrovagnoccaBot.requestAdResource (E:\Web\Node\Dev\bky-publisher-main\bots\trovagnocca.js:665:20)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:931:42)
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/account/dashboard/
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/account/dashboard/
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher ERROR: TimeoutError: Waiting failed: 10000ms exceeded
+Try restart bot of group Raffa21's Team platform trovagnocca
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher: Suspending Bakeca ad n. 1961, schedule n. 14, group 15
+Publisher: Suspending Bakeca ad n. 1961, schedule n. 15, group 15
+Publisher ERROR during trovagnocca operation: Error: Trovagnocca PUT ad 9191825 failed: 400  {"success":false,"message":"Operazione non consentita","btnClose":"Chiudi"}
+    at TrovagnoccaBot.requestAdResource (E:\Web\Node\Dev\bky-publisher-main\bots\trovagnocca.js:709:13)
+    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:945:43)
+    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:742:17)
+    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1174:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher ERROR: TimeoutError: Waiting failed: 10000ms exceeded
+Try restart bot of group Raffa21's Team platform trovagnocca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii

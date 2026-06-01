@@ -219,6 +219,31 @@ function getErrorDetails(error) {
     }
 }
 
+function mergeTrovagnoccaClimbingCalendarPeriod(period, payload = {}) {
+    const climbingCalendar = Array.isArray(payload.climbingCalendar)
+        ? payload.climbingCalendar.filter(Boolean)
+        : [];
+    const dateTimeTop = payload.dateTimeTop || climbingCalendar.join(" - ");
+
+    if (!dateTimeTop && !climbingCalendar.length) return period;
+
+    try {
+        const parsed = JSON.parse(period || "[]");
+        if (Array.isArray(parsed) && parsed.length) {
+            parsed[0] = {
+                ...parsed[0],
+                climbingCalendar,
+                dateTimeTop
+            };
+            return JSON.stringify(parsed);
+        }
+    } catch {
+        // Legacy period strings cannot safely carry metadata; keep them unchanged.
+    }
+
+    return period;
+}
+
 async function calculateTrovagnoccaPriceFromPublisher(payload = {}) {
     const numberDays = parseInt(payload.numberDays, 10) || 1;
     const productId = parseInt(payload.productId, 10) || 300;
@@ -561,7 +586,8 @@ async function mainLoop(group, platform) {
                                 picsAudit.push({
                                     path: `${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`,
                                     applyPhone: photo.tblGallerium.applyPhone,
-                                    crop: photo.tblGallerium.crop
+                                    crop: photo.tblGallerium.crop,
+                                    isAnteprima: photo.isAnteprima === true
                                 })
                                 pics.push(`${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`);
                             }
@@ -943,6 +969,10 @@ async function postThis(ad, group, platform) {
                     ad.remotePostID = result?.payload?.idpriv || result?.megaId || null
                     ad.urlBK = result?.url || null;
                     ad.payed = Number(result?.creditsConsumed || 0) > 0;
+                    if (platform.platform === "trovagnocca" && result?.payload?.dateTimeTop) {
+                        ad.dateTimeTop = result.payload.dateTimeTop;
+                        ad.period = mergeTrovagnoccaClimbingCalendarPeriod(ad.period, result.payload);
+                    }
                     platform.needRefresh = true;
                     break;
             }
@@ -951,7 +981,9 @@ async function postThis(ad, group, platform) {
                 state: pubStatus,
                 remotePostID: ad.remotePostID,
                 urlBK: ad.urlBK,
-                payed: ad.payed
+                payed: ad.payed,
+                dateTimeTop: ad.dateTimeTop,
+                period: ad.period
             });
         } catch (bakecaActionError) {
             pubStatus = "KO";
