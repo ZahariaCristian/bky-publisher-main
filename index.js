@@ -44,7 +44,8 @@ const rawLoginConcurrency = Number.parseInt(process.env.BAKECA_LOGIN_CONCURRENCY
 const MAX_CONCURRENT_LOGINS = Number.isFinite(rawLoginConcurrency) && rawLoginConcurrency > 0 ? rawLoginConcurrency : 4;
 let activeLoginCount = 0;
 const loginWaitQueue = [];
-const PUBLISHER_API_PORT = Number.parseInt(process.env.PUBLISHER_API_PORT || "9998", 10);
+const rawPublisherApiPort = Number.parseInt(process.env.PUBLISHER_API_PORT || "9998", 10);
+const PUBLISHER_API_PORT = Number.isFinite(rawPublisherApiPort) && rawPublisherApiPort > 0 ? rawPublisherApiPort : 9998;
 let publisherApiServer = null;
 
 const getLastNumber = (str) => {
@@ -220,6 +221,7 @@ function getErrorDetails(error) {
 
 async function calculateTrovagnoccaPriceFromPublisher(payload = {}) {
     const numberDays = parseInt(payload.numberDays, 10) || 1;
+    const productId = parseInt(payload.productId, 10) || 300;
     const timeSlots = normalizePublisherTimeSlots(payload.timeSlots);
 
     if (!timeSlots.length) {
@@ -249,24 +251,7 @@ async function calculateTrovagnoccaPriceFromPublisher(payload = {}) {
         platform.needRefresh = true;
     }
 
-    const decryptedPassword = platform.password ? decryptPassword(platform.password) : "";
-    const priceBot = new TrovagnoccaBot(platform.username, decryptedPassword, platform.credit, platform.platform);
-
-    try {
-        let sessionReady = false;
-        if (platform.cookie) {
-            sessionReady = await priceBot.initWithCookies(platform.cookie);
-        }
-
-        if (!sessionReady) {
-            platform.cookie = await ensureSession(priceBot, platform.username);
-            platform.needRefresh = true;
-        }
-
-        return await priceBot.getPrice({ numberDays, timeSlots });
-    } finally {
-        await closeBotBrowser(priceBot, "trovagnocca price calculation").catch(() => { });
-    }
+    return await platform.bot.getPrice({ numberDays, timeSlots, productId });
 }
 
 function startPublisherApiServer() {
@@ -555,7 +540,7 @@ async function mainLoop(group, platform) {
                 if (Math.round(day.getTime() / 1000) > Math.round(t.getTime() / 1000) || s.state == "EDIT") {
                     var galleriaSchedulazione = await s.getTblGalleriaAnnuncios({
                         where: {
-                            schedulazione: s.id, 
+                            schedulazione: s.id,
                             GCRecord: null
                         },
                         order: [['isAnteprima', 'DESC']],
@@ -1195,6 +1180,8 @@ async function startAllGroupLoops(groups) {
 }
 
 CreateGroupsBot().then(async (groups) => {
+    startPublisherApiServer();
+
     if (groups) {
         await startCheckPhoneBot();
         await startAllGroupLoops(groups);

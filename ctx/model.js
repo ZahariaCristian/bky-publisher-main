@@ -6,19 +6,58 @@ dotenv.config();
 //hasMany -> foreignKey, proprietà presente in destinazione -> sourceKey
 //belongsTo -> foreignKey, proprietà presente in tabella verso -> sourceKey
 //hasOne -> foreignKey, proprietà presente in tabella di destinazione
-
 console.log("DB CONNECTING WITH: ", {
-    db: process.env.DATABASE,
-    user: process.env.DBUSER,
-    pass: process.env.DBPASS,
+    db:process.env.DATABASE,
+    user:process.env.DBUSER,
+    pass:process.env.DBPASS,
 })
-
 var model = new Sequelize(process.env.DATABASE, process.env.DBUSER, process.env.DBPASS, {
     host: process.env.HOST,
     port: process.env.PORTDB,
-    dialect: 'mysql',
-    pool: { max: 10, min: 2, idle: 10000 },
+    dialect: 'mysql',  
+    pool: {max: 10, min: 2, idle: 10000},
     logging: process.env.PROD === '1' ? false : console.log
+});
+
+const Report = model.define('report', {
+    id: {
+        type: Sequelize.UUID,
+        primaryKey: true,
+        allowNull: false,
+        defaultValue: Sequelize.UUIDV1
+    },
+    phone: {
+        type: Sequelize.STRING,
+        allowNull: true
+    },
+    description: {
+        type: Sequelize.TEXT,
+        allowNull: false
+    },
+    date: {
+        type: Sequelize.DATE,
+        allowNull: false
+    },
+    solved: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false
+    },
+    user: {
+        type: Sequelize.STRING,
+        allowNull: true
+    },
+    oldphone: {
+        type: Sequelize.STRING,
+        allowNull: true
+    },
+    dangerlevel: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0 // 0 = no danger, 1 = low, 2 = medium, 3 = high
+    },
+}, {
+    freezeTableName: true,
+    timestamps: false
 });
 
 const tblLogs = model.define('tblLogs', {
@@ -81,7 +120,7 @@ var tblUser = model.define('tblUser', {
         type: Sequelize.STRING,
         allowNull: true
     },
-    mail: {
+    mail:{
         type: Sequelize.STRING,
         allowNull: true
     },
@@ -91,11 +130,11 @@ var tblUser = model.define('tblUser', {
     },
     password: {
         type: Sequelize.VIRTUAL,
-        set: function (value) {
+        set: function (value){
             this.setDataValue('password', value);
             this.setDataValue('storedPassword', value);
         },
-        get: function () {
+        get: function (){
             return this.getDataValue('storedPassword');
         }
     },
@@ -107,7 +146,7 @@ var tblUser = model.define('tblUser', {
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    firstTime: {
+    firstTime:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
@@ -115,21 +154,29 @@ var tblUser = model.define('tblUser', {
         type: Sequelize.STRING,
         allowNull: true
     },
-    annunci: {
+    annunci:{
         type: Sequelize.VIRTUAL
     },
-    isMe: {
+    isMe:{
         type: Sequelize.VIRTUAL
     },
     GCRecord: {
         type: Sequelize.INTEGER,
         allowNull: true
+    },
+    whatsapp_qr: {
+        type: Sequelize.TEXT,
+        allowNull: true
+    },
+    whatsapp_active: {
+        type: Sequelize.BOOLEAN,
+        allowNull: true,
     }
-}, {
+  }, {
     freezeTableName: true,
     timestamps: false
-});
-
+  });
+  
 //   tblUser.sync({force: true}).then(function () {
 //     // Table created
 //     return tblUser.create({
@@ -138,30 +185,34 @@ var tblUser = model.define('tblUser', {
 //     });
 //   });
 
-var tblGruppi = model.define("tblGruppi", {
-    name: {
+var tblGruppi = model.define("tblGruppi",{
+    name:{
         type: Sequelize.STRING,
         allowNull: false,
         unique: true
     },
-    owner: {
+    owner:{
         type: Sequelize.UUID,
         allowNull: true
     },
-    bkUserName: {
+    bkUserName:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    bkPassword: {
+    bkPassword:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    bkCredit: {
+    bkCredit:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    GCRecord: {
+    GCRecord:{
         type: Sequelize.INTEGER,
+        allowNull: true
+    },
+    coupon:{
+        type: Sequelize.BOOLEAN,
         allowNull: true
     }
 }, {
@@ -171,7 +222,7 @@ var tblGruppi = model.define("tblGruppi", {
 var tblPlatform = model.define("tblPlatform", {
     gruppi: {
         type: Sequelize.INTEGER,
-        allowNull: false,
+        allowNull: false
     },
     platform: {
         type: Sequelize.ENUM(
@@ -200,37 +251,32 @@ var tblPlatform = model.define("tblPlatform", {
         defaultValue: 0
     },
     status: {
-        type: Sequelize.ENUM(
-            'active',
-            'inactive',
-            'suspended',
-        ),
+        type: Sequelize.ENUM('active', 'inactive', 'suspended'),
         allowNull: false,
         defaultValue: 'active'
-    },
+    }
 }, {
     freezeTableName: true,
     timestamps: true
 });
 
-// ===== Associations =====
 tblPlatform.belongsTo(tblGruppi, { foreignKey: 'gruppi', targetKey: "id", onDelete: 'CASCADE' });
 tblGruppi.hasMany(tblPlatform, { foreignKey: 'gruppi', sourceKey: "id" });
 
-var tblMembriGruppo = model.define("tblMembriGruppo", {
-    group: {
+var tblMembriGruppo = model.define("tblMembriGruppo",{
+    group:{
         type: Sequelize.INTEGER,
         allowNull: false
     },
-    member: {
+    member:{
         type: Sequelize.UUID,
         allowNull: true
     },
-    owner: {
+    owner:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    GCRecord: {
+    GCRecord:{
         type: Sequelize.INTEGER,
         allowNull: true
     }
@@ -239,20 +285,20 @@ var tblMembriGruppo = model.define("tblMembriGruppo", {
     timestamps: true
 });
 
-tblGruppi.hasMany(tblMembriGruppo, {
+tblGruppi.hasMany(tblMembriGruppo,{
     foreignKey: "group",
     sourceKey: "id"
 });
-tblMembriGruppo.belongsTo(tblGruppi, {
+tblMembriGruppo.belongsTo(tblGruppi,{
     foreignKey: "group",
     targetKey: "id"
 });
 
-tblMembriGruppo.belongsTo(tblUser, {
+tblMembriGruppo.belongsTo(tblUser,{
     foreignKey: "member",
     targetKey: "OID"
 });
-tblUser.hasOne(tblMembriGruppo, {
+tblUser.hasOne(tblMembriGruppo,{
     as: "group",
     foreignKey: "member"
 });
@@ -283,7 +329,7 @@ var tblDonne = model.define("tblDonne", {
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    groupOwner: {
+    groupOwner:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
@@ -296,21 +342,21 @@ var tblDonne = model.define("tblDonne", {
     timestamps: true
 });
 
-tblGruppi.hasMany(tblDonne, {
+tblGruppi.hasMany(tblDonne,{
     foreignKey: "groupOwner",
     sourceKey: "id"
 });
-tblDonne.belongsTo(tblGruppi, {
+tblDonne.belongsTo(tblGruppi,{
     foreignKey: "groupOwner",
     targetKey: "id"
 });
 
-var tblGalleria = model.define("tblGalleria", {
+var tblGalleria = model.define("tblGalleria",{
     donna: {
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    src: {
+    src:    {
         type: Sequelize.STRING,
         allowNull: true
     },
@@ -347,21 +393,21 @@ var tblGalleria = model.define("tblGalleria", {
     timestamps: true
 });
 
-tblDonne.hasMany(tblGalleria, {
+tblDonne.hasMany(tblGalleria,{
     foreignKey: "donna",
     sourceKey: "id"
 });
-tblGalleria.belongsTo(tblDonne, {
+tblGalleria.belongsTo(tblDonne,{
     foreignKey: "donna",
     targetKey: "id"
 });
 
-var tblAnnunci = model.define("tblAnnunci", {
-    title: {
+var tblAnnunci = model.define("tblAnnunci",{
+    title:  {
         type: Sequelize.STRING,
         allowNull: true
     },
-    city: {
+    city:{
         type: Sequelize.STRING,
         allowNull: true
     },
@@ -373,212 +419,233 @@ var tblAnnunci = model.define("tblAnnunci", {
         type: Sequelize.STRING,
         allowNull: true
     },
-    description: {
+    description:{
         type: Sequelize.TEXT,
         allowNull: true
     },
-    note: {
+    note:{
         type: Sequelize.TEXT,
         allowNull: true
     },
-    serviceAfricana: {
+    serviceAfricana:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceIndiana: {
+    serviceIndiana:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceAsiatica: {
+    serviceAsiatica:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceAraba: {
+    serviceAraba:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceLatina: {
+    serviceLatina:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceCaucasica: {
+    serviceCaucasica:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceItaliana: {
+    serviceItaliana:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceSNaturale: {
+    serviceSNaturale:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceSRifatto: {
+    serviceSRifatto:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceCBiondi: {
+    serviceCBiondi:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceCMarroni: {
+    serviceCMarroni:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceCNeri: {
+    serviceCNeri:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceCRossi: {
+    serviceCRossi:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceMagro: {
+    serviceMagro:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceFormoso: {
+    serviceFormoso:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceCash: {
+    serviceCash:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceCreditCard: {
+    serviceCreditCard:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    hourlyPrice: {
+    hourlyPrice:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    serviceOrale: {
+    serviceOrale:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceNazionalita: {
+    serviceNazionalita:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    serviceAnale: {
+    serviceAnale:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceSadomaso: {
+    serviceSadomaso:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceEsperienzaFidanzata: {
+    serviceEsperienzaFidanzata:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceAttriciPorno: {
+    serviceAttriciPorno:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceEiaculazioneSulCorpo: {
+    serviceEiaculazioneSulCorpo:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceMassaggioErotico: {
+    serviceMassaggioErotico:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceMassaggioTantrico: {
+    serviceMassaggioTantrico:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceFetish: {
+    serviceFetish:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceBacioAllaFrancese: {
+    serviceBacioAllaFrancese:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceGiocoDiRuolo: {
+    serviceGiocoDiRuolo:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceTrio: {
+    serviceTrio:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceSexting: {
+    serviceSexting:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceVideoChiamata: {
+    serviceVideoChiamata:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceUomini: {
+    serviceUomini:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceDonne: {
+    serviceDonne:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceCoppie: {
+    serviceCoppie:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceDisabili: {
+    serviceDisabili:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceACasa: {
+    serviceACasa:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceEventiEFeste: {
+    serviceEventiEFeste:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceAlbergoMotel: {
+    serviceAlbergoMotel:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceClubs: {
+    serviceClubs:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    serviceVisitaADomicilio: {
+    serviceVisitaADomicilio:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    donna: {
+    donna:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    hasWhatapp: {
+    hasWhatapp:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    cost: {
+    hasTelegram:{
+        type: Sequelize.BOOLEAN,
+        allowNull: true
+    },
+    cost:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    payed: {
+    payed:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    groupOwner: {
+    groupOwner:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    editedBy: {
+    editedBy:{
         type: Sequelize.UUID,
         allowNull: true
     },
-    phoneTmp: {
+    phoneTmp:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    GCRecord: {
+    GCRecord:{
         type: Sequelize.INTEGER,
+        allowNull: true
+    },
+    nickname:{
+        type: Sequelize.STRING,
+        allowNull: true
+    },
+    notified:{
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+    },
+    notifyEnabled: {
+        type: Sequelize.BOOLEAN,
+        allowNull: true,
+    },
+    expiresAt: {
+        type: Sequelize.STRING,
         allowNull: true
     },
     sono: {
@@ -590,56 +657,56 @@ var tblAnnunci = model.define("tblAnnunci", {
     timestamps: true
 });
 
-tblDonne.hasMany(tblAnnunci, {
+tblDonne.hasMany(tblAnnunci,{
     foreignKey: "donna",
     sourceKey: "id"
 });
-tblAnnunci.belongsTo(tblDonne, {
+tblAnnunci.belongsTo(tblDonne,{
     foreignKey: "donna",
     targetKey: "id"
 });
 
-tblGalleria.hasMany(tblAnnunci, {
+tblGalleria.hasMany(tblAnnunci,{
     foreignKey: "previewPhoto",
     sourceKey: "id"
 });
-tblAnnunci.belongsTo(tblGalleria, {
+tblAnnunci.belongsTo(tblGalleria,{
     foreignKey: "previewPhoto",
     targetKey: "id"
 });
 
-tblGruppi.hasMany(tblAnnunci, {
+tblGruppi.hasMany(tblAnnunci,{
     foreignKey: "groupOwner",
     sourceKey: "id"
 });
-tblAnnunci.belongsTo(tblGruppi, {
+tblAnnunci.belongsTo(tblGruppi,{
     foreignKey: "groupOwner",
     targetKey: "id"
 });
 
-tblUser.hasMany(tblAnnunci, {
+tblUser.hasMany(tblAnnunci,{
     foreignKey: "editedBy",
     sourceKey: "OID"
 });
-tblAnnunci.belongsTo(tblUser, {
+tblAnnunci.belongsTo(tblUser,{
     foreignKey: "editedBy",
     targetKey: "OID"
 });
 
-var tblGalleriaAnnuncio = model.define("tblGalleriaAnnuncio", {
-    galleria: {
+var tblGalleriaAnnuncio = model.define("tblGalleriaAnnuncio",{
+    galleria:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    schedulazione: {
+    schedulazione:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    isAnteprima: {
+    isAnteprima:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    GCRecord: {
+    GCRecord:{
         type: Sequelize.INTEGER,
         allowNull: true
     }
@@ -648,112 +715,115 @@ var tblGalleriaAnnuncio = model.define("tblGalleriaAnnuncio", {
     timestamps: false
 });
 
-tblGalleria.hasMany(tblGalleriaAnnuncio, {
+tblGalleria.hasMany(tblGalleriaAnnuncio,{
     foreignKey: "galleria",
     sourceKey: "id"
 });
-tblGalleriaAnnuncio.belongsTo(tblGalleria, {
+tblGalleriaAnnuncio.belongsTo(tblGalleria,{
     foreignKey: "galleria",
     targetKey: "id"
 });
 
-var tblSchedulazioni = model.define("tblSchedulazioni", {
-    annuncio: {
+var tblSchedulazioni = model.define("tblSchedulazioni",{
+    annuncio:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    data: {
+    data:{
         type: Sequelize.DATE,
         allowNull: true
     },
-    dataString: {
+    dataString:{
         type: Sequelize.VIRTUAL,
-        get: function () {
-            if (this.data != undefined) {
+        get: function(){
+            if (this.data != undefined){
                 return `${this.data.getDate()}+${this.data.getMonth()}`;
-            } else {
+            }else{
                 return "";
-            }
+            }            
         }
     },
-    deadline: {
+    deadline:{
         type: Sequelize.VIRTUAL,
-        get: function () {
+        get: function (){
             var dead = new Date(this.data);
-            switch (this.typeAnnuncio) {
+            switch(this.typeAnnuncio){
                 case "Free":
                     dead.setDate(dead.getDate() + 1);
-                    break;
+                break;
                 case "1x1":
                     dead.setDate(dead.getDate() + 2);
-                    break;
+                break;
                 case "1x3":
                     dead.setDate(dead.getDate() + 4);
-                    break;
+                break;
                 case "1x7":
                     dead.setDate(dead.getDate() + 8);
-                    break;
+                break;
                 case "10x1":
                     dead.setDate(dead.getDate() + 2);
-                    break;
+                break;
                 case "10x3":
                     dead.setDate(dead.getDate() + 4);
-                    break;
+                break;
+                case "10x7":
+                    dead.setDate(dead.getDate() + 8);
+                break;
             }
             return dead;
         }
     },
-    period: {
+    period:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    typeAnnuncio: {
-        type: Sequelize.ENUM("Free", "1x1", "1x3", "1x7", "1x14", "1x28", "3x1", "3x3", "3x7", "3x14", "3x28", "10x1", "10x3"),
+    typeAnnuncio:{
+        type: Sequelize.ENUM("Free", "1x1", "1x3", "1x7", "1x14", "1x28", "3x1", "3x3", "3x7", "3x14", "3x28", "10x1", "10x3", "10x7"),
         allowNull: true
     },
-    state: {
+    state:{
         type: Sequelize.ENUM("OK", "ALERT", "KO", "EDIT", "REPUBLISH", "CLOSE", "CLOSED", "DELETE", "DELETED", "BLOCKED"),
         allowNull: true
     },
-    editedBy: {
+    editedBy:{
         type: Sequelize.UUID,
         allowNull: true
     },
-    time: {
+    time:{
         type: Sequelize.VIRTUAL
     },
-    Anteprima: {
+    Anteprima:{
         type: Sequelize.VIRTUAL
     },
-    hasPremium: {
+    hasPremium:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    hasHighlight: {
+    hasHighlight:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    hasEtichetta: {
+    hasEtichetta:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    hasVideo: {
+    hasVideo:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    payed: {
+    payed:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     },
-    remotePostID: {
+    remotePostID:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    urlBK: {
+    urlBK:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    dateTimeTop: {
+    dateTimeTop:{
         type: Sequelize.STRING,
         allowNull: true
     },
@@ -768,280 +838,380 @@ var tblSchedulazioni = model.define("tblSchedulazioni", {
             'bakecaincontrii'
         ),
         allowNull: false,
-        defaultValue: 'bakeca'
+        defaultValue: 'bakecaincontrii'
     },
     city: {
         type: Sequelize.STRING,
         allowNull: true
     },
-    GCRecord: {
+    notified:{
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+    },
+    GCRecord:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-}, {
+},{
     freezeTableName: true,
     timestamps: true
 });
 
-tblUser.hasMany(tblSchedulazioni, {
+tblUser.hasMany(tblSchedulazioni,{
     foreignKey: "editedBy",
     sourceKey: "OID"
 });
-tblSchedulazioni.belongsTo(tblUser, {
+tblSchedulazioni.belongsTo(tblUser,{
     foreignKey: "editedBy",
     targetKey: "OID"
 });
 
-tblSchedulazioni.hasMany(tblGalleriaAnnuncio, {
+tblSchedulazioni.hasMany(tblGalleriaAnnuncio,{
     foreignKey: "schedulazione",
     sourceKey: "id"
 });
-tblGalleriaAnnuncio.belongsTo(tblSchedulazioni, {
+tblGalleriaAnnuncio.belongsTo(tblSchedulazioni,{
     foreignKey: "schedulazione",
     targetKey: "id"
 });
 
-tblAnnunci.hasMany(tblSchedulazioni, {
+tblAnnunci.hasMany(tblSchedulazioni,{
     foreignKey: "annuncio",
     sourceKey: "id"
 });
-tblSchedulazioni.belongsTo(tblAnnunci, {
+tblSchedulazioni.belongsTo(tblAnnunci,{
     foreignKey: "annuncio",
     targetKey: "id"
 });
 
-var tblAvvisiImportanti = model.define("tblAvvisiImportanti", {
-    user: {
+var tblAvvisiImportanti = model.define("tblAvvisiImportanti",{
+    user:{
         type: Sequelize.UUID,
         allowNull: true
     },
-    text: {
+    text:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    link: {
+    link:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    GCRecord: {
+    GCRecord:{
         type: Sequelize.INTEGER,
         allowNull: true
     }
-}, {
+},{
     freezeTableName: true
 });
 
-tblUser.hasMany(tblAvvisiImportanti, {
+tblUser.hasMany(tblAvvisiImportanti,{
     foreignKey: "user",
     sourceKey: "OID"
 });
-tblAvvisiImportanti.belongsTo(tblUser, {
+tblAvvisiImportanti.belongsTo(tblUser,{
     foreignKey: "user",
     targetKey: "OID"
 });
 
-var tblComunicazioni = model.define("tblComunicazioni", {
-    user: {
+var tblComunicazioni = model.define("tblComunicazioni",{
+    user:{
         type: Sequelize.UUID,
         allowNull: true
     },
-    description: {
+    description:{
         type: Sequelize.TEXT,
         allowNull: true
     },
-    replyTo: {
+    replyTo:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    GCRecord: {
+    GCRecord:{
         type: Sequelize.INTEGER,
         allowNull: true
     }
-}, {
+},{
     freezeTableName: true,
     timestamps: true
 });
 
-tblComunicazioni.hasMany(tblComunicazioni, {
+tblComunicazioni.hasMany(tblComunicazioni,{
     foreignKey: "replyTo",
     sourceKey: "id"
 });
-tblComunicazioni.belongsTo(tblComunicazioni, {
+tblComunicazioni.belongsTo(tblComunicazioni,{
     foreignKey: "replyTo",
     targetKey: "id"
 });
 
-tblUser.hasMany(tblComunicazioni, {
+tblUser.hasMany(tblComunicazioni,{
     foreignKey: "user",
     sourceKey: "OID"
 });
-tblComunicazioni.belongsTo(tblUser, {
+tblComunicazioni.belongsTo(tblUser,{
     foreignKey: "user",
     targetKey: "OID"
 });
 
-var tblBlackList = model.define("tblBlackList", {
-    text: {
+var tblBlackList = model.define("tblBlackList",{
+    text:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    typeMatch: {
+    typeMatch:{
         type: Sequelize.ENUM("Contiene", "Inizia per", "Uguale"),
         allowNull: true
     },
-    target: {
+    target:{
         type: Sequelize.ENUM("Titolo", "Descrizione", "Titolo e Descrizione"),
         allowNull: true
     },
-    GCRecord: {
+    GCRecord:{
         type: Sequelize.INTEGER,
         allowNull: true
     }
-}, {
+},{
     freezeTableName: true
 });
 
-var tblInvitiGruppo = model.define("tblInvitiGruppo", {
-    user: {
+var tblInvitiGruppo = model.define("tblInvitiGruppo",{
+    user:{
         type: Sequelize.UUID,
         allowNull: false
     },
-    group: {
+    group:{
         type: Sequelize.INTEGER,
         allowNull: false
     },
-    secret: {
+    secret:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    GCRecord: {
+    GCRecord:{
         type: Sequelize.INTEGER,
         allowNull: true
     }
-}, {
+},{
     freezeTableName: true
 });
 
-var tblContactVerifyBakeca = model.define("tblContactVerifyBakeca", {
-    remoteID: {
+var tblContactVerifyBakeca = model.define("tblContactVerifyBakeca",{
+    remoteID:{
         type: Sequelize.STRING,
         allowNull: false
     },
-    action: {
+    action:{
         type: Sequelize.STRING,
-        allowNull: false
+        allowNull:false
     },
-    status: {
+    status:{
         type: Sequelize.BOOLEAN,
         allowNull: false
     },
-    approved: {
+    approved:{
         type: Sequelize.BOOLEAN,
         allowNull: false
     },
-    code: {
+    code:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    phone: {
+    phone:{
         type: Sequelize.STRING,
         allowNull: false
     },
-    city: {
+    city:{
         type: Sequelize.STRING,
         allowNull: false
     }
-}, {
+},{
     freezeTableName: true
 });
 
-var tblListinoPrezzi = model.define("tblListinoPrezzi", {
-    group: {
+var tblListinoPrezzi = model.define("tblListinoPrezzi",{
+    group:{
         type: Sequelize.INTEGER,
         allowNull: false
     },
-    uscita: {
+    uscita:{
         type: Sequelize.INTEGER,
         allowNull: false
     },
-    oneXone: {
-        type: Sequelize.INTEGER,
+    oneXone:{
+        type: Sequelize.DOUBLE,
         allowNull: true
     },
-    oneXthree: {
-        type: Sequelize.INTEGER,
+    oneXthree:{
+        type: Sequelize.DOUBLE,
         allowNull: true
     },
-    oneXseven: {
-        type: Sequelize.INTEGER,
+    oneXseven:{
+        type: Sequelize.DOUBLE,
         allowNull: true
     },
-    tenXone: {
-        type: Sequelize.INTEGER,
+    tenXone:{
+        type: Sequelize.DOUBLE,
         allowNull: true
     },
-    tenXthree: {
-        type: Sequelize.INTEGER,
+    tenXthree:{
+        type: Sequelize.DOUBLE,
         allowNull: true
     },
-}, {
-    freezeTableName: true,
-    timestamps: false
+    tenXseven:{
+        type: Sequelize.DOUBLE,
+        allowNull: true
+    },
+    supertop:{
+        type: Sequelize.DOUBLE,
+        allowNull: true
+    },
+    highlight:{
+        type: Sequelize.DOUBLE,
+        allowNull: true
+    },
+    etichetta:{
+        type: Sequelize.DOUBLE,
+        allowNull: true
+    },
+    supertopnotte:{
+        type: Sequelize.DOUBLE,
+        allowNull: true
+    },
+    highlightnotte:{
+        type: Sequelize.DOUBLE,
+        allowNull: true
+    },
+    etichettanotte:{
+        type: Sequelize.DOUBLE,
+        allowNull: true
+    }
+},{
+        freezeTableName: true,
+        timestamps: false
 });
 
-tblGruppi.hasMany(tblListinoPrezzi, {
+tblGruppi.hasMany(tblListinoPrezzi,{
     foreignKey: "group",
     sourceKey: "id"
 });
-tblListinoPrezzi.belongsTo(tblGruppi, {
+tblListinoPrezzi.belongsTo(tblGruppi,{
     foreignKey: "group",
     targetKey: "id"
 });
 
-var tblListinoPrezziSuper = model.define("tblListinoPrezziSuper", {
-    group: {
+var tblListinoPrezziSuper = model.define("tblListinoPrezziSuper",{
+    group:{
         type: Sequelize.INTEGER,
         allowNull: false
     },
-    typeSuper: {
+    typeSuper:{
         type: Sequelize.ENUM("SUPERTOP", "VIDEO"),
         allowNull: false
     },
-    oneXone: {
+    oneXone:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    oneXthree: {
+    oneXthree:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    oneXseven: {
+    oneXseven:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    tenXone: {
+    tenXone:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
-    tenXthree: {
+    tenXthree:{
         type: Sequelize.INTEGER,
         allowNull: true
     },
+    tenXseven:{
+        type: Sequelize.INTEGER,
+        allowNull: true
+    },
+},{
+        freezeTableName: true,
+        timestamps: false
+});
+
+const whatsapp = model.define('whatsapp', {
+    id: {
+        type: Sequelize.INTEGER,
+        autoIncrement: true,
+        allowNull: false,
+        primaryKey: true
+    },
+    username: {
+        type: Sequelize.STRING,
+        allowNull: false
+    },
+    message: {
+        type: Sequelize.TEXT,
+        allowNull: true
+    },
+    inviati: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        defaultValue: 0
+    },
+    active: {
+        type: Sequelize.BOOLEAN,
+        allowNull: true,
+        defaultValue: true
+    }
 }, {
     freezeTableName: true,
     timestamps: false
 });
 
-tblGruppi.hasMany(tblListinoPrezziSuper, {
+const whatsapp_logs = model.define('whatsapp_logs', {
+    id: {
+        type: Sequelize.INTEGER,
+        autoIncrement: true,
+        allowNull: false,
+        primaryKey: true
+    },
+    username: {
+        type: Sequelize.STRING,
+        allowNull: false
+    },
+    phone: {
+        type: Sequelize.INTEGER,
+        allowNull: true
+    },
+    schedulazione_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+    },
+    message: {
+        type: Sequelize.TEXT,
+        allowNull: true,
+    },
+    sent_at: {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: Sequelize.NOW
+    }
+}, {
+    freezeTableName: true,
+    timestamps: false
+});
+
+tblGruppi.hasMany(tblListinoPrezziSuper,{
     foreignKey: "group",
     sourceKey: "id"
 });
-tblListinoPrezziSuper.belongsTo(tblGruppi, {
+tblListinoPrezziSuper.belongsTo(tblGruppi,{
     foreignKey: "group",
     targetKey: "id"
 });
 
-var tblRole = model.define("tblRole", {
+var tblRole = model.define("tblRole",{
     id: {
         type: Sequelize.UUID,
         primaryKey: true,
@@ -1049,20 +1219,20 @@ var tblRole = model.define("tblRole", {
         allowNull: false,
         defaultValue: Sequelize.UUIDV4
     },
-    name: {
+    name:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    IsAdministrative: {
+    IsAdministrative:{
         type: Sequelize.BOOLEAN,
         allowNull: true
     }
-}, {
+},{
     freezeTableName: true,
     timestamps: false
 });
 
-var tblUserRole = model.define("tblUserRole", {
+var tblUserRole = model.define("tblUserRole",{
     id: {
         type: Sequelize.UUID,
         primaryKey: true,
@@ -1070,90 +1240,131 @@ var tblUserRole = model.define("tblUserRole", {
         allowNull: false,
         defaultValue: Sequelize.UUIDV4
     },
-    user: {
+    user:{
         type: Sequelize.UUID,
         allowNull: false
     },
-    role: {
+    role:{
         type: Sequelize.UUID,
         allowNull: false
     }
-}, {
+},{
     freezeTableName: true,
     timestamps: false
 });
 
-tblRole.hasMany(tblUserRole, {
+tblRole.hasMany(tblUserRole,{
     foreignKey: "role",
     sourceKey: "id"
 });
-tblUserRole.belongsTo(tblRole, {
+tblUserRole.belongsTo(tblRole,{
     foreignKey: "role",
     targetKey: "id"
 });
 
-tblUser.hasMany(tblUserRole, {
+tblUser.hasMany(tblUserRole,{
     foreignKey: "user",
     sourceKey: "OID"
 });
-tblUserRole.belongsTo(tblUser, {
+tblUserRole.belongsTo(tblUser,{
     foreignKey: "user",
     targetKey: "OID"
 });
 
-var tblNavigationPermission = model.define("tblNavigationPermission", {
-    role: {
+var tblNavigationPermission = model.define("tblNavigationPermission",{
+    role:{
         type: Sequelize.UUID,
         allowNull: false
     },
-    path: {
+    path:{
         type: Sequelize.STRING,
         allowNull: true
     },
-    state: {
+    state:{
         type: Sequelize.BOOLEAN,
         allowNull: false
+    }
+},{
+    freezeTableName: true,
+    timestamps: false
+});
+
+tblRole.hasMany(tblNavigationPermission,{
+    foreignKey: "role",
+    sourceKey: "id"
+});
+tblNavigationPermission.belongsTo(tblRole,{
+    foreignKey: "role",
+    targetKey: "id"
+});
+
+var tblStoricoPagamenti = model.define("tblStoricoPagamenti",{
+    importo:{
+        type: Sequelize.DECIMAL,
+        allowNull: true
+    },
+    donna:{
+        type: Sequelize.INTEGER,
+        allowNull: true
+    }
+},{
+    freezeTableName: true,
+    timestamps: true
+});
+
+tblDonne.hasMany(tblStoricoPagamenti,{
+    foreignKey: "donna",
+    sourceKey: "id"
+});
+tblStoricoPagamenti.belongsTo(tblDonne,{
+    foreignKey: "donna",
+    targetKey: "id"
+});
+
+var newGCRecord = ()=>{
+    return Math.floor(new Date().getTime() / 1000);
+}
+
+var tblComunicazioniReadStatus = model.define("tblComunicazioniReadStatus", {
+    userId: {
+        type: Sequelize.UUID,
+        primaryKey: true,
+        references: { model: 'tblUser', key: 'OID' }
+    },
+    comunicazioneId: {
+        type: Sequelize.INTEGER,
+        primaryKey: true,
+        references: { model: 'tblComunicazioni', key: 'id' }
+    },
+    readAt: {
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.NOW
     }
 }, {
     freezeTableName: true,
     timestamps: false
 });
 
-tblRole.hasMany(tblNavigationPermission, {
-    foreignKey: "role",
-    sourceKey: "id"
-});
-tblNavigationPermission.belongsTo(tblRole, {
-    foreignKey: "role",
-    targetKey: "id"
-});
-
-var tblStoricoPagamenti = model.define("tblStoricoPagamenti", {
-    importo: {
-        type: Sequelize.DECIMAL,
-        allowNull: true
-    },
-    donna: {
-        type: Sequelize.INTEGER,
-        allowNull: true
-    }
-}, {
-    freezeTableName: true,
-    timestamps: true
-});
-
-tblDonne.hasMany(tblStoricoPagamenti, {
-    foreignKey: "donna",
-    sourceKey: "id"
-});
-tblStoricoPagamenti.belongsTo(tblDonne, {
-    foreignKey: "donna",
-    targetKey: "id"
-});
-
-var newGCRecord = () => {
-    return Math.floor(new Date().getTime() / 1000);
-}
+tblComunicazioni.hasMany(tblComunicazioniReadStatus, {
+    foreignKey: 'comunicazioneId',
+    as: 'readStatuses' // This alias will be used when eager loading
+  });
+  
+  tblComunicazioniReadStatus.belongsTo(tblComunicazioni, {
+    foreignKey: 'comunicazioneId',
+    as: 'comunicazione'
+  });
+  
+  // Add this to your tblUser model definition
+  tblUser.hasMany(tblComunicazioniReadStatus, {
+    foreignKey: 'userId',
+    as: 'comunicazioniReadStatuses'
+  });
+  
+  tblComunicazioniReadStatus.belongsTo(tblUser, {
+    foreignKey: 'userId',
+    as: 'user'
+  });
 
 module.exports = {
     model,
@@ -1178,5 +1389,9 @@ module.exports = {
     tblNavigationPermission,
     tblStoricoPagamenti,
     tblLogs,
+    tblComunicazioniReadStatus,
+    Report,
+    whatsapp,
+    whatsapp_logs,
     newGCRecord
 };

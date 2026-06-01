@@ -1031,8 +1031,81 @@ async function selectGoldGroupSlots(page, groupedSlots) {
     if (!opened) throw new Error(`Gold Plan group not found: ${groupName}`);
     await delay(700);
 
+    const deselected = await page.evaluate(({ groupLabel, wantedLabels }) => {
+      const normalize = (value) => `${value || ""}`
+        .replace(/\s*-\s*/g, "-")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+      const parseRange = (value) => {
+        const match = `${value || ""}`.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+        if (!match) return null;
+        return {
+          startHour: Number(match[1]),
+          startMinute: Number(match[2]),
+          endHour: Number(match[3]),
+          endMinute: Number(match[4])
+        };
+      };
+      const getRangeMatches = (value) => Array.from(`${value || ""}`.matchAll(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/g));
+      const rangeKey = (range) => range
+        ? `${range.startHour}:${range.startMinute}-${range.endHour}:${range.endMinute}`
+        : "";
+      const rangesMatch = (left, right) => {
+        const a = parseRange(left);
+        const b = parseRange(right);
+        return a && b && rangeKey(a) === rangeKey(b);
+      };
+      const isVisible = (node) => {
+        if (!node) return false;
+        const style = window.getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      };
+
+      const wantedGroup = normalize(groupLabel);
+      const groups = Array.from(document.querySelectorAll(".group"));
+      const group = groups.find((node) => normalize(node.querySelector(".group-title")?.textContent || node.textContent).includes(wantedGroup));
+      if (!group) return { ok: false, clicked: [], missingGroup: true };
+
+      const wanted = wantedLabels.map((label) => normalize(label));
+      const slotControls = Array.from(group.querySelectorAll("button, label, .btn, .slot, .time-slot, .custom-control"))
+        .filter((node) => isVisible(node) && getRangeMatches(node.textContent || "").length === 1);
+      const uniqueSlots = new Map();
+
+      for (const node of slotControls) {
+        const text = node.textContent || "";
+        const parsed = parseRange(text);
+        const key = rangeKey(parsed);
+        if (key && !uniqueSlots.has(key)) uniqueSlots.set(key, { node, text });
+      }
+
+      const clicked = [];
+      for (const { node, text } of uniqueSlots.values()) {
+        const shouldKeepSelected = wanted.some((label) => normalize(text).includes(label) || rangesMatch(text, label));
+        if (shouldKeepSelected) continue;
+
+        const input = node.querySelector?.("input[type='checkbox'], input[type='radio']") ||
+          (node.getAttribute?.("for") ? document.getElementById(node.getAttribute("for")) : null);
+        const clickable = input || node;
+        clickable.scrollIntoView({ block: "center", inline: "center" });
+        clickable.click();
+        clicked.push(text.replace(/\s+/g, " ").trim());
+      }
+
+      return { ok: true, clicked };
+    }, { groupLabel: groupName, wantedLabels: slots });
+
+    if (!deselected.ok) {
+      console.warn(`[trovagnocca:publish] Gold Plan group slots not found: ${groupName}`);
+    } else if (deselected.clicked.length) {
+      console.log(`[trovagnocca:publish] Gold Plan deselected slots for ${groupName}:`, deselected.clicked);
+    }
+
+    await delay(500);
+
     for (const slotLabel of slots) {
-      const clicked = await page.evaluate((label) => {
+      const found = await page.evaluate((label) => {
         const normalize = (value) => `${value || ""}`
           .replace(/\s*-\s*/g, "-")
           .replace(/\s+/g, " ")
@@ -1063,20 +1136,12 @@ async function selectGoldGroupSlots(page, groupedSlots) {
           const text = node.textContent || "";
           return normalize(text).includes(wanted) || rangesMatch(text, label);
         });
-        if (!target) return false;
-
-        const input = target.querySelector?.("input[type='checkbox'], input[type='radio']") ||
-          (target.getAttribute?.("for") ? document.getElementById(target.getAttribute("for")) : null);
-        const clickable = input || target;
-        clickable.scrollIntoView({ block: "center", inline: "center" });
-        clickable.click();
-        return true;
+        return Boolean(target);
       }, slotLabel);
 
-      if (!clicked) {
+      if (!found) {
         console.warn(`[trovagnocca:publish] Gold Plan slot not found: ${groupName} ${slotLabel}`);
       }
-      await delay(250);
     }
   }
 }
@@ -1226,11 +1291,35 @@ async function waitForPublishResult(page) {
   const hasError = /errore|required|obbligatori|non valido|invalid|failed|fallito|captcha/i.test(text);
   const hasSuccess = /annuncio.*pubblic|pubblicato|published|success|successo|complimenti|congrat/i.test(text);
 
+  console.log(hasError, hasSuccess, diagnostics, 'publishResult');
   return {
     hasError,
     hasSuccess,
     diagnostics
   };
+}
+
+async function getFirstManageCardRemoteId(page) {
+  await page.waitForFunction(() => {
+    return Boolean(document.querySelector(".basic.color_card button.toggleBtn[aria-controls], .basic.color_card .collapse[id]"));
+  }, { timeout: 20000 }).catch(() => null);
+
+  return page.evaluate(() => {
+    const firstCard = document.querySelector(".basic.color_card");
+    if (!firstCard) return "";
+
+    const candidates = [
+      firstCard.querySelector("button.toggleBtn[aria-controls]")?.getAttribute("aria-controls"),
+      firstCard.querySelector(".collapse[id]")?.id,
+      firstCard.querySelector("[aria-controls]")?.getAttribute("aria-controls")
+    ];
+
+    const remoteId = candidates
+      .map((value) => `${value || ""}`.trim())
+      .find((value) => /^\d{4,}$/.test(value));
+
+    return remoteId || "";
+  }).catch(() => "");
 }
 
 function buildPublishData(adData = {}) {
@@ -1421,45 +1510,44 @@ async function publishAd(page, adData = {}, options = {}) {
     await clickNext(page);
   }
 
-  let responseAdId = null;
-  page.on("response", async (response) => {
-    const url = response.url();
-    const method = response.request().method();
+  // let responseAdId = null;
+  // page.on("response", async (response) => {
+  //   const url = response.url();
+  //   const method = response.request().method();
 
-    if (!url.includes("/api/v1/resource/ad")) return;
+  //   if (!url.includes("/api/v1/resource/ad")) return;
 
-    const parsedUrl = new URL(url);
+  //   const parsedUrl = new URL(url);
 
-    console.log("[debug url]", {
-      raw: JSON.stringify(url),
-      origin: parsedUrl.origin,
-      pathname: parsedUrl.pathname,
-      method,
-      status: response.status(),
-      responseAdId: body?.data?.id
-    });
+  //   console.log("[debug url]", {
+  //     raw: JSON.stringify(url),
+  //     origin: parsedUrl.origin,
+  //     pathname: parsedUrl.pathname,
+  //     method,
+  //     status: response.status(),
+  //   });
 
-    if (
-      parsedUrl.pathname === "/api/v1/resource/ad" &&
-      method === "POST"
-    ) {
-      let body = null;
+  //   if (
+  //     parsedUrl.pathname === "/api/v1/resource/ad" &&
+  //     method === "POST"
+  //   ) {
+  //     let body = null;
 
-      try {
-        body = await response.json();
-      } catch {
-        try {
-          body = JSON.parse(await response.text());
-        } catch {
-          body = null;
-        }
-      }
+  //     try {
+  //       body = await response.json();
+  //     } catch {
+  //       try {
+  //         body = JSON.parse(await response.text());
+  //       } catch {
+  //         body = null;
+  //       }
+  //     }
 
-      responseAdId = body?.data?.id
-    }
-  });
+  //     responseAdId = body?.data?.id
+  //   }
+  // });
 
-  console.log(responseAdId, "remoteAdId");
+  // console.log(responseAdId, "remoteAdId");
   const leftInfoStep = await waitForInfoStepExit(page);
   if (!leftInfoStep) {
     throw new Error(`Trovagnocca did not leave contacts step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
@@ -1497,18 +1585,35 @@ async function publishAd(page, adData = {}, options = {}) {
   if (publishedId) {//Status Edit
     response.ok = true;
   } else {// New publish
-    const urlIdMatch = url.match(/\/ads\/manage\/(\d{4,})\b/i);
+    const goldManageRemoteId = data.promo.active ? await getFirstManageCardRemoteId(page) : "";
+    const goldManageLink = goldManageRemoteId
+      ? `https://www.trovagnocca.com/dmc/account#/ads/manage/${goldManageRemoteId}`
+      : "";
+
+    console.log('Go to goldManageLink');
+
+    if (data.promo.active && goldManageLink) {
+      await page.goto(goldManageLink, {
+        waitUntil: "networkidle2",
+        timeout: 60000
+      });
+    }
+    
+    const currentUrl = page.url();
+    const urlIdMatch = currentUrl.match(/\/ads\/manage\/(\d{4,})\b/i);
     const remoteId = urlIdMatch
       ? urlIdMatch[1]
-      : await page.evaluate(() => {
-        const hrefs = Array.from(document.querySelectorAll("a[href]")).map((link) => link.href);
-        hrefs.push(window.location.href);
-        const idMatch = hrefs.join(" ").match(/\/ads\/manage\/(\d{4,})\b/i) ||
-          hrefs.join(" ").match(/(?:annuncio|ads|post|id|manage|edit)[^\d]*(\d{4,})/i);
-        return idMatch ? idMatch[1] : "";
-      }).catch(() => "");
+      : goldManageRemoteId
+        ? goldManageRemoteId
+        : await page.evaluate(() => {
+          const hrefs = Array.from(document.querySelectorAll("a[href]")).map((link) => link.href);
+          hrefs.push(window.location.href);
+          const idMatch = hrefs.join(" ").match(/\/ads\/manage\/(\d{4,})\b/i) ||
+            hrefs.join(" ").match(/(?:annuncio|ads|post|id|manage|edit)[^\d]*(\d{4,})/i);
+          return idMatch ? idMatch[1] : "";
+        }).catch(() => "");
 
-    const publishLink = await page.evaluate(() => {
+    const publishLink = goldManageLink || await page.evaluate(() => {
       const previewLabel = Array.from(document.querySelectorAll("p, span, div"))
         .find((node) => (node.textContent || "").trim().toLowerCase() === "anteprima");
 
@@ -1526,7 +1631,7 @@ async function publishAd(page, adData = {}, options = {}) {
 
     if (remoteId) {
       response.ok = true;
-      response.url = publishLink || page.url();
+      response.url = publishLink || currentUrl;
       response.payload = {
         idpriv: remoteId,
         data

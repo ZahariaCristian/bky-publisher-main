@@ -6,6 +6,7 @@ const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const TwoCaptcha = require("@2captcha/captcha-solver");
 const { publishAd } = require("../adsManage/trovagnocca/publishAds");
 const { updateAd } = require("../adsManage/trovagnocca/updateAd");
+const { getPrice } = require("../adsManage/trovagnocca/getPrice");
 
 const LOGIN_URL = "https://www.trovagnocca.com/auth/login";
 const HOME_URL = "https://www.trovagnocca.com/";
@@ -540,6 +541,19 @@ class TrovagnoccaBot {
       console.error("Trovagnocca Error in refresh2:", error.message);
       return { error: error.message };
     }
+  }
+
+  async getPrice(options = {}) {
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+    if (!page.url().startsWith(HOME_URL)) {
+      await page.goto(ACCOUNT_URL, { waitUntil: "networkidle2", timeout: 60000 }).catch(() => null);
+      await this.waitTillHTMLRendered(page);
+    }
+
+    return getPrice({
+      ...options,
+      page
+    });
   }
 
   buildPublishData(ad) {
