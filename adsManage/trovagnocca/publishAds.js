@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const POST_URL = "https://www.trovagnocca.com/dmc/account#/ads-post";
-
+const ACTIVE_ADS_URL = "https://www.trovagnocca.com/dmc/account#/ads/active";
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -483,8 +483,9 @@ async function setNationality(page, value) {
   if (!wanted) return;
 
   await page.evaluate((wantedValue) => {
+    const normalize = (value) => `${value || ""}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const cards = Array.from(document.querySelectorAll(".tagsCard, .card"));
-    const card = cards.find((node) => /nazionalita|nationality/i.test(node.textContent || ""));
+    const card = cards.find((node) => /nazionalita|nationality/i.test(normalize(node.textContent || "")));
     const select = card?.querySelector("select");
     if (!select) return;
 
@@ -517,7 +518,11 @@ async function clickTagButtons(page, labels = []) {
     for (const button of buttons) {
       const text = normalize(button.textContent);
       if (!wanted.includes(text)) continue;
-      if (!button.classList.contains("selected")) {
+      const isSelected = button.classList.contains("selected") ||
+        button.classList.contains("active") ||
+        button.classList.contains("btn-primary") ||
+        button.getAttribute("aria-pressed") === "true";
+      if (!isSelected) {
         button.scrollIntoView({ block: "center", inline: "center" });
         button.click();
       }
@@ -796,54 +801,84 @@ function addTagWhen(tags, condition, label) {
   if (isEnabled(condition)) tags.push(label);
 }
 
+function addNoteTags(tags, noteTags = {}) {
+  const groups = [
+    "ethnicity",
+    "breast",
+    "hair",
+    "body",
+    "services",
+    "serviceFor",
+    "servicePlace"
+  ];
+
+  for (const group of groups) {
+    const values = Array.isArray(noteTags[group]) ? noteTags[group] : [];
+    for (const value of values) {
+      const label = cleanText(value);
+      if (label) tags.push(label);
+    }
+  }
+}
+
 function buildTagSelections(adData = {}) {
   const tags = [];
+  const noteTags = parseTrovagnoccaNote(adData.note).tags || {};
 
-  addTagWhen(tags, adData.serviceSNaturale, "Natural Breast");
-  addTagWhen(tags, adData.serviceSRifatto, "Breast Reconstruction");
+  addNoteTags(tags, noteTags);
 
-  addTagWhen(tags, adData.serviceCBiondi, "Blonde Hair");
-  addTagWhen(tags, adData.serviceCMarroni, "Brown Hair");
-  addTagWhen(tags, adData.serviceCNeri, "Black Hair");
-  addTagWhen(tags, adData.serviceCRossi, "Red Hair");
+  addTagWhen(tags, adData.serviceAfricana, "Africana");
+  addTagWhen(tags, adData.serviceAraba, "Araba");
+  addTagWhen(tags, adData.serviceAsiatica, "Asiatica");
+  addTagWhen(tags, adData.serviceCaucasica, "Caucasica");
+  addTagWhen(tags, adData.serviceItaliana, "Europea");
+  addTagWhen(tags, adData.serviceLatina, "Latina");
 
-  addTagWhen(tags, adData.serviceMagro, "Thin");
-  addTagWhen(tags, adData.serviceFormoso, "Shapely");
+  addTagWhen(tags, adData.serviceSNaturale, "Seno Naturale");
+  addTagWhen(tags, adData.serviceSRifatto, "Seno Rifatto");
 
-  addTagWhen(tags, adData.serviceOrale, "Oral");
-  addTagWhen(tags, adData.serviceAnale, "Anal");
-  addTagWhen(tags, adData.serviceSadomaso, "Sadomasochism");
-  addTagWhen(tags, adData.serviceEsperienzaFidanzata, "Girlfriend Experience");
-  addTagWhen(tags, adData.serviceAttriciPorno, "Porn actresses");
-  addTagWhen(tags, adData.serviceEiaculazioneSulCorpo, "Ejaculation on the body");
-  addTagWhen(tags, adData.serviceMassaggioErotico, "Erotic massage");
-  addTagWhen(tags, adData.serviceMassaggioTantrico, "Tantric massage");
+  addTagWhen(tags, adData.serviceCBiondi, "Capelli Biondi");
+  addTagWhen(tags, adData.serviceCMarroni, "Capelli Marroni");
+  addTagWhen(tags, adData.serviceCNeri, "Capelli Neri");
+  addTagWhen(tags, adData.serviceCRossi, "Capelli Rossi");
+
+  addTagWhen(tags, adData.serviceMagro, "Magro");
+  addTagWhen(tags, adData.serviceFormoso, "Formoso");
+
+  addTagWhen(tags, adData.serviceOrale, "Orale");
+  addTagWhen(tags, adData.serviceAnale, "Anale");
+  addTagWhen(tags, adData.serviceSadomaso, "Sadomaso");
+  addTagWhen(tags, adData.serviceEsperienzaFidanzata, "Esperienza fidanzata");
+  addTagWhen(tags, adData.serviceAttriciPorno, "Attrici porno");
+  addTagWhen(tags, adData.serviceEiaculazioneSulCorpo, "Eiaculazione sul corpo");
+  addTagWhen(tags, adData.serviceMassaggioErotico, "Massaggio erotico");
+  addTagWhen(tags, adData.serviceMassaggioTantrico, "Massaggio tantrico");
   addTagWhen(tags, adData.serviceFetish, "Fetish");
-  addTagWhen(tags, adData.serviceBacioAllaFrancese, "French kiss");
-  addTagWhen(tags, adData.serviceGiocoDiRuolo, "Role-playing game");
+  addTagWhen(tags, adData.serviceBacioAllaFrancese, "Bacio alla francese");
+  addTagWhen(tags, adData.serviceGiocoDiRuolo, "Gioco di ruolo");
   addTagWhen(tags, adData.serviceTrio, "Trio");
   addTagWhen(tags, adData.serviceSexting, "Sexting");
-  addTagWhen(tags, adData.serviceVideoChiamata, "Video call");
+  addTagWhen(tags, adData.serviceVideoChiamata, "Video chiamata");
 
-  addTagWhen(tags, adData.serviceUomini, "Men");
-  addTagWhen(tags, adData.serviceDonne, "Women");
-  addTagWhen(tags, adData.serviceCoppie, "Couples");
-  addTagWhen(tags, adData.serviceDisabili, "Disabled");
+  addTagWhen(tags, adData.serviceUomini, "Uomini");
+  addTagWhen(tags, adData.serviceDonne, "Donne");
+  addTagWhen(tags, adData.serviceCoppie, "Coppie");
+  addTagWhen(tags, adData.serviceDisabili, "Disabili");
 
-  addTagWhen(tags, adData.serviceACasa, "At home");
-  addTagWhen(tags, adData.serviceEventiEFeste, "Events and parties");
-  addTagWhen(tags, adData.serviceAlbergoMotel, "Hotel/Motel");
+  addTagWhen(tags, adData.serviceACasa, "A casa");
+  addTagWhen(tags, adData.serviceEventiEFeste, "Eventi e feste");
+  addTagWhen(tags, adData.serviceAlbergoMotel, "Albergo/Motel");
   addTagWhen(tags, adData.serviceClubs, "Clubs");
-  addTagWhen(tags, adData.serviceVisitaADomicilio, "Home visit");
+  addTagWhen(tags, adData.serviceVisitaADomicilio, "Visita a domicilio");
 
-  return tags;
+  return [...new Set(tags.map(cleanText).filter(Boolean))];
 }
 
 async function fillTagsStep(page, data) {
   const reachedTags = await page.waitForFunction(() => {
     const text = document.body.innerText || "";
     const hasTagsControls = Boolean(document.querySelector(".tagsCard, button.tags_btn"));
-    return hasTagsControls || /tags|tag|about you|su di me|nazionalita|nationality/i.test(text);
+    return hasTagsControls || /tags|tag|about you|su di me|su di te|nazionalita|nationality/i.test(text);
   }, { timeout: 20000 }).then(() => true).catch(() => false);
 
   if (!reachedTags) {
@@ -920,11 +955,79 @@ async function openGoldPromoCard(page) {
   await delay(1000);
 }
 
+async function openTurboPromoCard(page) {
+  await waitForPromoStep(page);
+  await page.waitForFunction(() => {
+    const text = document.body?.innerText || "";
+    return Boolean(document.querySelector("#promo-collapse-301")) || /promo\s*turbo/i.test(text);
+  }, { timeout: 20000 }).catch(() => null);
+
+  const opened = await page.evaluate(() => {
+    const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+    const isVisible = (node) => {
+      if (!node) return false;
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+
+    const existingTurboPanel = document.querySelector("#promo-collapse-301");
+    if (existingTurboPanel && isVisible(existingTurboPanel) && existingTurboPanel.textContent.trim()) return true;
+
+    const turboCollapse = document.querySelector("#promo-collapse-301");
+    if (turboCollapse) {
+      const promoItem = turboCollapse.closest(".promo-item");
+      const clickable = promoItem?.querySelector(".promo-card-btn, .promo-card-custom, .card, button, a");
+      if (clickable && isVisible(clickable)) {
+        clickable.scrollIntoView({ block: "center", inline: "center" });
+        clickable.click();
+        return true;
+      }
+    }
+
+    const candidates = Array.from(document.querySelectorAll(".promo-item, .promo-card-btn, .promo-card-custom, .card, button, a, div"));
+    const card = candidates.find((node) => {
+      const text = clean(node.textContent);
+      return isVisible(node) && (
+        /promo\s*turbo/i.test(text) ||
+        (/subito disponibile|contattare immediatamente|turbo/i.test(text) && /promo|visibilit/i.test(text))
+      );
+    });
+
+    if (!card) return false;
+
+    const clickable = card.closest(".promo-item")?.querySelector(".promo-card-btn, .card, button, a") || card;
+    clickable.scrollIntoView({ block: "center", inline: "center" });
+    clickable.click();
+    return true;
+  });
+
+  if (!opened) {
+    const diagnostics = await collectPublishDiagnostics(page);
+    throw new Error(`Promo Turbo card not found: ${JSON.stringify(diagnostics)}`);
+  }
+  await delay(1000);
+}
+
 function getGoldDuration(typeAnnuncio = "") {
   const value = `${typeAnnuncio || ""}`.toLowerCase();
   if (value.includes("1x7") || value.includes("7")) return "7";
   if (value.includes("1x3") || value.includes("3")) return "3";
   return "1";
+}
+
+function getTurboDuration(period = "") {
+  try {
+    const parsed = JSON.parse(period || "{}");
+    if (parsed?.durationProductId) return `${parsed.durationProductId}`;
+    if (parsed?.productId && `${parsed.productId}` !== "301") return `${parsed.productId}`;
+  } catch {
+    // Plain/legacy values are handled below.
+  }
+
+  const text = `${period || ""}`.toLowerCase();
+  if (text.includes("308") || text.includes("2")) return "308";
+  return "307";
 }
 
 function normalizeGoldGroup(value = "") {
@@ -1015,6 +1118,33 @@ async function selectGoldDuration(page, duration) {
     if (!select) throw new Error("Gold Plan duration select not found");
     const option = Array.from(select.options || []).find((item) => `${item.value}` === `${durationValue}`);
     if (!option) throw new Error(`Gold Plan duration option not found: ${durationValue}`);
+
+    const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")?.set;
+    if (nativeValueSetter) nativeValueSetter.call(select, option.value);
+    else select.value = option.value;
+    option.selected = true;
+    select.dispatchEvent(new Event("input", { bubbles: true }));
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  }, duration);
+
+  await delay(700);
+}
+
+async function selectTurboDuration(page, duration) {
+  await page.evaluate((durationValue) => {
+    const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+    const turboPanel = document.querySelector("#promo-collapse-301");
+    const scope = turboPanel || document;
+    const select = scope.querySelector(".custom-select-turbo") ||
+      Array.from(scope.querySelectorAll("select")).find((node) => {
+        const sectionText = clean(node.closest(".section, div")?.textContent);
+        const options = Array.from(node.options || []).map((option) => `${option.value}:${clean(option.textContent)}`);
+        return /durata promozione|duration/i.test(sectionText) || options.some((option) => /307|308|ora|ore/.test(option));
+      });
+
+    if (!select) throw new Error("Turbo duration select not found");
+    const option = Array.from(select.options || []).find((item) => `${item.value}` === `${durationValue}`);
+    if (!option) throw new Error(`Turbo duration option not found: ${durationValue}`);
 
     const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")?.set;
     if (nativeValueSetter) nativeValueSetter.call(select, option.value);
@@ -1235,6 +1365,13 @@ async function clickGoldPublishFlow(page, data) {
   await clickGoldPublish(page);
 }
 
+async function clickTurboPublishFlow(page, data) {
+  await waitForPromoStep(page);
+  await openTurboPromoCard(page);
+  await selectTurboDuration(page, getTurboDuration(data.period));
+  await clickGoldPublish(page);
+}
+
 async function clickPublish(page) {
   await waitForPromoStep(page);
 
@@ -1386,6 +1523,7 @@ async function scrapeClimbingCalendar(page) {
 
 function buildPublishData(adData = {}) {
   const contactNote = parseTrovagnoccaNote(adData.note);
+  const noteTags = contactNote.tags || {};
   const typeAnnuncio = firstNonEmpty(adData.typeAnnuncio, adData.promo?.visibility, "Free");
   const isFreePublication = `${typeAnnuncio || ""}`.trim().toLowerCase() === "free";
   return {
@@ -1399,7 +1537,7 @@ function buildPublishData(adData = {}) {
     phone: firstNonEmpty(adData.phone, adData.contattotelefonico),
     whatsapp: isEnabled(adData.whatsapp) || isEnabled(adData.hasWhatapp),
     telegram: isEnabled(adData.telegram) || Boolean(contactNote.telegram || contactNote.telegramNumber || contactNote.telegramUrl),
-    nationality: firstNonEmpty(adData.serviceNazionalita, adData.nationality, adData.nazionalita),
+    nationality: firstNonEmpty(adData.serviceNazionalita, noteTags.nationality, adData.nationality, adData.nazionalita),
     tags: buildTagSelections(adData),
     images: Array.isArray(adData.images) ? adData.images : (Array.isArray(adData.pics) ? adData.pics : []),
     picsAudit: Array.isArray(adData.picsAudit) ? adData.picsAudit : [],
@@ -1626,13 +1764,28 @@ async function publishAd(page, adData = {}, options = {}) {
   await clickNext(page);
   await setSwitch(page, "ck_term", true);
 
-  if (data.promo.active) {
+  if (`${data.typeAnnuncio || ""}`.trim().toLowerCase() === "turbo") {
+    await clickTurboPublishFlow(page, data);
+  } else if (data.promo.active) {
     await clickGoldPublishFlow(page, data);
   } else {
     await clickPublish(page);
   }
-  const publishModal = await confirmFreePublishWarning(page);
-  const publishResult = await waitForPublishResult(page);
+
+  let publishModal = {
+    published: false,
+    pendingApproval: false
+  };
+  let publishResult = {
+    hasError: false,
+    hasSuccess: false,
+    diagnostics: {}
+  };
+
+  if (adData.typeAnnuncio == "Free") {
+    publishModal = await confirmFreePublishWarning(page);
+    publishResult = await waitForPublishResult(page);
+  }
 
   const url = page.url();
   let response = {
@@ -1647,6 +1800,13 @@ async function publishAd(page, adData = {}, options = {}) {
   if (publishedId) {//Status Edit
     response.ok = true;
   } else {// New publish
+    if (adData.typeAnnuncio == 'Turbo') {
+      await page.goto(ACTIVE_ADS_URL, {
+        waitUntil: "networkidle2",
+        timeout: 60000
+      });
+    }
+
     const goldManageRemoteId = data.promo.active ? await getFirstManageCardRemoteId(page) : "";
     const goldManageLink = goldManageRemoteId
       ? `https://www.trovagnocca.com/dmc/account#/ads/manage/${goldManageRemoteId}`
@@ -1663,7 +1823,7 @@ async function publishAd(page, adData = {}, options = {}) {
 
     const climbingCalendar = data.promo.active ? await scrapeClimbingCalendar(page) : [];
     const climbingCalendarText = climbingCalendar.join(" - ");
-    
+
     const currentUrl = page.url();
     const urlIdMatch = currentUrl.match(/\/ads\/manage\/(\d{4,})\b/i);
     const remoteId = urlIdMatch

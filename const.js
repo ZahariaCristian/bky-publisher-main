@@ -5,7 +5,8 @@ const RESIDENTIAL_PROXY = {
     host: 'geo.iproyal.com',
     port: '12321',
     username: 'beast1124',
-    password: '8hsNLLhAQr9el7QY_country-it'
+    password: '8hsNLLhAQr9el7QY_country-it',
+    // password: '8hsNLLhAQr9el7QY_country-it_session-B1XAUA0e_lifetime-1h'
 };
 
 const PROXY = {
