@@ -88,7 +88,7 @@ class TrovagnoccaBot {
     if (this.browser) return;
 
     this.browser = await puppeteer.launch({
-      headless: false,
+      headless: true,
       executablePath: puppeteer.executablePath(),
       args: [
         "--no-sandbox",
@@ -407,6 +407,7 @@ class TrovagnoccaBot {
     await this.waitForLoginFormReady(page);
     const selectors = await this.getLoginSelectors(page);
 
+    console.log(`[i] type email and password in Trovagnocca login page: ${creds.email},  ${creds.password},`);
     await this.typeHuman(page, selectors.email, creds.email);
     await this.typeHuman(page, selectors.password, creds.password);
     await this.screenshot("02-credentials-filled");

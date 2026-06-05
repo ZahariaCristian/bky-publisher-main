@@ -1781,11 +1781,14 @@ async function publishAd(page, adData = {}, options = {}) {
     hasSuccess: false,
     diagnostics: {}
   };
-
-  if (adData.typeAnnuncio == "Free") {
-    publishModal = await confirmFreePublishWarning(page);
-    publishResult = await waitForPublishResult(page);
+  const screenshotDir = path.join('./screenshots', 'trovagnocca-publish');
+  if (!fs.existsSync(screenshotDir)) {
+    fs.mkdirSync(screenshotDir, { recursive: true });
   }
+  publishModal = await confirmFreePublishWarning(page);
+  await page.screenshot({ path: `${screenshotDir}/publish1.png`, fullPage: true });
+  publishResult = await waitForPublishResult(page);
+  await page.screenshot({ path: `${screenshotDir}/publish2.png`, fullPage: true });
 
   const url = page.url();
   let response = {
@@ -1797,6 +1800,7 @@ async function publishAd(page, adData = {}, options = {}) {
     }
   }
 
+  console.log(url, "after publish ads");
   if (publishedId) {//Status Edit
     response.ok = true;
   } else {// New publish
@@ -1807,12 +1811,14 @@ async function publishAd(page, adData = {}, options = {}) {
       });
     }
 
+    await page.screenshot({ path: `${screenshotDir}/publish3.png`, fullPage: true });
+
     const goldManageRemoteId = data.promo.active ? await getFirstManageCardRemoteId(page) : "";
     const goldManageLink = goldManageRemoteId
       ? `https://www.trovagnocca.com/dmc/account#/ads/manage/${goldManageRemoteId}`
       : "";
 
-    console.log('Go to goldManageLink');
+    console.log(goldManageLink, goldManageRemoteId, 'Go to goldManageLink');
 
     if (data.promo.active && goldManageLink) {
       await page.goto(goldManageLink, {
@@ -1847,6 +1853,9 @@ async function publishAd(page, adData = {}, options = {}) {
 
       return link?.href || "";
     });
+
+
+    await page.screenshot({ path: `${screenshotDir}/publish4.png`, fullPage: true });
 
     console.log(publishLink, remoteId, "publishLink");
 
