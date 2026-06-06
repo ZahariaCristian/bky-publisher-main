@@ -3,8 +3,26 @@ const path = require("path");
 
 const POST_URL = "https://www.trovagnocca.com/dmc/account#/ads-post";
 const ACTIVE_ADS_URL = "https://www.trovagnocca.com/dmc/account#/ads/active";
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+const TROVAGNOCCA_PUBLISH_SCREENSHOT_DIR = path.join("./screenshots", "trovagnocca-publish");
+const PHOTO_INPUT_SELECTOR = 'input[type="file"][name="items[]"], input[type="file"][name="inputFile"], .dropArea input[type="file"], input[type="file"][accept*="image"], input[type="file"]';
+const PHOTO_PREVIEW_SELECTORS = [
+  ".thumb-img",
+  ".thumb-media img",
+  ".preview img",
+  ".image-preview img",
+  ".file-preview img",
+  ".dropArea img[src^='blob:']",
+  ".dropArea img[src^='data:image']",
+  "img[src^='blob:']",
+  "img[src^='data:image']"
+];
+const COVER_BUTTON_SELECTOR = "button.btn_cover, button";
+
+function ensureTrovagnoccaScreenshotDir() {
+  if (!fs.existsSync(TROVAGNOCCA_PUBLISH_SCREENSHOT_DIR)) {
+    fs.mkdirSync(TROVAGNOCCA_PUBLISH_SCREENSHOT_DIR, { recursive: true });
+  }
+  return TROVAGNOCCA_PUBLISH_SCREENSHOT_DIR;
 }
 
 const CATEGORY_VALUES = {
@@ -217,6 +235,10 @@ const NATIONALITY_VALUES = {
   nationality_venezuelan: "126",
   nationality_vietnamese: "127"
 };
+
+const screenshotDir = path.join('./screenshots', 'trovagnocca-publish');
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function cleanText(value) {
   return `${value || ""}`.replace(/\s+/g, " ").trim();
@@ -609,65 +631,232 @@ async function countUploadedPhotoPreviews(page) {
   }).catch(() => 0);
 }
 
-async function clearUploadedImages(page) {
-  const maxPasses = 8;
+async function waitForUploadedPhotoCards(page, expectedCount) {
+  await page.waitForFunction(({ previewSelectors, buttonSelector, expected }) => {
+    const isVisible = (node) => {
+      if (!node) return false;
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const isCoverButton = (button) => {
+      const text = `${button.textContent || ""} ${button.getAttribute("title") || ""} ${button.getAttribute("aria-label") || ""} ${button.className || ""}`;
+      return /anteprima|cover|copertina|btn_cover/i.test(text);
+    };
+    const visiblePreviews = Array.from(document.querySelectorAll(previewSelectors.join(","))).filter(isVisible);
+    const cards = [];
+    const seen = new Set();
 
-  for (let pass = 0; pass < maxPasses; pass += 1) {
-    const removed = await page.evaluate(() => {
-      const isVisible = (node) => {
-        if (!node) return false;
-        const style = window.getComputedStyle(node);
-        const rect = node.getBoundingClientRect();
-        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
-      };
-
-      const previewSelectors = [
-        ".thumb-img",
-        ".thumb-media img",
-        ".preview img",
-        ".image-preview img",
-        ".file-preview img",
-        "img[src^='blob:']",
-        "img[src^='data:image']"
-      ];
-      const actionPattern = /delete|remove|rimuovi|elimina|cancella|close|chiudi|×/i;
-      const previews = Array.from(document.querySelectorAll(previewSelectors.join(","))).filter(isVisible);
-
-      for (const preview of previews) {
-        const scope = preview.closest(".thumb, .thumb-media, .preview, .image-preview, .file-preview, .col, .row, li, div") || preview.parentElement;
-        const controls = Array.from((scope || document).querySelectorAll("button, .btn, i, a, span"))
-          .filter(isVisible)
-          .filter((node) => {
-            const text = `${node.textContent || ""} ${node.getAttribute("title") || ""} ${node.getAttribute("aria-label") || ""} ${node.className || ""}`;
-            return actionPattern.test(text) || /delete|trash|close|remove|times|cancel/i.test(text);
-          });
-
-        const control = controls[0];
-        if (!control) continue;
-        control.scrollIntoView({ block: "center", inline: "center" });
-        control.click();
-        return true;
+    for (const button of Array.from(document.querySelectorAll(buttonSelector)).filter((node) => isVisible(node) && isCoverButton(node))) {
+      let node = button.parentElement;
+      while (node && node !== document.body) {
+        const hasPreview = visiblePreviews.some((preview) => node.contains(preview));
+        if (hasPreview) {
+          if (!seen.has(node)) {
+            seen.add(node);
+            cards.push(node);
+          }
+          break;
+        }
+        node = node.parentElement;
       }
+    }
 
-      return false;
-    }).catch(() => false);
+    return cards.length >= expected;
+  }, { timeout: 45000 }, {
+    previewSelectors: PHOTO_PREVIEW_SELECTORS,
+    buttonSelector: COVER_BUTTON_SELECTOR,
+    expected: expectedCount
+  });
+}
 
-    if (!removed) break;
+async function countUploadedPhotoCards(page) {
+  return page.evaluate(({ previewSelectors, buttonSelector }) => {
+    const isVisible = (node) => {
+      if (!node) return false;
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const isCoverButton = (button) => {
+      const text = `${button.textContent || ""} ${button.getAttribute("title") || ""} ${button.getAttribute("aria-label") || ""} ${button.className || ""}`;
+      return /anteprima|cover|copertina|btn_cover/i.test(text);
+    };
+    const visiblePreviews = Array.from(document.querySelectorAll(previewSelectors.join(","))).filter(isVisible);
+    const cards = [];
+    const seen = new Set();
 
-    await delay(500);
-    await page.evaluate(() => {
-      const confirmButton = document.querySelector(".swal2-popup.swal2-show .swal2-confirm");
-      if (confirmButton) confirmButton.click();
-    }).catch(() => null);
-    await delay(700);
+    for (const button of Array.from(document.querySelectorAll(buttonSelector)).filter((node) => isVisible(node) && isCoverButton(node))) {
+      let node = button.parentElement;
+      while (node && node !== document.body) {
+        const hasPreview = visiblePreviews.some((preview) => node.contains(preview));
+        if (hasPreview) {
+          if (!seen.has(node)) {
+            seen.add(node);
+            cards.push(node);
+          }
+          break;
+        }
+        node = node.parentElement;
+      }
+    }
+
+    return cards.length;
+  }, {
+    previewSelectors: PHOTO_PREVIEW_SELECTORS,
+    buttonSelector: COVER_BUTTON_SELECTOR
+  }).catch(() => 0);
+}
+
+async function waitForNewUploadedPhotoCard(page, expectedCount, previousPreviewCount, previousCardCount) {
+  await page.waitForFunction(({ previewSelectors, buttonSelector, expected, previousPreviews, previousCards }) => {
+    const isVisible = (node) => {
+      if (!node) return false;
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const isCoverButton = (button) => {
+      const text = `${button.textContent || ""} ${button.getAttribute("title") || ""} ${button.getAttribute("aria-label") || ""} ${button.className || ""}`;
+      return /anteprima|cover|copertina|btn_cover/i.test(text);
+    };
+    const visiblePreviews = Array.from(document.querySelectorAll(previewSelectors.join(","))).filter(isVisible);
+    const cards = [];
+    const seen = new Set();
+
+    for (const button of Array.from(document.querySelectorAll(buttonSelector)).filter((node) => isVisible(node) && isCoverButton(node))) {
+      let node = button.parentElement;
+      while (node && node !== document.body) {
+        const hasPreview = visiblePreviews.some((preview) => node.contains(preview));
+        if (hasPreview) {
+          if (!seen.has(node)) {
+            seen.add(node);
+            cards.push(node);
+          }
+          break;
+        }
+        node = node.parentElement;
+      }
+    }
+
+    return cards.length > previousCards ||
+      cards.length >= expected ||
+      visiblePreviews.length > previousPreviews ||
+      visiblePreviews.length >= expected;
+  }, { timeout: 30000 }, {
+    previewSelectors: PHOTO_PREVIEW_SELECTORS,
+    buttonSelector: COVER_BUTTON_SELECTOR,
+    expected: expectedCount,
+    previousPreviews: previousPreviewCount,
+    previousCards: previousCardCount
+  });
+
+  const cardCount = await countUploadedPhotoCards(page);
+  return Math.max(0, cardCount - 1);
+}
+
+async function clearUploadedImages(page) {
+  console.log("[clearUploadedImages] start");
+
+  // Wait until at least one file/image input or preview element is visible
+  try {
+    await page.waitForSelector(
+      'input[type="file"], .thumb-img, .thumb-media img, .preview img, .image-preview img, .file-preview img',
+      { visible: true, timeout: 5000 } // wait up to 15 seconds
+    );
+  } catch (err) {
+    console.log("[clearUploadedImages] no images or file inputs found yet");
   }
 
+  // Click "Rimuovi tutto" if it exists
+  const clickedRemoveAll = await page.evaluate(() => {
+    const isVisible = (node) => {
+      if (!node) return false;
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
+    };
+
+    const removeAllButton = Array.from(
+      document.querySelectorAll("button, .btn, a")
+    ).find((btn) => {
+      if (!isVisible(btn)) return false;
+      const text = (btn.textContent || "").trim().toLowerCase();
+      return text.includes("rimuovi tutto") || text.includes("remove all");
+    });
+
+    if (!removeAllButton) return false;
+
+    removeAllButton.scrollIntoView({ block: "center", inline: "center" });
+    removeAllButton.click();
+    return true;
+  }).catch(() => false);
+
+  console.log("[clearUploadedImages] clickedRemoveAll:", clickedRemoveAll);
+
+  if (clickedRemoveAll) {
+    // Wait for removal to finish
+    await delay(1500);
+  } else {
+    for (let pass = 0; pass < 8; pass += 1) {
+      const removedOne = await page.evaluate((previewSelectors) => {
+        const isVisible = (node) => {
+          if (!node) return false;
+          const style = window.getComputedStyle(node);
+          const rect = node.getBoundingClientRect();
+          return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+        };
+        const actionPattern = /delete|remove|rimuovi|elimina|cancella|close|chiudi|×/i;
+        const previews = Array.from(document.querySelectorAll(previewSelectors.join(","))).filter(isVisible);
+
+        for (const preview of previews) {
+          let node = preview.parentElement;
+          while (node && node !== document.body) {
+            const controls = Array.from(node.querySelectorAll("button, .btn, i, a, span"))
+              .filter(isVisible)
+              .filter((control) => {
+                const text = `${control.textContent || ""} ${control.getAttribute("title") || ""} ${control.getAttribute("aria-label") || ""} ${control.className || ""}`;
+                return actionPattern.test(text);
+              });
+
+            const control = controls[0];
+            if (control) {
+              control.scrollIntoView({ block: "center", inline: "center" });
+              control.click();
+              return true;
+            }
+
+            node = node.parentElement;
+          }
+        }
+
+        return false;
+      }, PHOTO_PREVIEW_SELECTORS).catch(() => false);
+
+      if (!removedOne) break;
+      await delay(700);
+      await page.evaluate(() => {
+        const confirmButton = document.querySelector(".swal2-popup.swal2-show .swal2-confirm");
+        if (confirmButton) confirmButton.click();
+      }).catch(() => null);
+      await delay(700);
+    }
+  }
+
+  // Clear file inputs
   await page.evaluate(() => {
-    for (const input of document.querySelectorAll('input[type="file"]')) {
+    document.querySelectorAll('input[type="file"]').forEach((input) => {
       input.value = "";
       input.dispatchEvent(new Event("change", { bubbles: true }));
-    }
+    });
   }).catch(() => null);
+
+  console.log("[clearUploadedImages] finished");
 }
 
 function resolveImagePaths(images = []) {
@@ -720,6 +909,9 @@ function resolveImagePaths(images = []) {
 
 async function uploadImages(page, images = [], picsAudit = []) {
   await waitForPhotoStep(page);
+  await delay(2000);
+  const screenshotDir = ensureTrovagnoccaScreenshotDir();
+  await page.screenshot({ path: `${screenshotDir}/clearUploadedImages.png`, fullPage: true });
   await clearUploadedImages(page);
 
   const auditPaths = picsAudit
@@ -740,61 +932,106 @@ async function uploadImages(page, images = [], picsAudit = []) {
     return 0;
   }
 
-  const input = await page.$('input[type="file"][name="items[]"], input[type="file"][name="inputFile"], .dropArea input[type="file"], input[type="file"][accept*="image"], input[type="file"]');
-  if (!input) throw new Error("Photo upload input not found");
+  const anteprimaItem = picsAudit.find((item) => item?.isAnteprima === true);
+  const normalizePath = (value) => path.resolve(`${value || ""}`).toLowerCase();
+  const anteprimaPath = anteprimaItem ? normalizePath(anteprimaItem.path || anteprimaItem.src || anteprimaItem.origin) : "";
+  const anteprimaIndex = anteprimaPath
+    ? existing.findIndex((imagePath) => normalizePath(imagePath) === anteprimaPath)
+    : -1;
 
-  const thumbnailCountBefore = await countUploadedPhotoPreviews(page);
+  if (anteprimaItem && anteprimaIndex < 0) {
+    console.warn(`[trovagnocca:publish] Anteprima image path not matched. No anteprima button will be clicked: ${anteprimaItem.path || anteprimaItem.src || anteprimaItem.origin}`);
+  }
 
-  await input.uploadFile(...existing);
+  for (let index = 0; index < existing.length; index += 1) {
+    const input = await page.$(PHOTO_INPUT_SELECTOR);
+    if (!input) throw new Error("Photo upload input not found");
 
-  await page.waitForFunction((expectedCount, previousCount) => {
-    const fileInputs = Array.from(document.querySelectorAll('input[type="file"]'));
-    const hasSelectedFiles = fileInputs.some((node) => node.files && node.files.length >= expectedCount);
-    const previews = Array.from(document.querySelectorAll(".thumb-img, .thumb-media img, .dropArea img, img[src^='blob:'], img[src^='data:image']"));
-    return hasSelectedFiles || previews.length > previousCount || previews.length >= expectedCount;
-  }, { timeout: 30000 }, existing.length, thumbnailCountBefore);
+    const thumbnailCountBefore = await countUploadedPhotoPreviews(page);
+    const cardsBefore = await countUploadedPhotoCards(page);
 
-  await delay(1000);
-  await clickAnteprimaImageButton(page, existing, picsAudit);
+    await input.uploadFile(existing[index]);
+
+    const cardIndex = await waitForNewUploadedPhotoCard(page, index + 1, thumbnailCountBefore, cardsBefore);
+
+    if (index === anteprimaIndex) {
+      await clickAnteprimaImageButton(page, cardIndex);
+    }
+
+    await delay(400);
+  }
+
+  await waitForUploadedPhotoCards(page, existing.length);
+  await page.screenshot({ path: `${screenshotDir}/clickAnteprimaImageButton.png`, fullPage: true });
   return existing.length;
 }
 
-async function clickAnteprimaImageButton(page, uploadedImagePaths = [], picsAudit = []) {
-  const anteprimaItem = picsAudit.find((item) => item?.isAnteprima === true);
-  if (!anteprimaItem || !uploadedImagePaths.length) return false;
+async function clickAnteprimaImageButton(page, targetIndex = 0) {
+  await waitForUploadedPhotoCards(page, targetIndex + 1);
 
-  const normalizePath = (value) => path.resolve(`${value || ""}`).toLowerCase();
-  const anteprimaPath = normalizePath(anteprimaItem.path || anteprimaItem.src || anteprimaItem.origin);
-  const anteprimaIndex = uploadedImagePaths.findIndex((imagePath) => normalizePath(imagePath) === anteprimaPath);
-  const targetIndex = anteprimaIndex >= 0 ? anteprimaIndex : 0;
+  const clicked = await page.evaluate(({ index, previewSelectors, buttonSelector }) => {
+    const isVisible = (node) => {
+      if (!node) return false;
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const isCoverButton = (button) => {
+      const text = `${button.textContent || ""} ${button.getAttribute("title") || ""} ${button.getAttribute("aria-label") || ""} ${button.className || ""}`;
+      return /anteprima|cover|copertina|btn_cover/i.test(text);
+    };
+    const isSelected = (button, card) => {
+      const label = `${button.textContent || ""} ${button.getAttribute("title") || ""} ${button.getAttribute("aria-label") || ""}`;
+      const classText = `${button.className || ""} ${card?.className || ""}`.replace(/\bbtn_cover\b/gi, "");
+      return /selezionat|impostata|copertina/i.test(label) || /active|selected|primary|success|warning/i.test(classText);
+    };
+    const visiblePreviews = Array.from(document.querySelectorAll(previewSelectors.join(","))).filter(isVisible);
+    const cards = [];
+    const seen = new Set();
 
-  await page.waitForFunction((minCount) => {
-    const isVisible = (node) => Boolean(node && (node.offsetWidth || node.offsetHeight || node.getClientRects().length));
-    return Array.from(document.querySelectorAll("button.btn_cover, button"))
-      .filter((button) => isVisible(button) && /anteprima/i.test(button.textContent || ""))
-      .length >= minCount;
-  }, { timeout: 15000 }, Math.min(uploadedImagePaths.length, targetIndex + 1)).catch(() => null);
+    for (const button of Array.from(document.querySelectorAll(buttonSelector)).filter((node) => isVisible(node) && isCoverButton(node))) {
+      let node = button.parentElement;
+      while (node && node !== document.body) {
+        const hasPreview = visiblePreviews.some((preview) => node.contains(preview));
+        if (hasPreview) {
+          if (!seen.has(node)) {
+            seen.add(node);
+            cards.push({ card: node, button });
+          }
+          break;
+        }
+        node = node.parentElement;
+      }
+    }
 
-  const clicked = await page.evaluate((index) => {
-    const isVisible = (node) => Boolean(node && (node.offsetWidth || node.offsetHeight || node.getClientRects().length));
-    const buttons = Array.from(document.querySelectorAll("button.btn_cover, button"))
-      .filter((button) => isVisible(button) && /anteprima/i.test(button.textContent || ""));
-    const button = buttons[index] || buttons[0];
-    if (!button) return false;
+    const target = cards[index] || cards[0];
+    if (!target) return { ok: false, cardCount: cards.length };
 
-    button.scrollIntoView({ block: "center", inline: "center" });
-    button.click();
-    return true;
-  }, targetIndex);
+    target.button.scrollIntoView({ block: "center", inline: "center" });
+    target.button.click();
+    return {
+      ok: true,
+      cardCount: cards.length,
+      selected: isSelected(target.button, target.card),
+      buttonText: `${target.button.textContent || ""}`.replace(/\s+/g, " ").trim(),
+      buttonClass: `${target.button.className || ""}`,
+      cardClass: `${target.card.className || ""}`
+    };
+  }, {
+    index: targetIndex,
+    previewSelectors: PHOTO_PREVIEW_SELECTORS,
+    buttonSelector: COVER_BUTTON_SELECTOR
+  });
 
-  if (clicked) {
-    console.log(`[trovagnocca:publish] Anteprima image selected at index ${targetIndex}`);
-    await delay(500);
-  } else {
+  if (!clicked.ok) {
     console.warn("[trovagnocca:publish] Anteprima button not found after image upload.");
+    return false;
   }
 
-  return clicked;
+  await delay(700);
+  console.log(`[trovagnocca:publish] Anteprima image button clicked at index ${targetIndex}`);
+
+  return true;
 }
 
 function addTagWhen(tags, condition, label) {
@@ -1758,7 +1995,7 @@ async function publishAd(page, adData = {}, options = {}) {
     throw new Error(`Trovagnocca did not advance to tags step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
   }
   await clickNext(page);
-  await clearUploadedImages(page);
+  // await clearUploadedImages(page);
   const uploadImageslength = await uploadImages(page, data.images, data.picsAudit);
   console.log(uploadImageslength, 'uploaded images count')
   await clickNext(page);
@@ -1781,7 +2018,7 @@ async function publishAd(page, adData = {}, options = {}) {
     hasSuccess: false,
     diagnostics: {}
   };
-  const screenshotDir = path.join('./screenshots', 'trovagnocca-publish');
+
   if (!fs.existsSync(screenshotDir)) {
     fs.mkdirSync(screenshotDir, { recursive: true });
   }
@@ -1853,7 +2090,6 @@ async function publishAd(page, adData = {}, options = {}) {
 
       return link?.href || "";
     });
-
 
     await page.screenshot({ path: `${screenshotDir}/publish4.png`, fullPage: true });
 

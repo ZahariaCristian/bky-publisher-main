@@ -621,16 +621,50 @@ class TrovagnoccaBot {
     };
   }
 
-  async publish(ad) {
-    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
-    const publishData = this.buildPublishData(ad);
+  // async publish(ad) {
+  //   const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+  //   const publishData = this.buildPublishData(ad);
 
-    return publishAd(page, publishData, {
-      browser: this.browser,
-      solveRecaptcha: this.solveRecaptcha.bind(this),
-      getCaptchaToken: this.getCaptchaToken.bind(this)
-    });
+  //   return publishAd(page, publishData, {
+  //     browser: this.browser,
+  //     solveRecaptcha: this.solveRecaptcha.bind(this),
+  //     getCaptchaToken: this.getCaptchaToken.bind(this)
+  //   });
+  // }
+
+  async publish(ad) {
+  const publishData = this.buildPublishData(ad);
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const page = this.page && !this.page.isClosed()
+        ? this.page
+        : await this.newPage();
+
+      const result = await publishAd(page, publishData, {
+        browser: this.browser,
+        solveRecaptcha: this.solveRecaptcha.bind(this),
+        getCaptchaToken: this.getCaptchaToken.bind(this)
+      });
+
+      if (result?.ok) return result;
+
+      lastError = new Error(`Trovagnocca publish returned ok=false on attempt ${attempt}`);
+    } catch (error) {
+      lastError = error;
+    }
+
+    console.warn(`[trovagnocca] publish attempt ${attempt} failed: ${lastError.message}`);
+
+    if (attempt < 3) {
+      await this.restartBrowser?.(`after publish attempt ${attempt} failed`);
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
   }
+
+  throw lastError;
+}
 
   async resolveRemoteId(ad) {
     return extractRemoteAdId(ad?.remotePostID || ad?.urlBK || ad?.idpriv || ad?.remoteId);
@@ -729,6 +763,10 @@ class TrovagnoccaBot {
 
   async suspend(remoteId) {
     return this.requestAdResource(remoteId, "PUT", { status: "paused" });
+  }
+
+  async republish(remoteId) {
+    return this.requestAdResource(remoteId, "PUT", { status: "active" });
   }
 
   async delete(remoteId) {
