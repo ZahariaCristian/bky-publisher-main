@@ -240,6 +240,20 @@ const screenshotDir = path.join('./screenshots', 'trovagnocca-publish');
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function captureTrovagnoccaStepScreenshot(page, label) {
+  try {
+    const dir = ensureTrovagnoccaScreenshotDir();
+    const safeLabel = `${label || "step"}`.replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
+    const filePath = path.join(dir, `${safeLabel}.png`);
+    await page.screenshot({ path: filePath, fullPage: true });
+    console.log(`[trovagnocca:screenshot] ${label}: ${filePath}`);
+    return filePath;
+  } catch (error) {
+    console.warn(`[trovagnocca:screenshot] Failed to capture ${label}: ${error.message}`);
+    return "";
+  }
+}
+
 function cleanText(value) {
   return `${value || ""}`.replace(/\s+/g, " ").trim();
 }
@@ -333,7 +347,9 @@ async function closeEditNoticeModal(page) {
   return true;
 }
 
-async function setWrappedSelect(page, wrapperName, wanted) {
+async function setWrappedSelect(page, wrapperName, wanted, options = {}) {
+  const force = Boolean(options.force);
+
   await page.waitForFunction(({ wrapperName, wanted }) => {
     const normalizedWanted = `${wanted || ""}`.trim().toLowerCase();
     const optionMatches = (select) => Array.from(select.options || []).some((item) => (
@@ -348,7 +364,7 @@ async function setWrappedSelect(page, wrapperName, wanted) {
     return Array.from(document.querySelectorAll("select")).some(optionMatches);
   }, { timeout: 30000 }, { wrapperName, wanted });
 
-  await page.evaluate(({ wrapperName, wanted }) => {
+  await page.evaluate(({ wrapperName, wanted, force }) => {
     const normalizedWanted = `${wanted || ""}`.trim().toLowerCase();
     const optionMatches = (select) => Array.from(select.options || []).some((item) => (
       `${item.value}` === `${wanted}` ||
@@ -380,6 +396,23 @@ async function setWrappedSelect(page, wrapperName, wanted) {
       throw new Error(`Select option not found for ${wrapperName}: ${wanted}; options=${JSON.stringify(options)}`);
     }
 
+    if (force) {
+      select.disabled = false;
+      select.readOnly = false;
+      select.removeAttribute("disabled");
+      select.removeAttribute("readonly");
+      select.removeAttribute("aria-disabled");
+
+      let node = select;
+      while (node && node !== document.body) {
+        node.classList?.remove("disabled", "deactivated", "readonly");
+        node.removeAttribute?.("disabled");
+        node.removeAttribute?.("readonly");
+        node.removeAttribute?.("aria-disabled");
+        node = node.parentElement;
+      }
+    }
+
     const nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")?.set;
     if (nativeValueSetter) {
       nativeValueSetter.call(select, option.value);
@@ -387,13 +420,70 @@ async function setWrappedSelect(page, wrapperName, wanted) {
       select.value = option.value;
     }
     option.selected = true;
-    select.dispatchEvent(new Event("input", { bubbles: true }));
-    select.dispatchEvent(new Event("change", { bubbles: true }));
+    ["input", "change", "blur"].forEach((eventName) => {
+      select.dispatchEvent(new Event(eventName, { bubbles: true }));
+    });
 
     if (`${select.value}` !== `${option.value}`) {
       throw new Error(`Select ${wrapperName} did not keep value ${option.value}; current=${select.value}`);
     }
-  }, { wrapperName, wanted });
+  }, { wrapperName, wanted, force });
+}
+
+async function ensureWrappedSelectHasValue(page, wrapperName, fallbackValue) {
+  await delay(1500);
+
+  const selectState = await page.evaluate((wrapperName) => {
+    const isPlaceholderText = (value) => /seleziona|select|scegli|choose/i.test(`${value || ""}`);
+    const wrapper = document.querySelector(`[name="${wrapperName}"]`);
+    const wrapperSelect = wrapper?.querySelector("select");
+    const matchingSelect = wrapperSelect || Array.from(document.querySelectorAll("select")).find((select) => {
+      const ownerName = select.closest("[name]")?.getAttribute("name") || "";
+      const text = `${ownerName} ${select.name || ""} ${select.id || ""}`.toLowerCase();
+      return text.includes(`${wrapperName}`.toLowerCase());
+    });
+
+    if (!matchingSelect) {
+      return {
+        found: false,
+        hasValue: false,
+        value: "",
+        text: ""
+      };
+    }
+
+    const value = `${matchingSelect.value || ""}`.trim();
+    const selectedText = `${matchingSelect.selectedOptions?.[0]?.textContent || ""}`.replace(/\s+/g, " ").trim();
+    const hasValue = Boolean(value) && !isPlaceholderText(selectedText);
+
+    return {
+      found: true,
+      hasValue,
+      value,
+      text: selectedText
+    };
+  }, wrapperName);
+
+  if (selectState.hasValue) {
+    console.log(`[trovagnocca:update] Keeping existing ${wrapperName}:`, selectState);
+    return selectState;
+  }
+
+  console.log(`[trovagnocca:update] ${wrapperName} is empty, setting fallback: ${fallbackValue}`, selectState);
+  await setWrappedSelect(page, wrapperName, fallbackValue, { force: true });
+
+  return page.evaluate((wrapperName) => {
+    const wrapper = document.querySelector(`[name="${wrapperName}"]`);
+    const select = wrapper?.querySelector("select") || Array.from(document.querySelectorAll("select")).find((item) => (
+      `${item.closest("[name]")?.getAttribute("name") || ""}`.toLowerCase().includes(`${wrapperName}`.toLowerCase())
+    ));
+    return {
+      found: Boolean(select),
+      hasValue: Boolean(`${select?.value || ""}`.trim()),
+      value: `${select?.value || ""}`.trim(),
+      text: `${select?.selectedOptions?.[0]?.textContent || ""}`.replace(/\s+/g, " ").trim()
+    };
+  }, wrapperName);
 }
 
 async function setWrappedInput(page, wrapperName, value) {
@@ -1602,6 +1692,57 @@ async function clickGoldPublishFlow(page, data) {
   await clickGoldPublish(page);
 }
 
+async function finalUpdateFlow(page) {
+  console.log("[trovagnocca:update] Starting final update flow");
+
+  await page.waitForFunction(() => {
+    const isVisible = (node) => {
+      if (!node) return false;
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+    const candidates = Array.from(document.querySelectorAll(".stepper-button.next, .btn.stepper-button.next, button, .btn"));
+
+    return candidates.some((node) => {
+      const text = clean(node.textContent);
+      const disabled = node.disabled || node.classList.contains("disabled") || node.classList.contains("deactivated");
+      return isVisible(node) && !disabled &&
+        /fine|salva|conferma|aggiorna|update/i.test(text) &&
+        !/indietro|back|precedente/i.test(text);
+    });
+  }, { timeout: 30000 });
+
+  const clicked = await page.evaluate(() => {
+    const isVisible = (node) => {
+      if (!node) return false;
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    };
+    const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+    const candidates = Array.from(document.querySelectorAll(".stepper-button.next, .btn.stepper-button.next, button, .btn"));
+    const button = candidates.find((node) => {
+      const text = clean(node.textContent);
+      const disabled = node.disabled || node.classList.contains("disabled") || node.classList.contains("deactivated");
+      return isVisible(node) && !disabled &&
+        /fine|salva|conferma|aggiorna|update/i.test(text) &&
+        !/indietro|back|precedente/i.test(text);
+    });
+
+    if (!button) return false;
+    button.scrollIntoView({ block: "center", inline: "center" });
+    button.click();
+    return true;
+  });
+
+  if (!clicked) throw new Error("Trovagnocca final update button not found");
+
+  await delay(1500);
+  console.log("[trovagnocca:update] Final update button clicked");
+}
+
 async function clickTurboPublishFlow(page, data) {
   await waitForPromoStep(page);
   await openTurboPromoCard(page);
@@ -1916,8 +2057,10 @@ async function publishAd(page, adData = {}, options = {}) {
   console.log(adData, "adData in PublishAd function")
   const publishedId = adData?.remotePostID;
   const data = buildPublishData(adData);
+  const isUpdateMode = Boolean(options.postUrl && /\/ads-post\/\d+/i.test(options.postUrl));
 
   console.log("[trovagnocca:publish] Publishing ad", {
+    mode: isUpdateMode ? "update" : "publish",
     title: data.title,
     city: data.city,
     category: data.category,
@@ -1925,10 +2068,18 @@ async function publishAd(page, adData = {}, options = {}) {
   });
 
   await waitForDmcApp(page, options.postUrl || POST_URL);
+  if (isUpdateMode) await captureTrovagnoccaStepScreenshot(page, "update-after-open-edit-page");
 
-  await setWrappedSelect(page, "category", data.category);
-  await delay(500);
-  await setWrappedSelect(page, "city", data.city);
+  if (isUpdateMode) {
+    await ensureWrappedSelectHasValue(page, "category", data.category);
+    await delay(500);
+    await ensureWrappedSelectHasValue(page, "city", data.city);
+    await captureTrovagnoccaStepScreenshot(page, "update-after-category-city-check");
+  } else {
+    await setWrappedSelect(page, "category", data.category);
+    await delay(500);
+    await setWrappedSelect(page, "city", data.city);
+  }
   if (data.address) await setWrappedInput(page, "address", data.address);
   if (data.zone) await setWrappedInput(page, "zone", data.zone);
 
@@ -1940,58 +2091,27 @@ async function publishAd(page, adData = {}, options = {}) {
   await setContactMethod(page, "phone");
   await setSwitch(page, "whatsapp", data.whatsapp);
   await setSwitch(page, "telegram", data.telegram);
+  if (isUpdateMode) await captureTrovagnoccaStepScreenshot(page, "update-before-info-step-submit");
 
   // SOLVE reCAPTCHA HERE - RIGHT BEFORE CLICKING NEXT
   const step1Captcha = await solveRecaptcha(page, options);
+  if (isUpdateMode) await captureTrovagnoccaStepScreenshot(page, "update-after-captcha-submit");
   if (!step1Captcha.clickedNext) {
     await clickNext(page);
+    if (isUpdateMode) await captureTrovagnoccaStepScreenshot(page, "update-after-click-next-fallback");
   }
-
-  // let responseAdId = null;
-  // page.on("response", async (response) => {
-  //   const url = response.url();
-  //   const method = response.request().method();
-
-  //   if (!url.includes("/api/v1/resource/ad")) return;
-
-  //   const parsedUrl = new URL(url);
-
-  //   console.log("[debug url]", {
-  //     raw: JSON.stringify(url),
-  //     origin: parsedUrl.origin,
-  //     pathname: parsedUrl.pathname,
-  //     method,
-  //     status: response.status(),
-  //   });
-
-  //   if (
-  //     parsedUrl.pathname === "/api/v1/resource/ad" &&
-  //     method === "POST"
-  //   ) {
-  //     let body = null;
-
-  //     try {
-  //       body = await response.json();
-  //     } catch {
-  //       try {
-  //         body = JSON.parse(await response.text());
-  //       } catch {
-  //         body = null;
-  //       }
-  //     }
-
-  //     responseAdId = body?.data?.id
-  //   }
-  // });
 
   // console.log(responseAdId, "remoteAdId");
   const leftInfoStep = await waitForInfoStepExit(page);
   if (!leftInfoStep) {
+    await captureTrovagnoccaStepScreenshot(page, "update-info-step-still-blocked");
     throw new Error(`Trovagnocca did not leave contacts step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
   }
+  if (isUpdateMode) await captureTrovagnoccaStepScreenshot(page, "update-left-info-step");
 
   const tagsReached = await fillTagsStep(page, data);
   if (!tagsReached) {
+    if (isUpdateMode) await captureTrovagnoccaStepScreenshot(page, "update-tags-step-not-reached");
     throw new Error(`Trovagnocca did not advance to tags step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
   }
   await clickNext(page);
@@ -2004,7 +2124,11 @@ async function publishAd(page, adData = {}, options = {}) {
   if (`${data.typeAnnuncio || ""}`.trim().toLowerCase() === "turbo") {
     await clickTurboPublishFlow(page, data);
   } else if (data.promo.active) {
-    await clickGoldPublishFlow(page, data);
+    if (isUpdateMode) {
+      await finalUpdateFlow(page);
+    } else {
+      await clickGoldPublishFlow(page, data);
+    }
   } else {
     await clickPublish(page);
   }
@@ -2041,12 +2165,12 @@ async function publishAd(page, adData = {}, options = {}) {
   if (publishedId) {//Status Edit
     response.ok = true;
   } else {// New publish
-    if (adData.typeAnnuncio == 'Turbo') {
-      await page.goto(ACTIVE_ADS_URL, {
-        waitUntil: "networkidle2",
-        timeout: 60000
-      });
-    }
+    // if (adData.typeAnnuncio == 'Turbo') {
+    await page.goto(ACTIVE_ADS_URL, {
+      waitUntil: "networkidle2",
+      timeout: 60000
+    });
+    // }
 
     await page.screenshot({ path: `${screenshotDir}/publish3.png`, fullPage: true });
 
@@ -2081,7 +2205,7 @@ async function publishAd(page, adData = {}, options = {}) {
           return idMatch ? idMatch[1] : "";
         }).catch(() => "");
 
-    const publishLink = goldManageLink || await page.evaluate(() => {
+    const publishLink = await page.evaluate(() => {
       const previewLabel = Array.from(document.querySelectorAll("p, span, div"))
         .find((node) => (node.textContent || "").trim().toLowerCase() === "anteprima");
 
@@ -2091,9 +2215,13 @@ async function publishAd(page, adData = {}, options = {}) {
       return link?.href || "";
     });
 
+    if(!publishLink){
+      publishLink = goldManageLink;
+    }
+
     await page.screenshot({ path: `${screenshotDir}/publish4.png`, fullPage: true });
 
-    console.log(publishLink, remoteId, "publishLink");
+    console.log(publishLink, remoteId,  "publishLink");
 
     if (publishResult.hasError || (!publishResult.hasSuccess && !publishModal.published && !publishModal.pendingApproval && !remoteId)) {
       throw new Error(`Trovagnocca publish did not confirm success: ${JSON.stringify(publishResult.diagnostics)}`);
