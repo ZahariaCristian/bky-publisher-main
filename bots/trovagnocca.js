@@ -68,8 +68,8 @@ function extractRemoteAdId(remoteId) {
 
 class TrovagnoccaBot {
   constructor(email, password, credit, platform) {
-    this.email = email || process.env.TROVAGNOCCA_EMAIL || "";
-    this.password = password || process.env.TROVAGNOCCA_PASSWORD || "";
+    this.email = email;
+    this.password = password;
     this.credit = credit || 0;
     this.platform = platform;
     this.browser = null;

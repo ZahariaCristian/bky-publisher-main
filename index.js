@@ -430,7 +430,7 @@ async function mainLoop(group, platform) {
             return `No bot available for ${platform.platform}`;
         }
 
-        const refreshOnlyWhenNeeded = platform.platform == "bakeca";
+        const refreshOnlyWhenNeeded = ["bakeca", "trovagnocca"].includes(platform.platform);
         const shouldRefresh = !refreshOnlyWhenNeeded || platform.needRefresh !== false;
         if (shouldRefresh) {
             console.log('refresh', platform.platform);
