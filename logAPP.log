@@ -1,263 +1,73 @@
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
-Publisher INFO: login success for Raffa21's Team / trovagnocca
-Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
-Publisher INFO: login success for Raffa21's Team / bakecaincontrii
-Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found on Trovagnocca credits page.
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher ERROR: TimeoutError: Waiting failed: 10000ms exceeded
-Try restart bot of group Raffa21's Team platform trovagnocca
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a0c003254b057a81)
+Try restart bot of group Raffa21's Team platform bakeca
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a0c003254b057a81)
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a0c00418fc548d3f)
+Try restart bot of group Raffa21's Team platform bakeca
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a0c00418fc548d3f)
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a0c004443e424352)
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
-Publisher INFO: login success for Raffa21's Team / trovagnocca
-Publisher WARNING: Turnstile non risolto per raffaelesorrentino74@yahoo.it. Utente disabilitato temporaneamente, nuovo login tra 10s (tentativo 1).
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher: Suspending Bakeca ad n. 1961, schedule n. 16, group 15
-Publisher: Suspending Bakeca ad n. 1961, schedule n. 17, group 15
-Publisher: Suspending Bakeca ad n. 1961, schedule n. 18, group 15
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher: Suspending Bakeca ad n. 1961, schedule n. 21, group 15
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: APIError: Captcha Queue exceeded maximum capacity. Please wait a few moments before continuing, or update your settings at https://2captcha.com/setting
-Publisher: Suspending Bakeca ad n. 1961, schedule n. 19, group 15
-Publisher INFO: utente raffaelesorrentino74@yahoo.it riabilitato dopo login riuscito.
-Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
-Publisher INFO: login success for Raffa21's Team / bakecaincontrii
-Publisher ERROR during trovagnocca operation: TimeoutError: Waiting failed: 60000ms exceeded
-    at new WaitTask (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\WaitTask.js:49:34)
-    at IsolatedWorld.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Realm.js:25:26)
-    at CdpFrame.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:583:43)
-    at CdpFrame.<anonymous> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\util\decorators.js:109:27)
-    at CdpPage.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:1451:37)
-    at waitForDmcApp (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:281:14)
-    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1690:3)
-    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:966:36)
-    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:743:17)
-    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1175:21)
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a0c0058d4f0f0ee6)
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a0c0058d4f0f0ee6)
+Try restart bot of group Raffa21's Team platform bakeca
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a0c005b9eb281c6f)
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a0c005e539208c8c)
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
 Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
-Publisher INFO: login success for Raffa21's Team / trovagnocca
-Publisher INFO: login success for Raffa21's Team / bakecaincontrii
-Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found on Trovagnocca credits page.
-Publisher ERROR during trovagnocca operation: TimeoutError: Waiting failed: 30000ms exceeded
-    at new WaitTask (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\WaitTask.js:49:34)
-    at IsolatedWorld.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Realm.js:25:26)
-    at CdpFrame.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:583:43)
-    at CdpFrame.<anonymous> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\util\decorators.js:109:27)
-    at CdpPage.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:1451:37)
-    at waitForPromoStep (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:895:14)
-    at clickGoldPublishFlow (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1354:9)
-    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1770:11)
-    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:966:36)
-    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:743:17)
-Publisher ERROR during trovagnocca operation: TimeoutError: Waiting failed: 60000ms exceeded
-    at new WaitTask (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\WaitTask.js:49:34)
-    at IsolatedWorld.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Realm.js:25:26)
-    at CdpFrame.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:583:43)
-    at CdpFrame.<anonymous> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\util\decorators.js:109:27)
-    at CdpPage.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:1451:37)
-    at waitForDmcApp (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:281:14)
-    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1690:3)
-    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:966:36)
-    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:743:17)
-    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1175:21)
-Publisher ERROR during trovagnocca operation: TimeoutError: Waiting failed: 60000ms exceeded
-    at new WaitTask (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\common\WaitTask.js:49:34)
-    at IsolatedWorld.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Realm.js:25:26)
-    at CdpFrame.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Frame.js:583:43)
-    at CdpFrame.<anonymous> (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\util\decorators.js:109:27)
-    at CdpPage.waitForFunction (E:\Web\Node\Dev\bky-publisher-main\node_modules\puppeteer-core\lib\cjs\puppeteer\api\Page.js:1451:37)
-    at waitForDmcApp (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:281:14)
-    at async publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1690:3)
-    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:966:36)
-    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:747:17)
-    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1175:21)
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: TimeoutError: Waiting failed: 10000ms exceeded
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher INFO: login success for Raffa21's Team / trovagnocca
-Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
-Publisher ERROR during trovagnocca operation: Error: Trovagnocca did not leave contacts step after info submit: {"url":"https://www.trovagnocca.com/dmc/account#/ads-post","title":"Trovagnocca: bacheca di annunci di incontri gratuiti","buttons":["CARICA ANNUNCIO","CARICA ANNUNCIO","CARICA ANNUNCIO","I Miei Annunci","i tuoi dati * Campi non compilati","Prosegui","Il tuo annuncio * Campi non compilati","Prosegui","I tuoi contatti * Campi non compilati","Reset","Avanti keyboard_arrow_right","ACCETTO","RIFIUTO","LEGGI PIÙ","OK"],"alerts":[],"bodyText":"infinityweb.srls@gmail.com CARICA ANNUNCIO Pubblica annuncio Gratuitamente e in pochi passaggi perm_identity done done beenhere I TUOI DATI * CAMPI OBBLIGATORI * Seleziona categorie Donna Cerca Uomo Uomo Cerca Donna Uomo Cerca Uomo Donna Cerca Donna Trans - Travestiti Massaggi Coppie * Seleziona città agrigento alessandria ancona aosta arezzo ascoli asti avellino bari barletta belluno benevento bergamo biella bologna bolzano brescia brindisi cagliari caltanissetta campobasso carbonia iglesias caserta catania catanzaro chieti como cosenza cremona crotone cuneo enna fermo ferrara firenze foggia forli frosinone genova gorizia grosseto imperia isernia l'Aquila la spezia latina lecce lecco livorno lodi lucca macerata mantova massa carrara matera medio campidano messina milano modena monza napoli novara nuoro ogliastra olbia tempio oristano padova palermo parma pavia perugia pescara piacenza pisa pistoia pordenone potenza prato ragusa ravenna reggio calabria reggio emilia rieti rimini roma rovigo salerno sassari savona siena siracusa sondrio taranto teramo terni torino trapani trento treviso trieste udine urbino varese venezia verbania vercelli verona vibo valentia vicenza viterbo Indiri"}
-    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1753:11)
-    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:966:36)
-    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:743:17)
-    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1175:21)
-Publisher INFO: login success for Raffa21's Team / bakecaincontrii
-Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Navigation timeout of 60000 ms exceeded
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-Publisher ERROR: Error: Login cookie validation failed for raffaelesorrentino74@yahoo.it (url=chrome-error://chromewebdata/, csrftoken=false, f_session_id=false, logged_cookie=false)
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: Error: Login cookie validation failed for raffaelesorrentino74@yahoo.it (url=chrome-error://chromewebdata/, csrftoken=false, f_session_id=false, logged_cookie=false)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a0574a877be668e6)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a0574ab69bc52b7e)
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_NETWORK_CHANGED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NETWORK_CHANGED at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakeca
+Publisher INFO: login success for Raffa21's Team / incontriamoci
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
 Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
-Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher WARNING: no cookie returned for Raffa21's Team / bakeca
+Publisher INFO: login success for Raffa21's Team / incontriamoci
 Publisher INFO: login success for Raffa21's Team / bakecaincontrii
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
 Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
-Publisher INFO: login success for Raffa21's Team / trovagnocca
-Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher WARNING: no cookie returned for Raffa21's Team / bakeca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
 Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
-Publisher INFO: login success for Raffa21's Team / trovagnocca
-Publisher INFO: login success for Raffa21's Team / bakecaincontrii
-Publisher ERROR during trovagnocca operation: TypeError: Assignment to constant variable.
-    at publishAd (E:\Web\Node\Dev\bky-publisher-main\adsManage\trovagnocca\publishAds.js:1779:18)
-    at async postThis (E:\Web\Node\Dev\bky-publisher-main\index.js:966:36)
-    at async mainLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:743:17)
-    at async runGroupLoop (E:\Web\Node\Dev\bky-publisher-main\index.js:1175:21)
+Publisher WARNING: no cookie returned for Raffa21's Team / bakeca
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-Connessione al database NON riuscita, ritento la connessione...
-[publisher-api] Listening on http://127.0.0.1:9998
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_CONNECTION_RESET at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-Connessione al database NON riuscita, ritento la connessione...
-[publisher-api] Listening on http://127.0.0.1:9998
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_PROXY_AUTH_UNSUPPORTED at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
-Publisher INFO: login success for Raffa21's Team / bakecaincontrii
-Publisher ERROR: Error: net::ERR_PROXY_AUTH_UNSUPPORTED at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-Try restart bot of group Raffa21's Team platform trovagnocca
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
 Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
-Publisher ERROR: Error: Trovagnocca login validation failed. Current URL: https://www.trovagnocca.com/
-Try restart bot of group Raffa21's Team platform trovagnocca
-Publisher INFO: login success for Raffa21's Team / bakecaincontrii
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakeca
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
@@ -266,148 +76,8 @@ Try restart bot of group Raffa21's Team platform trovagnocca
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_TIMED_OUT at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Try restart bot of group Raffa21's Team platform trovagnocca
-Publisher ERROR: Error: net::ERR_TIMED_OUT at https://www.trovagnocca.com/auth/login
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NETWORK_CHANGED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057cb500ca2e8ef)
-Publisher ERROR: Error: net::ERR_NETWORK_CHANGED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NETWORK_CHANGED at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-Publisher ERROR: Error: Login cookie validation failed for raffaelesorrentino74@yahoo.it (url=https://www.bakecaincontrii.com/u/account/dashboard/, csrftoken=true, f_session_id=false, logged_cookie=false)
-Publisher ERROR: Error: Login cookie validation failed for raffaelesorrentino74@yahoo.it (url=https://www.bakecaincontrii.com/u/account/dashboard/, csrftoken=true, f_session_id=false, logged_cookie=false)
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: Error: Login cookie validation failed for raffaelesorrentino74@yahoo.it (url=https://www.bakecaincontrii.com/u/account/dashboard/, csrftoken=true, f_session_id=false, logged_cookie=false)
-Publisher ERROR: TimeoutError: Navigation timeout of 30000 ms exceeded
-Publisher ERROR: FetchError: request to https://2captcha.com/res.php?key=ba7934d9771073af5d037756255d0b0c&json=1&header_acao=1&soft_id=4587&action=get&id=82853418138 failed, reason: read ECONNRESET
-Try restart bot of group Raffa21's Team platform trovagnocca
-Publisher ERROR: Error: net::ERR_NETWORK_CHANGED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: FetchError: request to https://2captcha.com/in.php?pageurl=https%3A%2F%2Fwww.bakecaincontrii.com%2Fu%2Flogin%2F&sitekey=0x4AAAAAABMyNd-c0BvRFF_d&method=turnstile&key=ba7934d9771073af5d037756255d0b0c&json=1&header_acao=1&soft_id=4587 failed, reason: getaddrinfo ENOTFOUND 2captcha.com
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: FetchError: request to https://2captcha.com/in.php?pageurl=https%3A%2F%2Fwww.bakecaincontrii.com%2Fu%2Flogin%2F&sitekey=0x4AAAAAABMyNd-c0BvRFF_d&method=turnstile&key=ba7934d9771073af5d037756255d0b0c&json=1&header_acao=1&soft_id=4587 failed, reason: getaddrinfo ENOTFOUND 2captcha.com
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057d1ec9d058c16)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057d2237d40b786)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057d252b8c10c45)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057d28a88f0d098)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057d2c0ca769dea)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057d30568466e22)
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-Publisher ERROR: TimeoutError: Waiting for selector `input[name="cf-turnstile-response"]` failed
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: TimeoutError: Waiting for selector `input[name="cf-turnstile-response"]` failed
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057d5a9b9aefca7)
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_TIMED_OUT at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Try restart bot of group Raffa21's Team platform bakecaincontrii
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_NETWORK_CHANGED at https://www.bakecaincontrii.com/u/login/
-Publisher ERROR: Error: net::ERR_NETWORK_CHANGED at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: FetchError: request to https://2captcha.com/in.php?pageurl=https%3A%2F%2Fwww.trovagnocca.com%2Fauth%2Flogin&googlekey=6LeghE4gAAAAAPMCvQ_nOzXwunnt9wfu_SCc3Zu_&userAgent=Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F122.0.0.0%20Safari%2F537.36&invisible=0&method=userrecaptcha&key=ba7934d9771073af5d037756255d0b0c&json=1&header_acao=1&soft_id=4587 failed, reason: getaddrinfo ENOTFOUND 2captcha.com
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e00e19278e47)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e046ccf979cf)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e09ac827f7a3)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e0e20994e172)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e1134b1cb8d4)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e14509bd3f37)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e17a7d9ef472)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e1a61c4a46c7)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e1eeffc92ad5)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e230fde65708)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e28bbb652b5a)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e30a482451ae)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e3471bc0d498)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e378c9665cfd)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e3a998d7b6a2)
-Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a057e3edbc8d1400)
-Publisher ERROR: Error: Trovagnocca login validation failed. Current URL: https://www.trovagnocca.com/
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / bakeca
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
@@ -417,53 +87,49 @@ Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
 Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
-Publisher INFO: login success for Raffa21's Team / bakecaincontrii
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakeca
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
 Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
-Publisher INFO: login success for Raffa21's Team / trovagnocca
-Publisher INFO: login success for Raffa21's Team / bakecaincontrii
-Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found on Trovagnocca credits page.
-Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found on Trovagnocca credits page.
-Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found on Trovagnocca credits page.
+Publisher INFO: login success for Raffa21's Team / bakeca
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
 Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
-Publisher INFO: login success for Raffa21's Team / trovagnocca
+Publisher INFO: login success for Raffa21's Team / bakeca
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / bakeca
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / bakeca
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found
 Publisher INFO: login success for Raffa21's Team / bakecaincontrii
 [i] Test di connessione al database...
-Connessione al database NON riuscita, ritento la connessione...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
-Publisher ERROR: Error: net::ERR_EMPTY_RESPONSE at https://www.trovagnocca.com/auth/login
-Try restart bot of group Raffa21's Team platform trovagnocca
-[i] Test di connessione al database...
-[i] Connessione al database stabilita.
-[i] Gruppo di lavoro "Raffa21's Team" definito
-[publisher-api] Listening on http://127.0.0.1:9998
-Try restart bot of group Raffa21's Team platform trovagnocca
-Publisher ERROR: Error: net::ERR_TIMED_OUT at https://www.trovagnocca.com/auth/login
-Publisher ERROR: Error: net::ERR_NAME_NOT_RESOLVED at https://www.bakecaincontrii.com/u/login/
-[i] Test di connessione al database...
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / bakeca
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii

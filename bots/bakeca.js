@@ -186,14 +186,14 @@ class BakecaBot {
               console.warn('No form element found on the page.');
             }
           } catch (err) {
-            console.error('Error during form submission inside page context:', err);
+            console.log('Error during form submission inside page context:', err);
           }
         });
       } catch (outerErr) {
-        console.error('Error evaluating form submission:', outerErr);
+        console.log('Error evaluating form submission:', outerErr);
       }
     } catch (err) {
-      console.error('Error solving/injecting Turnstile:', err);
+      console.log('Error solving/injecting Turnstile:', err);
       throw err;
     }
   }
@@ -210,7 +210,10 @@ class BakecaBot {
       console.log("Bakeca-");
       console.log(1, puppeteer.executablePath(), RESIDENTIAL_PROXY, "Launching browser...");
 
-      if (!this.browser) {
+      if (this.browser) {
+        this.browser.close().catch(() => { });
+        this.browser = null;
+      } else {
         this.browser = await puppeteer.launch({
           headless: true,
           executablePath: puppeteer.executablePath(),
@@ -219,10 +222,10 @@ class BakecaBot {
             '--disable-setuid-sandbox',
             "--disable-blink-features=AutomationControlled",
             "--disable-dev-shm-usage",
-            // "--disable-infobars",
-            // "--disable-web-security",
-            // "--disable-features=IsolateOrigins,site-per-process",
-            // '--window-size=1920,1080',
+            "--disable-infobars",
+            "--disable-web-security",
+            "--disable-features=IsolateOrigins,site-per-process",
+            '--window-size=1280,960',
             `--proxy-server=http://${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`
           ],
           defaultViewport: null,
@@ -246,7 +249,7 @@ class BakecaBot {
 
       // ===== TARGET =====
       console.log(2, "Bakeca-Opening target...");
-      await this.page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
+      await this.page.goto(LOGIN_URL, { waitUntil: "networkidle2", timeout: 30000 });
       await this.page.screenshot({ path: `${screenshotDir}/LoginBakeca2.png`, fullPage: true });
 
       // ===== CLOUDFLARE =====
@@ -323,7 +326,7 @@ class BakecaBot {
       return JSON.stringify(cookies);
     } catch (err) {
       // screenNum = 1;
-      console.error("❌ Bakeca-ERROR:", err.message);
+      console.log("❌ Bakeca-ERROR:", err.message);
       if (this.browser) {
         await this.browser.close();
         this.browser = null;
@@ -351,8 +354,9 @@ class BakecaBot {
         return { error: "Page not available" };
       }
 
-      await this.page.goto(CREDIT, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await this.waitTillHTMLRendered(this.page);
+      await this.page.goto(CREDIT, { waitUntil: "networkidle2", timeout: 30000 });
+      // await this.waitTillHTMLRendered(this.page);
+
       // ===== WAIT NAVIGATION =====
       await this.page.waitForNavigation({
         waitUntil: 'networkidle2',
@@ -391,7 +395,7 @@ class BakecaBot {
       }
 
       if (!credit) {
-        console.error("[!] Bakeca-Credit not found (refresh2).");
+        console.log("[!] Bakeca-Credit not found (refresh2).");
         return { error: "Credit not found" };
       }
 
@@ -411,7 +415,7 @@ class BakecaBot {
       if (!cookies || cookies.length === 0) return { error: "Cookies not available" };
       return [this.credit, JSON.stringify(cookies), 0];
     } catch (error) {
-      console.error("Bakeca-Error in refresh2:", error.message);
+      console.log("Bakeca-Error in refresh2:", error.message);
       return { error: error.message };
     }
   }
@@ -632,7 +636,7 @@ class BakecaBot {
     });
   }
 
-  async republish(remoteId){
+  async republish(remoteId) {
     return republishAds(this.page, remoteId)
   }
 

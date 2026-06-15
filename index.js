@@ -14,6 +14,7 @@ const BakecaincontriiBot = require("./bots/bakecaincontrii");
 const BakecaBot = require("./bots/bakeca");
 const MeBot = require("./bots/megaescort");
 const TrovagnoccaBot = require("./bots/trovagnocca");
+const IncontriamociBot = require("./bots/incontriamoci");
 const { getApiKey } = require("./adsManage/megaescort/client");
 const { raw } = require('mysql');
 const { platform } = require('os');
@@ -394,6 +395,10 @@ async function CreateGroupsBot() {
                                 break;
                             case "trovagnocca":
                                 panel.bot = await new TrovagnoccaBot(panel.username, decryptedPlatformPass, panel.credit, panel.platform)
+                                panel.overBusyBot = 0
+                                break;
+                            case "incontriamoci":
+                                panel.bot = await new IncontriamociBot(panel.username, decryptedPlatformPass, panel.credit, panel.platform)
                                 panel.overBusyBot = 0
                                 break;
                             default:

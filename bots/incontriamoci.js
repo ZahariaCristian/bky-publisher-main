@@ -77,7 +77,7 @@ class IncontriamociBot {
       : undefined;
 
     this.browser = await puppeteer.launch({
-      headless: false,
+      headless: true,
       executablePath,
       args: [
         "--no-sandbox",
@@ -96,6 +96,11 @@ class IncontriamociBot {
 
   async newPage() {
     await this.launch();
+
+    if (this.page && !this.page.isClosed()) {
+      await this.page.close().catch(() => { });
+      this.page = null;
+    }
 
     this.page = await this.browser.newPage();
     // await this.page.authenticate({
