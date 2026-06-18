@@ -4,13 +4,17 @@ const puppeteer = require("puppeteer-extra");
 const RecaptchaPlugin = require("puppeteer-extra-plugin-recaptcha");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const TwoCaptcha = require("@2captcha/captcha-solver");
-const { buildPublishData, publishAd } = require("../adsManage/incontriamoci/publishAds");
+const { buildPublishData, publishAd, updateAd } = require("../adsManage/incontriamoci/publishAds");
 // const { updateAd } = require("../adsManage/trovagnocca/updateAd");
 
 const LOGIN_URL = "https://incontriamoci.xxx/user/login";
 const HOME_URL = "https://incontriamoci.xxx/";
 // const ACCOUNT_URL = "https://incontriamoci.xxx/user/profile/publisher";
 const CREDIT_URL = "https://incontriamoci.xxx/user/profile/publisher";
+const EDIT_URL = "https://incontriamoci.xxx/item/edit/";
+const DEACTIVATE_URL = "https://incontriamoci.xxx/item/deactivate/";
+const ACTIVATE_URL = "https://incontriamoci.xxx/item/activate/";
+const DELETE_URL = "https://incontriamoci.xxx/item/delete/";
 
 const RECAPTCHA_SITEKEY = "6Le3ifIqAAAAAGvbIVmB4bP9-tALw0bVVjNbFOpG";
 const COOKIE_FILE = path.join(__dirname, "incontriamoci-cookies.json");
@@ -552,6 +556,112 @@ class IncontriamociBot {
       ...ad,
       ...this.buildPublishData(ad)
     });
+  }
+
+  normalizeRemotePostID(remoteId) {
+    const raw = `${remoteId || ""}`.trim();
+    if (!raw) return "";
+
+    try {
+      const url = new URL(raw);
+      const match = url.pathname.match(/\/item\/(?:activate|deactivate|delete|edit|premium)\/([^?#]+)$/i);
+      if (match) return decodeURIComponent(match[1]).replace(/^\/+|\/+$/g, "");
+    } catch {
+      // remoteId can already be the raw "845220/eDA1pUiw" token.
+    }
+
+    return raw
+      .replace(/^https?:\/\/[^/]+\/item\/(?:activate|deactivate|delete|edit|premium)\//i, "")
+      .replace(/[?#].*$/, "")
+      .replace(/^\/+|\/+$/g, "");
+  }
+
+  async resolveRemoteId(ad) {
+    return this.normalizeRemotePostID(ad?.remotePostID || ad?.idpriv || ad?.remoteId || "");
+  }
+
+  async update(ad) {
+    const remoteId = await this.resolveRemoteId(ad);
+    if (!remoteId) {
+      throw new Error(`Incontriamoci remotePostID missing for EDIT state on schedule ${ad?.id || ""}`);
+    }
+
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+    return updateAd(page, {
+      ...ad,
+      ...this.buildPublishData(ad),
+      remotePostID: remoteId
+    }, {
+      postUrl: `${EDIT_URL}${remoteId}`,
+      remoteId
+    });
+  }
+
+  async runAdAction(remoteId, actionType) {
+    const normalizedId = this.normalizeRemotePostID(remoteId);
+    if (!normalizedId) {
+      throw new Error(`Incontriamoci ${actionType} remotePostID is missing.`);
+    }
+
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+    const baseUrl = actionType === "delete"
+      ? DELETE_URL
+      : actionType === "republish"
+        ? ACTIVATE_URL
+        : DEACTIVATE_URL;
+    const targetUrl = `${baseUrl}${normalizedId}`;
+
+    await page.goto(targetUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 45000
+    });
+    await delay(1500);
+
+    const result = await page.evaluate((targetAction) => {
+      const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+      const bodyText = clean(document.body?.innerText || "");
+      const lowered = bodyText.toLowerCase();
+      const successPattern = targetAction === "delete"
+        ? /(eliminat|cancellat|rimosso|rimosso|delete|success|successo)/i
+        : targetAction === "republish"
+          ? /(attivat|pubblicat|activate|republish|success|successo)/i
+          : /(disattivat|sospes|deactivat|success|successo)/i;
+      const errorPattern = /(errore|error|non autorizzato|unauthorized|login|accedi|permesso|permission)/i;
+
+      return {
+        url: window.location.href,
+        title: document.title || "",
+        bodyText: bodyText.slice(0, 1000),
+        hasSuccessText: successPattern.test(bodyText),
+        hasErrorText: errorPattern.test(bodyText),
+        redirectedToLogin: /\/user\/login|\/auth\/login/i.test(window.location.href) || lowered.includes("accedi")
+      };
+    }, actionType);
+
+    const ok = Boolean(result.hasSuccessText || (!result.redirectedToLogin && !result.hasErrorText));
+    if (!ok) {
+      throw new Error(`Incontriamoci ${actionType} failed: ${JSON.stringify(result)}`);
+    }
+
+    return {
+      ok: true,
+      id: normalizedId,
+      url: result.url,
+      action: actionType,
+      diagnostics: result
+    };
+  }
+
+  async suspend(remoteId) {
+    return this.runAdAction(remoteId, "suspend");
+  }
+
+  async republish(remoteId) {
+    return this.runAdAction(remoteId, "republish");
+  }
+
+  async delete(remoteId) {
+    return this.runAdAction(remoteId, "delete");
   }
 
   async restartBrowser(reason) {

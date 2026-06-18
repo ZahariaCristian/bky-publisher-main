@@ -372,12 +372,12 @@ async function setNationality(page, value) {
     return selectOption(page, "#nationality_filter, select[name='filter[nationality]']", value);
 }
 
-async function openPublishPage(page) {
-    await page.goto(PUBLISH_URL, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+async function openPublishPage(page, targetUrl = PUBLISH_URL, label = "publish") {
+    await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
     const hasForm = await page.$(FORM_SELECTOR);
-    if (hasForm) return PUBLISH_URL;
+    if (hasForm) return targetUrl;
 
-    throw new Error(`Incontriamoci publish form not found. Last URL: ${page.url()}`);
+    throw new Error(`Incontriamoci ${label} form not found. Last URL: ${page.url()}`);
 }
 
 async function uploadImages(page, images = [], picsAudit = []) {
@@ -388,10 +388,37 @@ async function uploadImages(page, images = [], picsAudit = []) {
     if (!imagePaths.length) return 0;
 
     await setCheckbox(page, "#image_uploader_instance_auth, input[name='image_uploader_instance_auth']", true);
-    const input = await page.$("input[type='file'][name='images'], input[type='file'][accept*='image'], input[type='file']");
-    if (!input) throw new Error("Incontriamoci image file input not found.");
+    await page.waitForSelector(".qq-upload-button input[type='file'], input[type='file'][name='images'], input[type='file']", {
+        timeout: 15000
+    }).catch(() => null);
 
-    await input.uploadFile(...imagePaths);
+    const input = await page.$(".qq-upload-button input[type='file'], input[type='file'][name='images'], input[type='file'][accept*='image'], input[type='file']");
+    if (input) {
+        await input.uploadFile(...imagePaths);
+    } else {
+        const uploadButtonSelector = ".qq-upload-button, #image-uploader-upload-area";
+        const uploadButton = await page.$(uploadButtonSelector);
+        if (!uploadButton) {
+            const diagnostics = await page.evaluate(() => ({
+                url: window.location.href,
+                fileInputs: Array.from(document.querySelectorAll("input[type='file']")).map((node) => ({
+                    name: node.name,
+                    accept: node.accept,
+                    visible: Boolean(node.offsetWidth || node.offsetHeight || node.getClientRects().length)
+                })),
+                uploadButtons: document.querySelectorAll(".qq-upload-button, #image-uploader-upload-area").length,
+                bodyText: (document.body.innerText || "").replace(/\s+/g, " ").trim().slice(0, 500)
+            })).catch(() => ({}));
+            throw new Error(`Incontriamoci image file input not found: ${JSON.stringify(diagnostics)}`);
+        }
+
+        const [fileChooser] = await Promise.all([
+            page.waitForFileChooser({ timeout: 15000 }),
+            uploadButton.click()
+        ]);
+        await fileChooser.accept(imagePaths);
+    }
+
     await page.waitForFunction((expected) => {
         const successCount = document.querySelectorAll(".qq-upload-success, .qq-file-id, .qq-upload-list li").length;
         return successCount >= expected || expected === 0;
@@ -401,12 +428,111 @@ async function uploadImages(page, images = [], picsAudit = []) {
     return imagePaths.length;
 }
 
-async function fillFirstStep(page, data) {
+async function clearExistingImages(page) {
+    await page.waitForSelector(".qq-uploader-selector, .qq-upload-list, input[name='ajax_images[]']", {
+        timeout: 10000
+    }).catch(() => null);
+
+    const beforeCount = await page.evaluate(() => document.querySelectorAll("input[name='ajax_images[]']").length).catch(() => 0);
+    let clicked = 0;
+    let confirmed = 0;
+
+    while (clicked < 25) {
+        const currentCount = await page.evaluate(() => document.querySelectorAll("input[name='ajax_images[]']").length).catch(() => 0);
+        if (!currentCount) break;
+
+        const clickedDelete = await page.evaluate(() => {
+            window.confirm = () => true;
+            const imageInput = document.querySelector("input[name='ajax_images[]']");
+            const wrapper = imageInput?.closest(".file-wrapper, .qq-upload-success, .col-sm-4, .qq-upload-list-selector") || null;
+            const button = wrapper?.querySelector(
+                ".qq-upload-delete-selector.qq-upload-delete, .qq-upload-delete, button[title*='Elimina'], .btn-danger"
+            ) || document.querySelector(
+                ".qq-upload-delete-selector.qq-upload-delete, .qq-upload-delete, button[title*='Elimina']"
+            );
+
+            if (!button) return false;
+
+            button.scrollIntoView({ block: "center", inline: "center" });
+            button.classList.remove("qq-hide");
+            button.style.display = "";
+            button.style.visibility = "visible";
+            button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+            button.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+            button.click();
+            return true;
+        }).catch(() => false);
+
+        if (!clickedDelete) break;
+        clicked++;
+        await delay(600);
+
+        const clickedConfirm = await page.evaluate(() => {
+            const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+            const isVisible = (node) => {
+                if (!node) return false;
+                const style = window.getComputedStyle(node);
+                const rect = node.getBoundingClientRect();
+                return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+            };
+
+            const dialog = Array.from(document.querySelectorAll(
+                ".modal.show, .modal.in, .bootbox.modal, .swal2-container, [role='dialog'][aria-modal='true']"
+            )).find(isVisible);
+
+            if (!dialog) return false;
+
+            const buttons = Array.from(dialog.querySelectorAll("button, a.btn, input[type='button'], input[type='submit']"))
+                .filter(isVisible);
+            const confirmButton = buttons.find((node) => {
+                const text = clean(node.textContent || node.value || node.title || node.getAttribute("aria-label"));
+                const cls = clean(node.className);
+                const href = clean(node.getAttribute("href"));
+                if (/cookie|privacy|policy|termini|conditions/.test(`${text} ${href}`)) return false;
+                if (/cancel|annulla|close|chiudi|no/.test(`${text} ${cls}`)) return false;
+                return /elimina|cancella|rimuovi|conferma|si|yes/.test(text) || text === "ok";
+            });
+
+            if (!confirmButton) return false;
+            confirmButton.click();
+            return true;
+        }).catch(() => false);
+
+        if (clickedConfirm) confirmed++;
+
+        const deleted = await page.waitForFunction((previousCount) => {
+            return document.querySelectorAll("input[name='ajax_images[]']").length < previousCount;
+        }, { timeout: 7000 }, currentCount).then(() => true).catch(() => false);
+
+        if (!deleted) {
+            break;
+        }
+    }
+
+    const afterCount = await page.evaluate(() => document.querySelectorAll("input[name='ajax_images[]']").length).catch(() => 0);
+    console.log("[incontriamoci:update] existing images cleanup:", {
+        beforeCount,
+        clicked,
+        confirmed,
+        afterCount
+    });
+
+    if (afterCount > 0) {
+        throw new Error(`Incontriamoci could not delete existing images before update. Remaining images: ${afterCount}`);
+    }
+
+    return clicked;
+}
+
+async function fillFirstStep(page, data, options = {}) {
     await page.waitForSelector(FORM_SELECTOR, { visible: true, timeout: 30000 });
 
     await setInput(page, "#title, input[name='title']", data.title);
     await selectOption(page, "#catId, select[name='catId']", data.category);
     await setInput(page, "#description, textarea[name='description']", data.description);
+    if (options.replaceImages) {
+        await clearExistingImages(page);
+    }
     await uploadImages(page, data.images, data.picsAudit);
 
     await setInput(page, "#countryCode, input[name='countryCode']", "IT");
@@ -479,12 +605,125 @@ async function clickPublishFree(page) {
     await delay(2000);
 }
 
+async function clickPublishFreeIfPresent(page) {
+    const clicked = await page.evaluate(() => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+        const nodes = Array.from(document.querySelectorAll("button, input[type='submit'], a"));
+        const publishFree = nodes.find((node) => {
+            const text = clean(node.textContent || node.value);
+            return /(gratis|gratuito|free)/i.test(text) && /(pubblica|publish|annuncio)/i.test(text);
+        }) || nodes.find((node) => /(pubblica|publish)/i.test(clean(node.textContent || node.value)));
+
+        if (!publishFree) return false;
+        publishFree.click();
+        return true;
+    }).catch(() => false);
+
+    if (clicked) {
+        await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => null);
+        await delay(2000);
+    }
+
+    return clicked;
+}
+
+function parsePremiumSettings(adData = {}) {
+    const type = `${adData.typeAnnuncio || adData.promo?.visibility || "Free"}`.trim();
+    let parsed = {};
+
+    try {
+        parsed = JSON.parse(adData.period || adData.promo?.schedule || "{}");
+    } catch {
+        parsed = {};
+    }
+
+    if (/^toplist$/i.test(type) || parsed.product === "toplist") {
+        return {
+            type: "TopList",
+            product: "toplist",
+            giorni: `${parsed.giorni || "1"}`,
+            fascia: `${parsed.fascia || "08-12"}`,
+            risalite: `${parsed.risalite || "1"}`
+        };
+    }
+
+    if (/^vetrina$/i.test(type) || parsed.product === "vetrina") {
+        return {
+            type: "Vetrina",
+            product: "vetrina",
+            giorni: `${parsed.giorni || "1"}`
+        };
+    }
+
+    return { type: "Free", product: "free" };
+}
+
+async function clickPublishPremium(page, settings) {
+    if (!settings || settings.type === "Free") {
+        await clickPublishFree(page);
+        return false;
+    }
+
+    await page.evaluate((payload) => {
+        const productButton = document.querySelector(`.product-heading[data-product-type="${payload.product}"]`);
+        if (!productButton) throw new Error(`Incontriamoci premium product not found: ${payload.product}`);
+        productButton.click();
+    }, settings);
+
+    await delay(800);
+
+    await page.evaluate((payload) => {
+        const setSelect = (selector, value) => {
+            const select = document.querySelector(selector);
+            if (!select) throw new Error(`Incontriamoci premium select not found: ${selector}`);
+            select.value = value;
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            select.dispatchEvent(new Event("input", { bubbles: true }));
+        };
+
+        if (payload.product === "toplist") {
+            setSelect("#toplist-giorni, select[name='toplist[giorni]']", payload.giorni);
+            setSelect("#toplist-fascia, select[name='toplist[fascia]']", payload.fascia);
+            setSelect("#toplist-risalite, select[name='toplist[risalite]']", payload.risalite);
+            return;
+        }
+
+        setSelect("#vetrina-giorni, select[name='vetrina[giorni]']", payload.giorni);
+    }, settings);
+
+    await page.waitForFunction(() => {
+        const button = document.querySelector("#submitPremiumBtn, button[type='submit'], input[type='submit']");
+        return Boolean(button && !button.disabled);
+    }, { timeout: 20000 });
+
+    await Promise.all([
+        page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => null),
+        page.evaluate(() => {
+            const button = document.querySelector("#submitPremiumBtn, button[type='submit'], input[type='submit']");
+            if (!button) throw new Error("Incontriamoci premium submit button not found.");
+            button.click();
+        })
+    ]);
+
+    await delay(2000);
+    return true;
+}
+
 async function collectResult(page) {
     const result = await page.evaluate(() => {
         const bodyText = (document.body.innerText || "").replace(/\s+/g, " ").trim();
         const hrefs = Array.from(document.querySelectorAll("a[href]")).map((link) => link.href);
-        const idMatch = [window.location.href, ...hrefs, bodyText].join(" ").match(/(?:item|annuncio|ad|manage|edit)[^\d]{0,30}(\d{4,})/i);
-        const previewLink = hrefs.find((href) => /\/\d{4,}\//.test(href) && !/user|login|logout/i.test(href)) || "";
+        const publishedLink =
+            document.querySelector(".item-details .item-title a[href]")?.href ||
+            document.querySelector(".item-details a[href*='_i']")?.href ||
+            "";
+        const previewLink = publishedLink ||
+            hrefs.find((href) => /\/\d+_i\d+(?:[/?#]|$)/i.test(href) && !/user|login|logout/i.test(href)) ||
+            hrefs.find((href) => /\/\d{4,}\//.test(href) && !/user|login|logout/i.test(href)) ||
+            "";
+        const remoteIdMatch = previewLink.match(/\/(\d+_i\d+)(?:[/?#]|$)/i);
+        const idMatch = remoteIdMatch ||
+            [window.location.href, ...hrefs, bodyText].join(" ").match(/(?:item|annuncio|ad|manage|edit)[^\d]{0,30}(\d{4,})/i);
 
         return {
             url: previewLink || window.location.href,
@@ -526,8 +765,12 @@ async function publishAd(page, adData = {}) {
         console.log("[incontriamoci:publish] remoteId from premium page", premiumRemoteId);
     }
 
-    await clickPublishFree(page);
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "03-after-free-publish.png"), fullPage: true }).catch(() => null);
+    const premiumSettings = parsePremiumSettings(adData);
+    const clickedPremium = await clickPublishPremium(page, premiumSettings);
+    await page.screenshot({
+        path: path.join(SCREENSHOT_DIR, clickedPremium ? "03-after-premium-publish.png" : "03-after-free-publish.png"),
+        fullPage: true
+    }).catch(() => null);
 
     const result = await collectResult(page);
     const remoteId = premiumRemoteId || result.remoteId || adData.remotePostID || "";
@@ -544,7 +787,56 @@ async function publishAd(page, adData = {}) {
             idpriv: remoteId,
             data
         },
-        freePublication: true
+        freePublication: premiumSettings.type === "Free",
+        premiumPublication: premiumSettings.type !== "Free",
+        creditsConsumed: premiumSettings.type === "Free" ? 0 : 1
+    };
+}
+
+async function updateAd(page, adData = {}, options = {}) {
+    const data = buildPublishData(adData);
+    const targetUrl = options.postUrl || options.editUrl;
+    const existingRemoteId = options.remoteId || adData.remotePostID || "";
+
+    if (!targetUrl) {
+        throw new Error("Incontriamoci update URL is missing.");
+    }
+
+    console.log("[incontriamoci:update] Updating ad", {
+        remoteId: existingRemoteId,
+        title: data.title,
+        city: data.city,
+        category: data.category,
+        images: data.images.length || data.picsAudit.length
+    });
+
+    ensureScreenshotDir();
+    await openPublishPage(page, targetUrl, "update");
+    await fillFirstStep(page, data, { replaceImages: true });
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "update-01-form-filled.png"), fullPage: true }).catch(() => null);
+
+    await clickContinue(page);
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, "update-02-after-submit.png"), fullPage: true }).catch(() => null);
+
+    const result = await collectResult(page);
+    const ok = Boolean(
+        result.success ||
+        existingRemoteId ||
+        /salvat|aggiornat|modificat|success|successo/i.test(result.bodyText || "")
+    );
+
+    if (!ok) {
+        throw new Error(`Incontriamoci update did not confirm success: ${JSON.stringify(result)}`);
+    }
+
+    return {
+        ok: true,
+        url: result.url,
+        payload: {
+            idpriv: existingRemoteId,
+            data
+        },
+        result
     };
 }
 
@@ -552,5 +844,6 @@ module.exports = {
     HOME_URL,
     PUBLISH_URL,
     buildPublishData,
-    publishAd
+    publishAd,
+    updateAd
 };
