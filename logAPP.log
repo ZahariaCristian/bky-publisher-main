@@ -391,3 +391,7 @@ Publisher: Updating Bakeca ad n. 1965, schedule n. 1, group 15
 Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
 Publisher: Updating Bakeca ad n. 1965, schedule n. 1, group 15
 Publisher: Updating Bakeca ad n. 1965, schedule n. 1, group 15
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998

@@ -81,7 +81,7 @@ class IncontriamociBot {
       : undefined;
 
     this.browser = await puppeteer.launch({
-      headless: false,
+      headless: true,
       executablePath,
       args: [
         "--no-sandbox",
