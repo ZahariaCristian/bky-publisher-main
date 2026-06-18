@@ -587,14 +587,14 @@ async function mainLoop(group, platform) {
                     let picLimit = platform.platform === "trovagnocca" ? 6 : 5
                     for (const photo of galleriaSchedulazione) {
                         if (pics.length < picLimit) {
-                            if (pics.includes(`${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`) == false) {
+                            if (pics.includes(`${GLOBAL_PATH}/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`) == false) {
                                 picsAudit.push({
-                                    path: `${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`,
+                                    path: `${GLOBAL_PATH}/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`,
                                     applyPhone: photo.tblGallerium.applyPhone,
                                     crop: photo.tblGallerium.crop,
                                     isAnteprima: photo.isAnteprima === true
                                 })
-                                pics.push(`${GLOBAL_PATH}/website/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`);
+                                pics.push(`${GLOBAL_PATH}/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`);
                             }
                         }
                     }

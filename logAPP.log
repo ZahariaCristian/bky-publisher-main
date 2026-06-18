@@ -133,3 +133,99 @@ Publisher INFO: login success for Raffa21's Team / bakecaincontrii
 Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
 Publisher INFO: login success for Raffa21's Team / bakeca
 Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit not found
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / incontriamoci
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
+Publisher WARNING: Turnstile non risolto per raffaelesorrentino74@yahoo.it. Utente disabilitato temporaneamente, nuovo login tra 10s (tentativo 1).
+Publisher INFO: utente raffaelesorrentino74@yahoo.it riabilitato dopo login riuscito.
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+[i] Test di connessione al database...
+Connessione al database NON riuscita, ritento la connessione...
+[publisher-api] Listening on http://127.0.0.1:9998
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / incontriamoci
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
+[i] Test di connessione al database...
+Connessione al database NON riuscita, ritento la connessione...
+[publisher-api] Listening on http://127.0.0.1:9998
+[i] Test di connessione al database...
+Connessione al database NON riuscita, ritento la connessione...
+[publisher-api] Listening on http://127.0.0.1:9998
+[i] Test di connessione al database...
+Connessione al database NON riuscita, ritento la connessione...
+[publisher-api] Listening on http://127.0.0.1:9998
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / incontriamoci
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher ERROR during incontriamoci operation: ReferenceError: url is not defined
+    at openPublishPage (E:\Web\BKY\Development\bky-publisher-main\adsManage\incontriamoci\publishAds.js:378:18)
+    at async publishAd (E:\Web\BKY\Development\bky-publisher-main\adsManage\incontriamoci\publishAds.js:511:5)
+    at async postThis (E:\Web\BKY\Development\bky-publisher-main\index.js:971:36)
+    at async mainLoop (E:\Web\BKY\Development\bky-publisher-main\index.js:748:17)
+    at async runGroupLoop (E:\Web\BKY\Development\bky-publisher-main\index.js:1180:21)
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / incontriamoci
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / incontriamoci
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher INFO: login success for Raffa21's Team / incontriamoci
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / incontriamoci
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / incontriamoci
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher INFO: login success for Raffa21's Team / incontriamoci
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher INFO: login success for Raffa21's Team / bakecaincontrii
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
+Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.

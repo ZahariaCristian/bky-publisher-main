@@ -4,7 +4,7 @@ const puppeteer = require("puppeteer-extra");
 const RecaptchaPlugin = require("puppeteer-extra-plugin-recaptcha");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const TwoCaptcha = require("@2captcha/captcha-solver");
-// const { publishAd } = require("../adsManage/trovagnocca/publishAds");
+const { buildPublishData, publishAd } = require("../adsManage/incontriamoci/publishAds");
 // const { updateAd } = require("../adsManage/trovagnocca/updateAd");
 
 const LOGIN_URL = "https://incontriamoci.xxx/user/login";
@@ -77,7 +77,7 @@ class IncontriamociBot {
       : undefined;
 
     this.browser = await puppeteer.launch({
-      headless: true,
+      headless: false,
       executablePath,
       args: [
         "--no-sandbox",
@@ -534,6 +534,24 @@ class IncontriamociBot {
       console.error("Incontriamoci Error in refresh2:", error.message);
       return { error: error.message };
     }
+  }
+
+  buildPublishData(ad) {
+    return buildPublishData({
+      ...ad,
+      city: ad?.city || ad?.annunci_city || ad?.comune || "",
+      images: ad?.pics || ad?.images || [],
+      picsAudit: ad?.picsAudit || []
+    });
+  }
+
+  async publish(ad) {
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+
+    return publishAd(page, {
+      ...ad,
+      ...this.buildPublishData(ad)
+    });
   }
 
   async restartBrowser(reason) {
