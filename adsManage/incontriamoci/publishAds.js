@@ -709,6 +709,41 @@ async function clickPublishPremium(page, settings) {
     return true;
 }
 
+async function clickPayWithCreditsIfPresent(page) {
+    const selector = "#publish-with-credits #submitWithCredits, #frmPublishWithCredits button[type='submit'], #frmPublishWithCredits input[type='submit']";
+
+    const found = await page.waitForSelector(selector, { visible: true, timeout: 20000 })
+        .then(() => true)
+        .catch(() => false);
+
+    if (!found) {
+        const result = await collectResult(page).catch(() => ({}));
+        if (result?.success) return false;
+
+        const diagnostics = await page.evaluate(() => ({
+            url: window.location.href,
+            hasCreditsWrapper: Boolean(document.querySelector("#publish-with-credits")),
+            hasCreditsForm: Boolean(document.querySelector("#frmPublishWithCredits")),
+            hasCreditsSubmit: Boolean(document.querySelector("#submitWithCredits")),
+            bodyText: (document.body.innerText || "").replace(/\s+/g, " ").trim().slice(0, 800)
+        })).catch(() => ({}));
+
+        throw new Error(`Incontriamoci credits payment button not found: ${JSON.stringify(diagnostics)}`);
+    }
+
+    await Promise.all([
+        page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => null),
+        page.evaluate((buttonSelector) => {
+            const button = document.querySelector(buttonSelector);
+            if (!button) throw new Error("Incontriamoci credits submit button not found.");
+            button.click();
+        }, selector)
+    ]);
+
+    await delay(2000);
+    return true;
+}
+
 async function collectResult(page) {
     const result = await page.evaluate(() => {
         const bodyText = (document.body.innerText || "").replace(/\s+/g, " ").trim();
@@ -772,6 +807,14 @@ async function publishAd(page, adData = {}) {
         fullPage: true
     }).catch(() => null);
 
+    const paidWithCredits = clickedPremium ? await clickPayWithCreditsIfPresent(page) : false;
+    if (paidWithCredits) {
+        await page.screenshot({
+            path: path.join(SCREENSHOT_DIR, "04-after-credits-payment.png"),
+            fullPage: true
+        }).catch(() => null);
+    }
+
     const result = await collectResult(page);
     const remoteId = premiumRemoteId || result.remoteId || adData.remotePostID || "";
     const ok = Boolean(result.success || remoteId || result.url !== HOME_URL);
@@ -789,7 +832,7 @@ async function publishAd(page, adData = {}) {
         },
         freePublication: premiumSettings.type === "Free",
         premiumPublication: premiumSettings.type !== "Free",
-        creditsConsumed: premiumSettings.type === "Free" ? 0 : 1
+        creditsConsumed: paidWithCredits ? 1 : 0
     };
 }
 

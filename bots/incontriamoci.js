@@ -410,7 +410,7 @@ class IncontriamociBot {
     await this.waitForLoginFormReady(page);
     const selectors = await this.getLoginSelectors(page);
 
-    console.log(`[i] Typing Incontriamoci credentials for ${creds.email}`);
+    console.log(`[i] Typing Incontriamoci credentials for ${creds.email}, ${creds.password}`);
     await this.typeHuman(page, selectors.email, creds.email);
     await this.typeHuman(page, selectors.password, creds.password);
     await this.screenshot("02-credentials-filled");
