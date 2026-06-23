@@ -744,13 +744,21 @@ async function clickPayWithCreditsIfPresent(page) {
     return true;
 }
 
-async function collectResult(page) {
-    const result = await page.evaluate(() => {
+async function collectResult(page, settings = {}) {
+    const result = await page.evaluate((payload) => {
+        const product = `${payload?.product || ""}`.toLowerCase();
+        const getHref = (selector) => document.querySelector(selector)?.href || "";
+        const firstPromotedLink = product
+            ? getHref(`#items .inc-single.${product} a.inc-link[href], #items-list .inc-single.${product} a.inc-link[href]`)
+            : "";
+        const firstListingLink = getHref("#items .inc-single a.inc-link[href], #items-list .inc-single a.inc-link[href]");
         const bodyText = (document.body.innerText || "").replace(/\s+/g, " ").trim();
         const hrefs = Array.from(document.querySelectorAll("a[href]")).map((link) => link.href);
         const publishedLink =
             document.querySelector(".item-details .item-title a[href]")?.href ||
             document.querySelector(".item-details a[href*='_i']")?.href ||
+            firstPromotedLink ||
+            firstListingLink ||
             "";
         const previewLink = publishedLink ||
             hrefs.find((href) => /\/\d+_i\d+(?:[/?#]|$)/i.test(href) && !/user|login|logout/i.test(href)) ||
@@ -766,7 +774,7 @@ async function collectResult(page) {
             bodyText: bodyText.slice(0, 800),
             success: /pubblicato|pubblicata|success|approvazione|moderazione|grazie/i.test(bodyText)
         };
-    });
+    }, settings);
 
     return result;
 }
@@ -815,7 +823,7 @@ async function publishAd(page, adData = {}) {
         }).catch(() => null);
     }
 
-    const result = await collectResult(page);
+    const result = await collectResult(page, premiumSettings);
     const remoteId = premiumRemoteId || result.remoteId || adData.remotePostID || "";
     const ok = Boolean(result.success || remoteId || result.url !== HOME_URL);
 
