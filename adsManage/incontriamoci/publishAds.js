@@ -638,12 +638,16 @@ function parsePremiumSettings(adData = {}) {
     }
 
     if (/^toplist$/i.test(type) || parsed.product === "toplist") {
+        const fascia = `${parsed.fascia || "08-12"}`;
+        const risalite = ["08-20", "20-08"].includes(fascia)
+            ? "3"
+            : `${parsed.risalite || "1"}`;
         return {
             type: "TopList",
             product: "toplist",
             giorni: `${parsed.giorni || "1"}`,
-            fascia: `${parsed.fascia || "08-12"}`,
-            risalite: `${parsed.risalite || "1"}`
+            fascia,
+            risalite
         };
     }
 
