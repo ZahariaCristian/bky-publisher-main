@@ -208,7 +208,7 @@ class BakecaBot {
 
     try {
       console.log("Bakeca-");
-      console.log(1, puppeteer.executablePath(), RESIDENTIAL_PROXY, "Launching browser...");
+      console.log(1, await puppeteer.executablePath(), RESIDENTIAL_PROXY, "Launching browser...");
 
       if (this.browser) {
         this.browser.close().catch(() => { });
@@ -216,7 +216,7 @@ class BakecaBot {
       } else {
         this.browser = await puppeteer.launch({
           headless: true,
-          executablePath: puppeteer.executablePath(),
+          executablePath: await puppeteer.executablePath(),
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',

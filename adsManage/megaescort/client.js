@@ -569,7 +569,7 @@ async function getApiKeyWithBrowser(apiUser, options = {}) {
 
     const browser = await puppeteer.launch({
         headless: true,
-        executablePath: puppeteer.executablePath(),
+        executablePath: await puppeteer.executablePath(),
         args: launchArgs
     });
 
@@ -644,7 +644,7 @@ async function requestJsonWithBrowser(targetPath, headers = {}, options = {}) {
 
     const browser = await puppeteer.launch({
         headless: true,
-        executablePath: puppeteer.executablePath(),
+        executablePath: await puppeteer.executablePath(),
         args: launchArgs
     });
 
