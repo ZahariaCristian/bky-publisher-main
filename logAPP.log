@@ -1,21 +1,33 @@
 [i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
-Connessione al database NON riuscita, ritento la connessione...
-[i] Test di connessione al database...
-Connessione al database NON riuscita, ritento la connessione...
-[publisher-api] Listening on http://127.0.0.1:9998
-[i] Test di connessione al database...
-[publisher-api] Listening on http://127.0.0.1:9998
-Connessione al database NON riuscita, ritento la connessione...
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a1563d5b5d10f2f9)
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a1563d8bad7c4315)
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a1563dbe09122dae)
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a1563df4d9a24346)
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a1563e2a2ccd41e6)
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a1563e5d3ba18ae3)
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a1563e8dbe212067)
+Publisher ERROR: Error: Bakecaincontrii Cloudflare block on initial login load (url=https://www.bakecaincontrii.com/u/login/, ray=a1563ebd0c3283d0)
 [i] Test di connessione al database...
 [i] Connessione al database stabilita.
 [i] Gruppo di lavoro "Raffa21's Team" definito
 [publisher-api] Listening on http://127.0.0.1:9998
-Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
+Publisher ERROR: Error: net::ERR_NETWORK_CHANGED at https://www.bakecaincontrii.com/u/login/
+Try restart bot of group Raffa21's Team platform incontriamoci
+Publisher ERROR: Error: net::ERR_NETWORK_CHANGED at https://incontriamoci.xxx/user/login
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
+Publisher ERROR: Error: net::ERR_NETWORK_CHANGED at https://www.bakecaincontrii.com/u/login/
+Try restart bot of group Raffa21's Team platform incontriamoci
+Publisher ERROR: Error: net::ERR_NETWORK_CHANGED at https://incontriamoci.xxx/user/login
+[i] Test di connessione al database...
+[i] Connessione al database stabilita.
+[i] Gruppo di lavoro "Raffa21's Team" definito
+[publisher-api] Listening on http://127.0.0.1:9998
 Publisher INFO: login success for Raffa21's Team / incontriamoci
+Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.
 Publisher INFO: login success for Raffa21's Team / bakecaincontrii
-Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
-Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
-Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
-Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
-Publisher WARNING: refresh2 failed for raffaelesorrentino74@yahoo.it: Credit page redirected to login. Cookies are missing or expired.
