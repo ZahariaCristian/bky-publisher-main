@@ -108,6 +108,9 @@ class TrovagnoccaBot {
   async newPage() {
     await this.launch();
 
+    if (this.page && !this.page.isClosed()) {
+      await this.page.close().catch(() => { });
+    }
     this.page = await this.browser.newPage();
     await this.page.authenticate({
       username: RESIDENTIAL_PROXY.username,

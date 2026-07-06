@@ -45,7 +45,7 @@ const isTurnstileUnsolvableError = (err) => {
 }
 
 const updateOperation = (operation) => {
-    operation.update({
+    return operation.update({
         remoteID: operation.remoteID,
         action: operation.action,
         status: operation.status,
@@ -53,9 +53,7 @@ const updateOperation = (operation) => {
         code: operation.code,
         phone: operation.phone,
         city: operation.city
-    }).then(() => {
-        return operation;
-    });
+    }).then(() => operation);
 };
 
 module.exports = {

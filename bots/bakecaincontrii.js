@@ -126,6 +126,17 @@ class BakecaincontriiBot {
     });
   }
 
+  async newPage() {
+    if (!this.browser) {
+      throw new Error("Bakecaincontrii browser is not initialized.");
+    }
+    if (this.page && !this.page.isClosed()) {
+      await this.page.close().catch(() => { });
+    }
+    this.page = await this.browser.newPage();
+    return this.page;
+  }
+
   async getCloudflareBlockInfo(page) {
     return page.evaluate(() => {
       const text = document.body?.innerText || "";
@@ -308,7 +319,7 @@ class BakecaincontriiBot {
     // const context = await this.browser.createIncognitoBrowserContext();
     // this.page = await context.newPage();
 
-    this.page = await this.browser.newPage();
+    this.page = await this.newPage();
     await this.configureLoginPage(this.page);
 
     // Useful defaults
@@ -451,7 +462,7 @@ class BakecaincontriiBot {
 
     // const context = await this.browser.createIncognitoBrowserContext();
     // this.page = await context.newPage();
-    this.page = await this.browser.newPage();
+    this.page = await this.newPage();
 
     this.page.setDefaultTimeout(20000);
     this.page.setDefaultNavigationTimeout(30000);
@@ -789,6 +800,7 @@ class BakecaincontriiBot {
       }, executablePath: puppeteer.executablePath()
 
     });
+    try {
     var datetimes = [];
     var rUri = "";
     const page = await otherBot.newPage();
@@ -812,13 +824,11 @@ class BakecaincontriiBot {
     await delay(Math.random() * 1000 + 1000);
 
     if (await page.$(".img404") !== null) {
-      otherBot.close();
       return JSON.stringify({ err: "NOT FOUND" });
     }
 
     rUri = await page.evaluate(async () => { return await new Promise(resolve => { resolve($(".item-title a").attr("href")); }) });
     if (rUri == null) {
-      otherBot.close();
       return JSON.stringify({ err: "NOT FOUND" });
     }
     await page.screenshot({
@@ -840,8 +850,10 @@ class BakecaincontriiBot {
       }
     }
     await page.evaluate(() => gc());
-    otherBot.close();
     return { uri: rUri, datetimes: datetimes };
+    } finally {
+      await otherBot.close().catch(() => { });
+    }
 
   }
 
@@ -959,6 +971,7 @@ class BakecaincontriiBot {
       },
       executablePath: puppeteer.executablePath()
     });
+    try {
 
     var remotePostID = null;
     console.log("Sending external REQ");
@@ -1003,14 +1016,15 @@ class BakecaincontriiBot {
         } else {
           console.log("Unexpected error: ", error);
         }
-      } finally {
-        await otherBot.close();
-        console.log("Browser instance closed.");
       }
     }
 
     console.log("REMOTE POST ID", remotePostID);
     return remotePostID;
+    } finally {
+      await otherBot.close().catch(() => { });
+      console.log("Browser instance closed.");
+    }
   }
 
   async publishPhoto(p, page, retry) {
@@ -1258,6 +1272,7 @@ class BakecaincontriiBot {
           'cookie': `csrftoken=${this.token}; f_session_id=${f_session_id}; logged_cookie=${logged_cookie}; adult_cookie=1; privacy_cookie=1;`,
         },
         body: JSON.stringify(data),
+        timeout: 30000,
       },
       (err, res, body) => {
         console.log("Server returned:", { statusCode: res && res.statusCode, body });
@@ -1267,8 +1282,9 @@ class BakecaincontriiBot {
   };
 
   async checkPhone(info) {
-    const page = await this.browser.newPage();
-    await page.goto(PUBLISH_URL);
+    const page = await this.newPage();
+    try {
+      await page.goto(PUBLISH_URL);
 
     // Info section
     await page.click(".modal-footer button");
@@ -1301,9 +1317,12 @@ class BakecaincontriiBot {
     await page.solveRecaptchas();
     await page.click(".modal-dialog .btn.btn-block.btn-outline-primary");
 
-    await delay(10000);
-    await page.close();
-    console.log("Advertisement uploaded.");
+      await delay(10000);
+      console.log("Advertisement uploaded.");
+    } finally {
+      await page.close().catch(() => { });
+      if (this.page === page) this.page = null;
+    }
   };
 };
 

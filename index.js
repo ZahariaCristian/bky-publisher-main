@@ -34,7 +34,10 @@ if (process.env.PROD == 1) {
 
 const { cities } = JSON.parse(fs.readFileSync("./bots/settings/scrapingInfo.json"));
 var botCheckPhone = null;
-var checkPhoneMailLoop;
+let checkPhoneMailLoop = null;
+let phoneCheckRunning = false;
+let phoneCheckSchedulerGeneration = 0;
+let phoneCheckRestarting = false;
 var groups = [];
 var dateGlobal_string = new Date();
 var published = new Array;
@@ -1076,108 +1079,132 @@ async function postThis(ad, group, platform) {
     }
 }
 
+const sendContactVerifyRequest = (bot, data, cookies) => new Promise((resolve, reject) => {
+    bot.sendRequest(data, (err, res, body) => {
+        if (err) return reject(err);
+        resolve({ res, body });
+    }, cookies);
+});
+
+const contactVerifySucceeded = (res, body) => {
+    try {
+        return JSON.parse(body).success === "OK";
+    } catch (err) {
+        return res?.statusCode === 204;
+    }
+};
+
 async function contactVerifyLoop(bot, cookies) {
-    if (bot.refresh) {
-        await bot.refresh();
+    if (phoneCheckRunning) {
+        console.log("[i] Phone verification is still running; skipping overlapping cycle.");
+        return;
     }
 
-    let operations = await ctx.tblContactVerifyBakeca.findAll({ where: { action: { [Op.notLike]: "checked" } } });
-    operations.forEach((operation) => {
-        //console.log(`\nOperation "${operation.id}"`);
-        const basicInfo = {
-            contact: "+39" + operation.phone,
-            city: cities[operation.city],
-        }
+    phoneCheckRunning = true;
+    try {
+        if (bot.refresh) await bot.refresh();
 
-        if (operation.action == "check" && !operation.status) {
-            bot.sendRequest(
-                {
-                    ...basicInfo,
-                    action: "check",
-                },
-                async (err, { statusCode }, body) => {
-                    let success;
-                    try {
-                        success = JSON.parse(body).success === "OK";
-                    } catch (err) {
-                        success = statusCode === 204;
-                    }
+        const operations = await ctx.tblContactVerifyBakeca.findAll({
+            where: { action: { [Op.notLike]: "checked" } }
+        });
+
+        for (const operation of operations) {
+            const basicInfo = {
+                contact: "+39" + operation.phone,
+                city: cities[operation.city],
+            };
+
+            try {
+                if (operation.action == "check" && !operation.status) {
+                    const checkResult = await sendContactVerifyRequest(bot, {
+                        ...basicInfo,
+                        action: "check",
+                    }, cookies);
+                    const success = contactVerifySucceeded(checkResult.res, checkResult.body);
                     console.log(`Check completed. Approved: ${success}`);
+
                     if (success) {
                         operation.status = true;
                         operation.approved = true;
                         operation.action = "checked";
-                        return updateOperation(operation);
+                        await updateOperation(operation);
+                        continue;
                     }
-                    //Qui aprire il browser per autentificare il numero di telefono
-                    //Per fare ciò, dobbiamo simulare un nuovo post
-                    operation.status = true;
-                    console.log("Code sent.");
-                    updateOperation(operation);
-                    //await bot.checkPhone(basicInfo);
 
-                    bot.sendRequest(
-                        {
-                            ...basicInfo,
-                            action: "send_code",
-                            captchaResponse: undefined
-                        },
-                        (err, res, body) => {
-                            console.log({ res })
-                            if (res.statusCode == 200) {
-                                operation.status = true;
-                                console.log("Code sent.")
-                                updateOperation(operation);
-                            }
-                        },
-                        cookies
-                    );
-                },
-                cookies
-            );
-        } else if (operation.action === "code" && !operation.status) {
-            bot.sendRequest(
-                {
-                    ...basicInfo,
-                    action: "verify_code",
-                    code: operation.code,
-                },
-                (err, { statusCode }, body) => {
-                    console.error(err)
-                    console.log({ statusCode, body })
-                    let success;
-                    try {
-                        success = JSON.parse(body).success === "OK";
-                    } catch (err) {
-                        success = statusCode === 204;
-                    }
+                    const codeResult = await sendContactVerifyRequest(bot, {
+                        ...basicInfo,
+                        action: "send_code",
+                        captchaResponse: undefined
+                    }, cookies);
+                    operation.status = true;
+                    console.log(codeResult.res?.statusCode === 200 ? "Code sent." : "Code request completed without success.");
+                    await updateOperation(operation);
+                } else if (operation.action === "code" && !operation.status) {
+                    const verifyResult = await sendContactVerifyRequest(bot, {
+                        ...basicInfo,
+                        action: "verify_code",
+                        code: operation.code,
+                    }, cookies);
+                    const success = contactVerifySucceeded(verifyResult.res, verifyResult.body);
                     console.log(success ? "Code approved." : "Code not approved.");
                     if (success) {
                         operation.approved = true;
                         operation.action = "checked";
                     }
                     operation.status = true;
-                    updateOperation(operation);
-                },
-                cookies
-            );
-        };
-    });
-};
+                    await updateOperation(operation);
+                }
+            } catch (operationError) {
+                console.error(`[!] Phone verification operation ${operation.id} failed:`, operationError?.message || operationError);
+                logger.Write(`Publisher ERROR PHONE OP ${operation.id}: ${operationError?.message || operationError}`);
+            }
+        }
+    } finally {
+        phoneCheckRunning = false;
+    }
+}
 
-function startCheckPhoneBot() {
-    if (botCheckPhone) {
-        ensureSession(botCheckPhone, botCheckPhone.email).then((cookies) => {
-            logger.Write(`Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.`);
-            checkPhoneMailLoop = setInterval(() => { contactVerifyLoop(botCheckPhone, cookies) }, 10000);
-        }).catch(async function (err) {
-            console.log(err);
-            logger.Write(`Publisher ERROR: ${err}`);
-            await closeBotBrowser(botCheckPhone, "check-phone login failure");
-            setTimeout(() => {
-                startCheckPhoneBot()
-            }, 3000);
-        });
+function scheduleNextPhoneCheck(bot, cookies, generation, delayMs = 10000) {
+    if (generation !== phoneCheckSchedulerGeneration) return;
+    checkPhoneMailLoop = setTimeout(async () => {
+        if (generation !== phoneCheckSchedulerGeneration) return;
+        try {
+            await contactVerifyLoop(bot, cookies);
+        } catch (err) {
+            console.error("[!] Phone verification cycle failed:", err?.message || err);
+            logger.Write(`Publisher ERROR PHONE LOOP: ${err?.message || err}`);
+        } finally {
+            scheduleNextPhoneCheck(bot, cookies, generation, 10000);
+        }
+    }, delayMs);
+}
+
+async function stopCheckPhoneBot() {
+    phoneCheckSchedulerGeneration += 1;
+    if (checkPhoneMailLoop) {
+        clearTimeout(checkPhoneMailLoop);
+        checkPhoneMailLoop = null;
+    }
+    while (phoneCheckRunning) await wait(100);
+}
+
+async function startCheckPhoneBot() {
+    await stopCheckPhoneBot();
+    if (!botCheckPhone) return;
+
+    const generation = phoneCheckSchedulerGeneration;
+    try {
+        const cookies = await ensureSession(botCheckPhone, botCheckPhone.email);
+        if (generation !== phoneCheckSchedulerGeneration) return;
+        logger.Write(`Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.`);
+        scheduleNextPhoneCheck(botCheckPhone, cookies, generation, 0);
+    } catch (err) {
+        console.log(err);
+        logger.Write(`Publisher ERROR: ${err}`);
+        await closeBotBrowser(botCheckPhone, "check-phone login failure");
+        if (generation === phoneCheckSchedulerGeneration) {
+            checkPhoneMailLoop = setTimeout(() => startCheckPhoneBot(), 3000);
+        }
     }
 }
 
@@ -1292,14 +1319,17 @@ CreateGroupsBot().then(async (groups) => {
         await startCheckPhoneBot();
         await startAllGroupLoops(groups);
 
-        setInterval(() => {
-            clearInterval(checkPhoneMailLoop);
-            //botCheckPhone.browser.close();
-            // restartGroups();
-            setTimeout(() => {
-                startCheckPhoneBot();
-                // console.log("after startCheckBot in setTimeout")
-            }, 100);
+        setInterval(async () => {
+            if (phoneCheckRestarting) return;
+            phoneCheckRestarting = true;
+            try {
+                await stopCheckPhoneBot();
+                sessionCache.delete(getSessionKey(botCheckPhone, botCheckPhone?.email));
+                await closeBotBrowser(botCheckPhone, "scheduled phone-check recycle");
+                await startCheckPhoneBot();
+            } finally {
+                phoneCheckRestarting = false;
+            }
         }, (1000 * 60 * 120));
     }
 });

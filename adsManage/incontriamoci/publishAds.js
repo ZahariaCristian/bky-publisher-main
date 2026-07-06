@@ -649,15 +649,37 @@ async function clickContinue(page) {
     await delay(1500);
 
     const validation = await page.evaluate(() => {
+        const isVisible = (node) => {
+            if (!node) return false;
+            const style = window.getComputedStyle(node);
+            const rect = node.getBoundingClientRect();
+            return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+        };
         const form = document.querySelector("form#item-post");
         const category = document.querySelector("#catId, select[name='catId']");
-        const invalidFields = Array.from(document.querySelectorAll(":invalid")).map((node) => node.name || node.id || node.tagName);
+        const bodyText = (document.body?.innerText || "").replace(/\s+/g, " ").trim();
+        const serviceControlsVisible = Array.from(document.querySelectorAll(
+            ".product-heading, [data-product-type], #submitPremiumBtn, #publish-with-credits, #frmPublishWithCredits"
+        )).some(isVisible);
+        const successVisible = Array.from(document.querySelectorAll(".modal, .alert, .success, .message"))
+            .filter(isVisible)
+            .some((node) => /aggiornat|modificat|pubblicat|success|fantastico/i.test(node.textContent || ""));
+        const serviceStepVisible = serviceControlsVisible ||
+            (/\b2\s+servizi\b/i.test(bodyText) && /pubblica\s+(?:top\s*list|vetrina|gratis)/i.test(bodyText));
+        const formVisible = isVisible(form);
+        const invalidFields = Array.from(document.querySelectorAll(":invalid"))
+            .filter(isVisible)
+            .map((node) => node.name || node.id || node.tagName);
         const validationText = Array.from(document.querySelectorAll(".help-block, .invalid-feedback, .error, .has-error"))
+            .filter(isVisible)
             .map((node) => (node.textContent || "").replace(/\s+/g, " ").trim())
             .filter(Boolean)
             .slice(0, 10);
         return {
-            stillOnFirstStep: Boolean(form),
+            stillOnFirstStep: formVisible && !serviceStepVisible && !successVisible,
+            formVisible,
+            serviceStepVisible,
+            successVisible,
             category: category?.value || "",
             invalidFields,
             validationText,
@@ -755,11 +777,82 @@ async function clickPublishPremium(page, settings) {
         return false;
     }
 
-    await page.evaluate((payload) => {
-        const productButton = document.querySelector(`.product-heading[data-product-type="${payload.product}"]`);
-        if (!productButton) throw new Error(`Incontriamoci premium product not found: ${payload.product}`);
+    await page.waitForFunction((product) => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+        const wanted = product === "toplist" ? /pubblica\s+top\s*list/i : /pubblica\s+vetrina/i;
+        const directSelectors = [
+            `.product-heading[data-product-type="${product}"]`,
+            `.product-heading[data-product="${product}"]`,
+            `[data-product-type="${product}"]`,
+            `[data-product="${product}"]`
+        ];
+        if (product === "toplist") {
+            directSelectors.push(
+                '.product-heading[data-product-type="top-list"]',
+                '[data-product-type="top-list"]',
+                '#toplist',
+                '#top-list'
+            );
+        }
+        if (directSelectors.some((selector) => document.querySelector(selector))) return true;
+        return Array.from(document.querySelectorAll(".product-heading, a, button, [role='button'], h1, h2, h3, h4"))
+            .some((node) => wanted.test(clean(node.textContent || node.value)));
+    }, { timeout: 20000 }, settings.product).catch(() => null);
+
+    const productSelection = await page.evaluate((payload) => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const wanted = payload.product === "toplist" ? /pubblica\s+top\s*list/i : /pubblica\s+vetrina/i;
+        const directSelectors = [
+            `.product-heading[data-product-type="${payload.product}"]`,
+            `.product-heading[data-product="${payload.product}"]`,
+            `[data-product-type="${payload.product}"]`,
+            `[data-product="${payload.product}"]`
+        ];
+        if (payload.product === "toplist") {
+            directSelectors.push(
+                '.product-heading[data-product-type="top-list"]',
+                '[data-product-type="top-list"]',
+                '#toplist',
+                '#top-list'
+            );
+        }
+
+        let productButton = directSelectors
+            .map((selector) => document.querySelector(selector))
+            .find(Boolean);
+
+        if (!productButton) {
+            const textMatch = Array.from(document.querySelectorAll(".product-heading, a, button, [role='button'], h1, h2, h3, h4"))
+                .filter((node) => wanted.test(clean(node.textContent || node.value)))
+                .sort((left, right) => clean(left.textContent).length - clean(right.textContent).length)[0];
+            productButton = textMatch?.closest("a, button, [role='button'], [onclick], .product-heading") || textMatch;
+        }
+
+        if (!productButton) {
+            return {
+                ok: false,
+                options: Array.from(document.querySelectorAll(".product-heading, a, button, [role='button'], h1, h2, h3, h4"))
+                    .map((node) => clean(node.textContent || node.value))
+                    .filter(Boolean)
+                    .filter((text) => /pubblica|top\s*list|vetrina/i.test(text))
+                    .slice(0, 20)
+            };
+        }
+
         productButton.click();
+        return {
+            ok: true,
+            text: clean(productButton.textContent || productButton.value),
+            tag: productButton.tagName,
+            id: productButton.id || "",
+            className: typeof productButton.className === "string" ? productButton.className : ""
+        };
     }, settings);
+
+    if (!productSelection.ok) {
+        throw new Error(`Incontriamoci premium product not found: ${settings.product}. Available options: ${JSON.stringify(productSelection.options)}`);
+    }
+    console.log("[incontriamoci:publish] Premium product selected", productSelection);
 
     await delay(800);
 

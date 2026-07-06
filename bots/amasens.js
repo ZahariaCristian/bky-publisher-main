@@ -42,7 +42,7 @@ class AmasensBot {
       ? await puppeteer.executablePath()
       : undefined;
     this.browser = await puppeteer.launch({
-      headless: process.env.PUPPETEER_HEADLESS !== "false",
+      headless: false,
       executablePath,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
       defaultViewport: { width: 1366, height: 900 }
@@ -66,6 +66,44 @@ class AmasensBot {
       path: path.join(SCREENSHOT_DIR, `${name}.png`),
       fullPage: true
     }).catch(() => {});
+  }
+
+  async acceptTermsIfPresent(page = this.page) {
+    if (!page || page.isClosed()) return false;
+    const selector = [
+      "#accetta-condizioni-modal #accetto",
+      "#accetta-condizioni-modal a.accetto",
+      "a[href*='accetta-condizioni'][href*='accetto=1']"
+    ].join(", ");
+    const acceptButton = await page.waitForSelector(selector, { visible: true, timeout: 5000 })
+      .catch(() => null);
+    if (!acceptButton) return false;
+
+    console.log("[Amasens] Accepting terms and conditions modal.");
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => null),
+      page.evaluate((buttonSelector) => {
+        const button = document.querySelector(buttonSelector);
+        if (!button) throw new Error("Amasens terms acceptance button disappeared before click.");
+        button.click();
+      }, selector)
+    ]);
+    await delay(1000);
+
+    if (!page.url().includes("/user/login")) {
+      await page.goto(LOGIN_URL, { waitUntil: "networkidle2", timeout: 60000 });
+    }
+
+    const modalStillVisible = await page.evaluate(() => {
+      const modal = document.querySelector("#accetta-condizioni-modal");
+      if (!modal) return false;
+      const style = window.getComputedStyle(modal);
+      return style.display !== "none" && style.visibility !== "hidden";
+    }).catch(() => false);
+    if (modalStillVisible) {
+      throw new Error("Amasens terms modal remained visible after clicking ACCETTO.");
+    }
+    return true;
   }
 
   async isLoggedIn(page = this.page) {
@@ -113,6 +151,8 @@ class AmasensBot {
     const page = await this.newPage();
     console.log(`[Amasens] Opening login page for ${this.email}`);
     await page.goto(LOGIN_URL, { waitUntil: "networkidle2", timeout: 60000 });
+    const acceptedTerms = await this.acceptTermsIfPresent(page);
+    if (acceptedTerms) await this.screenshot("00-after-terms-accepted");
     await page.waitForSelector("#email", { visible: true });
     await page.waitForSelector("#password", { visible: true });
     await this.screenshot("01-login-page");
