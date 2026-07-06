@@ -11,12 +11,22 @@ const CATEGORY_VALUES = {
     DONNAUOMO: "101",
     DONNA_UOMO: "101",
     ESCORT: "101",
+    MASSAGGI: "101",
+    MASSAGGI_BENESSERE: "101",
+    MASSAGGIBENESSERE: "101",
     UOMOUOMO: "98",
     UOMO_UOMO: "98",
     GAY: "98",
     TRANS: "104",
     COPPIE: "103",
     SCAMBISTI: "103"
+};
+
+const CATEGORY_LABELS = {
+    DONNAUOMO: ["donna uomo", "donna cerca uomo", "escort"],
+    UOMOUOMO: ["uomo uomo", "uomo cerca uomo", "gay"],
+    TRANS: ["trans", "transessuale"],
+    COPPIE: ["coppie", "coppia", "scambisti"]
 };
 
 const FILTER_VALUES = {
@@ -158,7 +168,17 @@ function toArray(value) {
 }
 
 function mapCategory(value) {
-    return CATEGORY_VALUES[`${value || ""}`.trim().toUpperCase()] || CATEGORY_VALUES[normalizeKey(value).replace(/\s+/g, "").toUpperCase()] || `${value || ""}`;
+    const raw = `${value || ""}`.trim();
+    const key = normalizeKey(raw).replace(/[^a-z0-9]/g, "").toUpperCase();
+    return CATEGORY_VALUES[raw.toUpperCase()] || CATEGORY_VALUES[key] || raw;
+}
+
+function categoryAliases(value) {
+    const raw = `${value || ""}`.trim();
+    const key = normalizeKey(raw).replace(/[^a-z0-9]/g, "").toUpperCase();
+    const canonicalKey = CATEGORY_VALUES[key] ? key : Object.keys(CATEGORY_VALUES)
+        .find((candidate) => CATEGORY_VALUES[candidate] === raw);
+    return [raw, ...(CATEGORY_LABELS[canonicalKey] || [])].filter(Boolean);
 }
 
 function resolveImagePaths(images = [], picsAudit = []) {
@@ -195,6 +215,8 @@ function resolveImagePaths(images = [], picsAudit = []) {
 function buildTagSelections(adData = {}) {
     const note = parseNote(adData.note);
     const noteTags = note.incontriamoci?.tags || note.trovagnocca?.tags || note.tags || {};
+    const sourceCategory = normalizeKey(firstNonEmpty(adData.categorie, adData.sono, adData.category));
+    const isMassageCategory = sourceCategory.includes("massaggi") || sourceCategory.includes("massaggio");
 
     const tags = {
         ethnicity: firstNonEmpty(
@@ -230,7 +252,7 @@ function buildTagSelections(adData = {}) {
             isEnabled(adData.serviceEsperienzaFidanzata) ? "Esperienza fidanzata" : "",
             isEnabled(adData.serviceAttriciPorno) ? "Attrici porno" : "",
             isEnabled(adData.serviceEiaculazioneSulCorpo) ? "Eiaculazione sul corpo" : "",
-            isEnabled(adData.serviceMassaggioErotico) ? "Massaggio erotico" : "",
+            isEnabled(adData.serviceMassaggioErotico) || isMassageCategory ? "Massaggio erotico" : "",
             isEnabled(adData.serviceMassaggioTantrico) ? "Massaggio tantrico" : "",
             isEnabled(adData.serviceFetish) ? "Fetish" : "",
             isEnabled(adData.serviceBacioAllaFrancese) ? "Bacio alla francese" : "",
@@ -267,6 +289,7 @@ function buildTagSelections(adData = {}) {
 function buildPublishData(adData = {}) {
     const note = parseNote(adData.note);
     const contactNote = note.incontriamoci || note.trovagnocca || note;
+    const contactName = firstNonEmpty(adData.name, adData.contactName, adData.nickname);
 
     return {
         title: firstNonEmpty(adData.title, adData.titolo),
@@ -277,7 +300,7 @@ function buildPublishData(adData = {}) {
         address: firstNonEmpty(adData.address, adData.indirizzo, adData.location, adData.city, adData.annunci_city),
         zip: firstNonEmpty(adData.zip, adData.cap),
         phone: firstNonEmpty(adData.phone, adData.contattotelefonico),
-        contactName: firstNonEmpty(adData.contactName, adData.nickname, adData.name, adData.title),
+        contactName: `${contactName || ""}`.trim().slice(0, 35),
         age: firstNonEmpty(adData.age, adData.years),
         website: firstNonEmpty(adData.website, adData.url),
         whatsapp: isEnabled(adData.whatsapp) || isEnabled(adData.hasWhatapp),
@@ -345,6 +368,49 @@ async function selectOption(page, selector, valueOrLabel) {
         select.dispatchEvent(new Event("change", { bubbles: true }));
         return true;
     }, selector, `${valueOrLabel}`);
+}
+
+async function selectCategory(page, value) {
+    const aliases = categoryAliases(value);
+    const selected = await page.evaluate((selector, targetValue, targetAliases) => {
+        const normalize = (input) => `${input || ""}`
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]+/gi, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase();
+        const select = document.querySelector(selector);
+        if (!select) return { ok: false, reason: "category select not found", options: [] };
+
+        const options = Array.from(select.options);
+        const normalizedAliases = targetAliases.map(normalize).filter(Boolean);
+        const option = options.find((item) => item.value === targetValue) || options.find((item) => {
+            const label = normalize(item.textContent);
+            return normalizedAliases.some((alias) => label === alias || label.includes(alias) || alias.includes(label));
+        });
+
+        if (!option || !option.value) {
+            return {
+                ok: false,
+                reason: `no category option matched ${targetValue}`,
+                options: options.map((item) => ({ value: item.value, text: (item.textContent || "").trim() }))
+            };
+        }
+
+        select.removeAttribute("disabled");
+        select.value = option.value;
+        select.dispatchEvent(new Event("input", { bubbles: true }));
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        return { ok: select.value === option.value, value: option.value, text: (option.textContent || "").trim() };
+    }, "#catId, select[name='catId']", `${value || ""}`, aliases);
+
+    if (!selected.ok) {
+        throw new Error(`Incontriamoci category selection failed: ${JSON.stringify(selected)}`);
+    }
+
+    console.log("[incontriamoci:publish] Category selected", selected);
+    return selected;
 }
 
 async function setRadioOrCheckboxByValue(page, value) {
@@ -528,7 +594,7 @@ async function fillFirstStep(page, data, options = {}) {
     await page.waitForSelector(FORM_SELECTOR, { visible: true, timeout: 30000 });
 
     await setInput(page, "#title, input[name='title']", data.title);
-    await selectOption(page, "#catId, select[name='catId']", data.category);
+    await selectCategory(page, data.category);
     await setInput(page, "#description, textarea[name='description']", data.description);
     if (options.replaceImages) {
         await clearExistingImages(page);
@@ -581,6 +647,27 @@ async function clickContinue(page) {
     ]);
 
     await delay(1500);
+
+    const validation = await page.evaluate(() => {
+        const form = document.querySelector("form#item-post");
+        const category = document.querySelector("#catId, select[name='catId']");
+        const invalidFields = Array.from(document.querySelectorAll(":invalid")).map((node) => node.name || node.id || node.tagName);
+        const validationText = Array.from(document.querySelectorAll(".help-block, .invalid-feedback, .error, .has-error"))
+            .map((node) => (node.textContent || "").replace(/\s+/g, " ").trim())
+            .filter(Boolean)
+            .slice(0, 10);
+        return {
+            stillOnFirstStep: Boolean(form),
+            category: category?.value || "",
+            invalidFields,
+            validationText,
+            url: window.location.href
+        };
+    });
+
+    if (validation.stillOnFirstStep) {
+        throw new Error(`Incontriamoci first step validation failed: ${JSON.stringify(validation)}`);
+    }
 }
 
 async function clickPublishFree(page) {
@@ -748,26 +835,38 @@ async function clickPayWithCreditsIfPresent(page) {
     return true;
 }
 
-async function collectResult(page, settings = {}) {
+async function collectResult(page, settings = {}, expectedRemoteId = "") {
+    const normalizedExpectedId = `${expectedRemoteId || ""}`.trim();
+    if (normalizedExpectedId) {
+        await page.waitForFunction((remoteId) => {
+            const container = document.getElementById(`inc-${remoteId}`);
+            return Boolean(container?.querySelector("a.inc-link[href]"));
+        }, { timeout: 20000 }, normalizedExpectedId).catch(() => null);
+    }
+
     const result = await page.evaluate((payload) => {
         const product = `${payload?.product || ""}`.toLowerCase();
+        const expectedId = `${payload?.expectedRemoteId || ""}`.trim();
         const getHref = (selector) => document.querySelector(selector)?.href || "";
+        const expectedContainer = expectedId ? document.getElementById(`inc-${expectedId}`) : null;
+        const exactPublishedLink = expectedContainer?.querySelector("a.inc-link[href]")?.href || "";
         const firstPromotedLink = product
             ? getHref(`#items .inc-single.${product} a.inc-link[href], #items-list .inc-single.${product} a.inc-link[href]`)
             : "";
         const firstListingLink = getHref("#items .inc-single a.inc-link[href], #items-list .inc-single a.inc-link[href]");
         const bodyText = (document.body.innerText || "").replace(/\s+/g, " ").trim();
         const hrefs = Array.from(document.querySelectorAll("a[href]")).map((link) => link.href);
-        const publishedLink =
+        const fallbackPublishedLink =
             document.querySelector(".item-details .item-title a[href]")?.href ||
             document.querySelector(".item-details a[href*='_i']")?.href ||
             firstPromotedLink ||
             firstListingLink ||
             "";
-        const previewLink = publishedLink ||
+        const fallbackPreviewLink = fallbackPublishedLink ||
             hrefs.find((href) => /\/\d+_i\d+(?:[/?#]|$)/i.test(href) && !/user|login|logout/i.test(href)) ||
             hrefs.find((href) => /\/\d{4,}\//.test(href) && !/user|login|logout/i.test(href)) ||
             "";
+        const previewLink = expectedId ? exactPublishedLink : fallbackPreviewLink;
         const remoteIdMatch = previewLink.match(/\/(\d+_i\d+)(?:[/?#]|$)/i);
         const idMatch = remoteIdMatch ||
             [window.location.href, ...hrefs, bodyText].join(" ").match(/(?:item|annuncio|ad|manage|edit)[^\d]{0,30}(\d{4,})/i);
@@ -775,17 +874,24 @@ async function collectResult(page, settings = {}) {
         return {
             url: previewLink || window.location.href,
             remoteId: idMatch ? idMatch[1] : "",
+            expectedRemoteId: expectedId,
+            exactMatch: Boolean(expectedId && exactPublishedLink),
             bodyText: bodyText.slice(0, 800),
             success: /pubblicato|pubblicata|success|approvazione|moderazione|grazie/i.test(bodyText)
         };
-    }, settings);
+    }, { ...settings, expectedRemoteId: normalizedExpectedId });
 
     return result;
 }
 
 function extractRemoteIdFromPremiumUrl(url = "") {
-    const match = `${url || ""}`.match(/\/item\/premium\/([^?#]+)(?:[?#]|$)/i);
+    const match = `${url || ""}`.match(/\/item\/premium\/(\d+(?:\/[^/?#]+)?)(?:[/?#]|$)/i);
     return match ? decodeURIComponent(match[1]).replace(/\/+$/, "") : "";
+}
+
+function extractListingId(remoteId = "") {
+    const match = `${remoteId || ""}`.trim().match(/^(\d+)(?:\/|$)/);
+    return match ? match[1] : "";
 }
 
 async function publishAd(page, adData = {}) {
@@ -808,11 +914,18 @@ async function publishAd(page, adData = {}) {
 
     const premiumLink = await page.url();
     const premiumRemoteId = extractRemoteIdFromPremiumUrl(premiumLink);
+    const premiumListingId = extractListingId(premiumRemoteId);
     if (premiumRemoteId) {
-        console.log("[incontriamoci:publish] remoteId from premium page", premiumRemoteId);
+        console.log("[incontriamoci:publish] premium identifiers", {
+            remoteId: premiumRemoteId,
+            listingId: premiumListingId
+        });
     }
 
     const premiumSettings = parsePremiumSettings(adData);
+    if (premiumSettings.type !== "Free" && !premiumRemoteId) {
+        throw new Error(`Incontriamoci premium remoteId was not found in URL: ${premiumLink}`);
+    }
     const clickedPremium = await clickPublishPremium(page, premiumSettings);
     await page.screenshot({
         path: path.join(SCREENSHOT_DIR, clickedPremium ? "03-after-premium-publish.png" : "03-after-free-publish.png"),
@@ -827,9 +940,11 @@ async function publishAd(page, adData = {}) {
         }).catch(() => null);
     }
 
-    const result = await collectResult(page, premiumSettings);
+    const result = await collectResult(page, premiumSettings, clickedPremium ? premiumListingId : "");
     const remoteId = premiumRemoteId || result.remoteId || adData.remotePostID || "";
-    const ok = Boolean(result.success || remoteId || result.url !== HOME_URL);
+    const ok = clickedPremium
+        ? Boolean(premiumRemoteId && premiumListingId && result.exactMatch && result.url)
+        : Boolean(remoteId || (result.success && result.url !== PUBLISH_URL));
 
     if (!ok) {
         throw new Error(`Incontriamoci publish did not confirm success: ${JSON.stringify(result)}`);

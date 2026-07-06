@@ -15,6 +15,7 @@ const BakecaBot = require("./bots/bakeca");
 const MeBot = require("./bots/megaescort");
 const TrovagnoccaBot = require("./bots/trovagnocca");
 const IncontriamociBot = require("./bots/incontriamoci");
+const AmasensBot = require("./bots/amasens");
 const { getApiKey } = require("./adsManage/megaescort/client");
 const { raw } = require('mysql');
 const { platform } = require('os');
@@ -54,6 +55,8 @@ const getLastNumber = (str) => {
     return parseInt(parts[1], 10);
 }
 
+const getSessionKey = (bot, email) => `${bot?.platform || "unknown"}:${`${email || ""}`.trim().toLowerCase()}`;
+
 function runLimitedLogin(task) {
     return new Promise((resolve, reject) => {
         const execute = () => {
@@ -79,20 +82,21 @@ function runLimitedLogin(task) {
 async function ensureSession(bot, email) {
     // console.log(bot.email, bot.password, 'ensureSession1')
     if (!bot || !email) return bot?.login?.();
-    const cached = sessionCache.get(email);
+    const sessionKey = getSessionKey(bot, email);
+    const cached = sessionCache.get(sessionKey);
     // console.log(cached, "platform cached")
     if (cached) {//If Cookies has
         const ok = await bot.initWithCookies?.(cached);
         if (ok) return cached;
-        sessionCache.delete(email);
+        sessionCache.delete(sessionKey);
     }
 
     // console.log(bot.email, bot.password, sessionInflight, 'ensureSession2');
-    if (sessionInflight.has(email)) {//If Login finished
-        const cookies = await sessionInflight.get(email);
+    if (sessionInflight.has(sessionKey)) {//If Login finished
+        const cookies = await sessionInflight.get(sessionKey);
         const ok = await bot.initWithCookies?.(cookies);
         if (ok) return cookies;
-        sessionCache.delete(email);
+        sessionCache.delete(sessionKey);
     }
     // console.log(bot.email, bot.password, 'ensureSession3')
     const loginPromise = (async () => {
@@ -100,7 +104,7 @@ async function ensureSession(bot, email) {
         while (true) {
             try {
                 const cookies = await runLimitedLogin(() => bot.login());
-                if (cookies) sessionCache.set(email, cookies);
+                if (cookies) sessionCache.set(sessionKey, cookies);
                 if (temporarilyDisabledUsers.has(email)) {
                     temporarilyDisabledUsers.delete(email);
                     logger.Write(`Publisher INFO: utente ${email} riabilitato dopo login riuscito.`);
@@ -125,12 +129,52 @@ async function ensureSession(bot, email) {
             }
         }
     })().finally(() => {
-        sessionInflight.delete(email);
+        sessionInflight.delete(sessionKey);
     });
 
     // console.log(bot.email, bot.password, 'ensureSession4')
-    sessionInflight.set(email, loginPromise);
+    sessionInflight.set(sessionKey, loginPromise);
     return await loginPromise;
+}
+
+function isIncontriamociAuthenticationFailure(error, bot) {
+    const message = `${error?.message || error || ""}`.toLowerCase();
+    const currentUrl = `${bot?.page?.url?.() || ""}`.toLowerCase();
+    return /\/user\/login|\/auth\/login/.test(currentUrl) ||
+        /redirected? to login|session.*expired|cookies?.*(?:missing|expired)|login required|authentication required/.test(message) ||
+        (/publish form not found|update form not found/.test(message) && /\/user\/login|\/auth\/login/.test(message));
+}
+
+async function runWithIncontriamociSessionRecovery(platform, operationName, operation) {
+    if (platform?.platform !== "incontriamoci") {
+        return operation();
+    }
+
+    try {
+        return await operation();
+    } catch (error) {
+        if (!isIncontriamociAuthenticationFailure(error, platform.bot)) {
+            throw error;
+        }
+
+        const username = platform.username || platform.bot?.email;
+        logger.Write(`Publisher WARNING: Incontriamoci session expired for ${username}. Re-login before retrying ${operationName}.`);
+        console.warn(`[incontriamoci] Session expired for ${username}; retrying ${operationName} after login.`);
+
+        sessionCache.delete(getSessionKey(platform.bot, username));
+        platform.cookie = null;
+        platform.needRefresh = true;
+        await platform.bot?.restartBrowser?.(`expired session during ${operationName}`);
+
+        const cookies = await ensureSession(platform.bot, username);
+        if (!cookies) {
+            throw new Error(`Incontriamoci re-login returned no cookies before ${operationName}.`);
+        }
+        platform.cookie = cookies;
+
+        // Retry exactly once. Any second failure is returned to the normal KO handling.
+        return await operation();
+    }
 }
 
 async function ensurePlatformBot(platform) {
@@ -401,6 +445,10 @@ async function CreateGroupsBot() {
                                 panel.bot = await new IncontriamociBot(panel.username, decryptedPlatformPass, panel.credit, panel.platform)
                                 panel.overBusyBot = 0
                                 break;
+                            case "amasens":
+                                panel.bot = await new AmasensBot(panel.username, decryptedPlatformPass, panel.credit, panel.platform)
+                                panel.overBusyBot = 0
+                                break;
                             default:
                                 panel.bot = await new BakecaincontriiBot(panel.username, decryptedPlatformPass)
                                 panel.overBusyBot = 0
@@ -606,6 +654,7 @@ async function mainLoop(group, platform) {
                     s.pics = pics;
                     s.title = annuncio.title;
                     s.nickname = annuncio.nickname;
+                    s.name = annuncio.tblDonne?.name || "";
                     //SERVIZI
                     s.serviceAfricana = annuncio.serviceAfricana;
                     s.serviceIndiana = annuncio.serviceIndiana;
@@ -920,7 +969,11 @@ async function postThis(ad, group, platform) {
                         throw new Error(`Bakeca remotePostID missing for EDIT state on schedule ${ad.id}`);
                     }
 
-                    const updateResult = await platform.bot.update(ad, group, platform);
+                    const updateResult = await runWithIncontriamociSessionRecovery(
+                        platform,
+                        "update",
+                        () => platform.bot.update(ad, group, platform)
+                    );
                     console.log(`${new Date()} Bakeca update result for schedule ${ad.id}:`, updateResult);
                     pubStatus = updateResult?.ok ? "OK" : "KO";
                     platform.needRefresh = true;
@@ -934,7 +987,11 @@ async function postThis(ad, group, platform) {
                         throw new Error(`Bakeca remotePostID missing for DELETE state on schedule ${ad.id}`);
                     }
 
-                    const deleteResult = await platform.bot.delete(ad.remotePostID, platform.platform);
+                    const deleteResult = await runWithIncontriamociSessionRecovery(
+                        platform,
+                        "delete",
+                        () => platform.bot.delete(ad.remotePostID, platform.platform)
+                    );
                     console.log(`${new Date()} Bakeca delete result for schedule ${ad.id}:`, deleteResult);
                     pubStatus = deleteResult?.ok ? "DELETED" : "KO";
                     platform.needRefresh = true;
@@ -948,7 +1005,11 @@ async function postThis(ad, group, platform) {
                         throw new Error(`Bakeca remotePostID missing for CLOSE state on schedule ${ad.id}`);
                     }
 
-                    const suspendResult = await platform.bot.suspend(ad.remotePostID, ad, platform.platform);
+                    const suspendResult = await runWithIncontriamociSessionRecovery(
+                        platform,
+                        "suspend",
+                        () => platform.bot.suspend(ad.remotePostID, ad, platform.platform)
+                    );
                     console.log(`${new Date()} Bakeca suspend result for schedule ${ad.id}:`, suspendResult);
                     pubStatus = suspendResult?.ok ? "CLOSED" : "KO";
                     platform.needRefresh = true;
@@ -962,13 +1023,21 @@ async function postThis(ad, group, platform) {
                         throw new Error(`Bakeca remotePostID missing for REPUBLISH state on schedule ${ad.id}`);
                     }
 
-                    const rePublishResult = await platform.bot.republish(ad.remotePostID, ad, platform.platform);
+                    const rePublishResult = await runWithIncontriamociSessionRecovery(
+                        platform,
+                        "republish",
+                        () => platform.bot.republish(ad.remotePostID, ad, platform.platform)
+                    );
                     console.log(`${new Date()} Bakeca republish result for schedule ${ad.id}:`, rePublishResult);
                     pubStatus = rePublishResult?.ok ? "OK" : "KO";
                     platform.needRefresh = true;
                     break;
                 default:
-                    const result = await platform.bot.publish(ad, group, platform)
+                    const result = await runWithIncontriamociSessionRecovery(
+                        platform,
+                        "publish",
+                        () => platform.bot.publish(ad, group, platform)
+                    );
                     console.log(result);
                     pubStatus = result?.ok ? "OK" : "KO";
                     ad.remotePostID = result?.payload?.idpriv || result?.megaId || null

@@ -81,7 +81,7 @@ class IncontriamociBot {
       : undefined;
 
     this.browser = await puppeteer.launch({
-      headless: true,
+      headless: false,
       executablePath,
       args: [
         "--no-sandbox",
@@ -410,7 +410,7 @@ class IncontriamociBot {
     await this.waitForLoginFormReady(page);
     const selectors = await this.getLoginSelectors(page);
 
-    console.log(`[i] Typing Incontriamoci credentials for ${creds.email}, ${creds.password}`);
+    console.log(`[i] Typing Incontriamoci credentials for ${creds.email}`);
     await this.typeHuman(page, selectors.email, creds.email);
     await this.typeHuman(page, selectors.password, creds.password);
     await this.screenshot("02-credentials-filled");
