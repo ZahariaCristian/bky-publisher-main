@@ -42,7 +42,7 @@ class AmasensBot {
       ? await puppeteer.executablePath()
       : undefined;
     this.browser = await puppeteer.launch({
-      headless: false,
+      headless: true,
       executablePath,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
       defaultViewport: { width: 1366, height: 900 }
