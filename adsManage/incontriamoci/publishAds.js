@@ -182,11 +182,8 @@ function categoryAliases(value) {
 }
 
 function resolveImagePaths(images = [], picsAudit = []) {
-    const auditPaths = [...picsAudit]
-        .sort((left, right) => Number(right?.isAnteprima === true) - Number(left?.isAnteprima === true))
-        .map((item) => item?.path)
-        .filter(Boolean);
-    const sources = auditPaths.length ? auditPaths : images;
+    const auditPaths = picsAudit.map((item) => item?.path).filter(Boolean);
+    const sources = images.length ? images : auditPaths;
     const resolved = [];
     const seen = new Set();
 
@@ -461,27 +458,9 @@ async function uploadImages(page, images = [], picsAudit = []) {
         timeout: 15000
     }).catch(() => null);
 
-    const inputSelector = ".qq-upload-button input[type='file'], input[type='file'][name='images'], input[type='file'][accept*='image'], input[type='file']";
-    const input = await page.$(inputSelector);
+    const input = await page.$(".qq-upload-button input[type='file'], input[type='file'][name='images'], input[type='file'][accept*='image'], input[type='file']");
     if (input) {
-        console.log("[incontriamoci:publish] Uploading images in preview-first order", imagePaths.map((filePath) => path.basename(filePath)));
-        for (const imagePath of imagePaths) {
-            const beforeCount = await page.evaluate(() => document.querySelectorAll(".qq-upload-success").length).catch(() => 0);
-            const currentInput = await page.$(inputSelector);
-            if (!currentInput) {
-                throw new Error(`Incontriamoci image input disappeared before uploading ${path.basename(imagePath)}.`);
-            }
-            await currentInput.uploadFile(imagePath);
-            const uploaded = await page.waitForFunction((previousCount) => {
-                const failed = document.querySelectorAll(".qq-upload-fail, .qq-upload-failed").length;
-                if (failed > 0) return "failed";
-                const currentCount = document.querySelectorAll(".qq-upload-success").length;
-                return currentCount > previousCount ? "success" : false;
-            }, { timeout: 60000 }, beforeCount).then((handle) => handle.jsonValue()).catch(() => "timeout");
-            if (uploaded !== "success") {
-                throw new Error(`Incontriamoci image upload ${uploaded}: ${path.basename(imagePath)}.`);
-            }
-        }
+        await input.uploadFile(...imagePaths);
     } else {
         const uploadButtonSelector = ".qq-upload-button, #image-uploader-upload-area";
         const uploadButton = await page.$(uploadButtonSelector);
@@ -504,14 +483,12 @@ async function uploadImages(page, images = [], picsAudit = []) {
             uploadButton.click()
         ]);
         await fileChooser.accept(imagePaths);
-        const allUploaded = await page.waitForFunction((expected) => {
-            const successCount = document.querySelectorAll(".qq-upload-success").length;
-            return successCount >= expected;
-        }, { timeout: 60000 }, imagePaths.length).then(() => true).catch(() => false);
-        if (!allUploaded) {
-            throw new Error(`Incontriamoci did not finish uploading all ${imagePaths.length} images.`);
-        }
     }
+
+    await page.waitForFunction((expected) => {
+        const successCount = document.querySelectorAll(".qq-upload-success, .qq-file-id, .qq-upload-list li").length;
+        return successCount >= expected || expected === 0;
+    }, { timeout: 60000 }, Math.min(imagePaths.length, 1)).catch(() => null);
 
     await delay(1500);
     return imagePaths.length;
@@ -658,90 +635,29 @@ async function fillFirstStep(page, data, options = {}) {
 }
 
 async function clickContinue(page) {
-    let clickedContinue;
     await Promise.all([
         page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => null),
         page.evaluate(() => {
-            const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
-            const isVisible = (node) => {
-                if (!node) return false;
-                const style = window.getComputedStyle(node);
-                const rect = node.getBoundingClientRect();
-                return style.display !== "none" && style.visibility !== "hidden" && !node.disabled && rect.width > 0 && rect.height > 0;
-            };
             const form = document.querySelector("form#item-post");
-            const formControls = Array.from((form || document).querySelectorAll(
-                "button, input[type='submit'], input[type='button'], a, [role='button']"
-            )).filter(isVisible);
-            const exactContinue = formControls.find((node) => /^continua\b/i.test(clean(node.textContent || node.value)));
-            const safeSubmit = formControls.find((node) => {
-                if (!node.matches("button[type='submit'], input[type='submit']")) return false;
-                const details = clean(`${node.textContent || ""} ${node.value || ""} ${node.id || ""} ${node.className || ""}`).toLowerCase();
-                return !/upload|carica|image|photo|foto|video|audio|delete|elimina|remove/.test(details);
-            });
-            const globalContinue = Array.from(document.querySelectorAll(
-                "button, input[type='submit'], input[type='button'], a, [role='button']"
-            )).filter(isVisible).find((node) => /^continua\b/i.test(clean(node.textContent || node.value)));
-            const submit = exactContinue || globalContinue || safeSubmit;
-            if (!submit) {
-                const available = formControls.map((node) => ({
-                    tag: node.tagName,
-                    type: node.getAttribute("type") || "",
-                    id: node.id || "",
-                    text: clean(node.textContent || node.value)
-                })).slice(0, 30);
-                throw new Error(`Incontriamoci CONTINUA button not found. Available controls: ${JSON.stringify(available)}`);
-            }
-            submit.scrollIntoView({ block: "center", inline: "center" });
+            const submit = form?.querySelector("button[type='submit'], input[type='submit']") ||
+                Array.from(document.querySelectorAll("button, input[type='submit'], a")).find((node) => /continua/i.test(node.textContent || node.value || ""));
+            if (!submit) throw new Error("Incontriamoci CONTINUA button not found.");
             submit.click();
-            return {
-                tag: submit.tagName,
-                type: submit.getAttribute("type") || "",
-                id: submit.id || "",
-                className: typeof submit.className === "string" ? submit.className : "",
-                text: clean(submit.textContent || submit.value)
-            };
         })
-    ]).then((results) => {
-        clickedContinue = results[1];
-    });
-
-    console.log("[incontriamoci:publish] CONTINUA clicked", clickedContinue);
+    ]);
 
     await delay(1500);
 
     const validation = await page.evaluate(() => {
-        const isVisible = (node) => {
-            if (!node) return false;
-            const style = window.getComputedStyle(node);
-            const rect = node.getBoundingClientRect();
-            return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
-        };
         const form = document.querySelector("form#item-post");
         const category = document.querySelector("#catId, select[name='catId']");
-        const bodyText = (document.body?.innerText || "").replace(/\s+/g, " ").trim();
-        const serviceControlsVisible = Array.from(document.querySelectorAll(
-            ".product-heading, [data-product-type], #submitPremiumBtn, #publish-with-credits, #frmPublishWithCredits"
-        )).some(isVisible);
-        const successVisible = Array.from(document.querySelectorAll(".modal, .alert, .success, .message"))
-            .filter(isVisible)
-            .some((node) => /aggiornat|modificat|pubblicat|success|fantastico/i.test(node.textContent || ""));
-        const serviceStepVisible = serviceControlsVisible ||
-            (/\b2\s+servizi\b/i.test(bodyText) && /pubblica\s+(?:top\s*list|vetrina|gratis)/i.test(bodyText));
-        const formVisible = isVisible(form);
-        const invalidFields = Array.from(document.querySelectorAll(":invalid"))
-            .filter(isVisible)
-            .map((node) => node.name || node.id || node.tagName);
+        const invalidFields = Array.from(document.querySelectorAll(":invalid")).map((node) => node.name || node.id || node.tagName);
         const validationText = Array.from(document.querySelectorAll(".help-block, .invalid-feedback, .error, .has-error"))
-            .filter(isVisible)
             .map((node) => (node.textContent || "").replace(/\s+/g, " ").trim())
             .filter(Boolean)
             .slice(0, 10);
         return {
-            stillOnFirstStep: formVisible && !serviceStepVisible && !successVisible,
-            formVisible,
-            serviceStepVisible,
-            successVisible,
+            stillOnFirstStep: Boolean(form),
             category: category?.value || "",
             invalidFields,
             validationText,
@@ -839,82 +755,11 @@ async function clickPublishPremium(page, settings) {
         return false;
     }
 
-    await page.waitForFunction((product) => {
-        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
-        const wanted = product === "toplist" ? /pubblica\s+top\s*list/i : /pubblica\s+vetrina/i;
-        const directSelectors = [
-            `.product-heading[data-product-type="${product}"]`,
-            `.product-heading[data-product="${product}"]`,
-            `[data-product-type="${product}"]`,
-            `[data-product="${product}"]`
-        ];
-        if (product === "toplist") {
-            directSelectors.push(
-                '.product-heading[data-product-type="top-list"]',
-                '[data-product-type="top-list"]',
-                '#toplist',
-                '#top-list'
-            );
-        }
-        if (directSelectors.some((selector) => document.querySelector(selector))) return true;
-        return Array.from(document.querySelectorAll(".product-heading, a, button, [role='button'], h1, h2, h3, h4"))
-            .some((node) => wanted.test(clean(node.textContent || node.value)));
-    }, { timeout: 20000 }, settings.product).catch(() => null);
-
-    const productSelection = await page.evaluate((payload) => {
-        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
-        const wanted = payload.product === "toplist" ? /pubblica\s+top\s*list/i : /pubblica\s+vetrina/i;
-        const directSelectors = [
-            `.product-heading[data-product-type="${payload.product}"]`,
-            `.product-heading[data-product="${payload.product}"]`,
-            `[data-product-type="${payload.product}"]`,
-            `[data-product="${payload.product}"]`
-        ];
-        if (payload.product === "toplist") {
-            directSelectors.push(
-                '.product-heading[data-product-type="top-list"]',
-                '[data-product-type="top-list"]',
-                '#toplist',
-                '#top-list'
-            );
-        }
-
-        let productButton = directSelectors
-            .map((selector) => document.querySelector(selector))
-            .find(Boolean);
-
-        if (!productButton) {
-            const textMatch = Array.from(document.querySelectorAll(".product-heading, a, button, [role='button'], h1, h2, h3, h4"))
-                .filter((node) => wanted.test(clean(node.textContent || node.value)))
-                .sort((left, right) => clean(left.textContent).length - clean(right.textContent).length)[0];
-            productButton = textMatch?.closest("a, button, [role='button'], [onclick], .product-heading") || textMatch;
-        }
-
-        if (!productButton) {
-            return {
-                ok: false,
-                options: Array.from(document.querySelectorAll(".product-heading, a, button, [role='button'], h1, h2, h3, h4"))
-                    .map((node) => clean(node.textContent || node.value))
-                    .filter(Boolean)
-                    .filter((text) => /pubblica|top\s*list|vetrina/i.test(text))
-                    .slice(0, 20)
-            };
-        }
-
+    await page.evaluate((payload) => {
+        const productButton = document.querySelector(`.product-heading[data-product-type="${payload.product}"]`);
+        if (!productButton) throw new Error(`Incontriamoci premium product not found: ${payload.product}`);
         productButton.click();
-        return {
-            ok: true,
-            text: clean(productButton.textContent || productButton.value),
-            tag: productButton.tagName,
-            id: productButton.id || "",
-            className: typeof productButton.className === "string" ? productButton.className : ""
-        };
     }, settings);
-
-    if (!productSelection.ok) {
-        throw new Error(`Incontriamoci premium product not found: ${settings.product}. Available options: ${JSON.stringify(productSelection.options)}`);
-    }
-    console.log("[incontriamoci:publish] Premium product selected", productSelection);
 
     await delay(800);
 
