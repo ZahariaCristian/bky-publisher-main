@@ -182,8 +182,11 @@ function categoryAliases(value) {
 }
 
 function resolveImagePaths(images = [], picsAudit = []) {
-    const auditPaths = picsAudit.map((item) => item?.path).filter(Boolean);
-    const sources = images.length ? images : auditPaths;
+    const auditPaths = [...picsAudit]
+        .sort((left, right) => Number(right?.isAnteprima === true) - Number(left?.isAnteprima === true))
+        .map((item) => item?.path)
+        .filter(Boolean);
+    const sources = auditPaths.length ? auditPaths : images;
     const resolved = [];
     const seen = new Set();
 
@@ -446,6 +449,42 @@ async function openPublishPage(page, targetUrl = PUBLISH_URL, label = "publish")
     throw new Error(`Incontriamoci ${label} form not found. Last URL: ${page.url()}`);
 }
 
+async function selectPreviewImage(page) {
+    const result = await page.evaluate(() => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const cards = Array.from(document.querySelectorAll(".qq-upload-list li, .qq-upload-success"));
+        const firstCard = cards.find((card) => /anteprima|preview/i.test(clean(card.textContent)));
+        if (!firstCard) return { ok: false, reason: "uploaded preview card not found" };
+
+        const control = Array.from(firstCard.querySelectorAll("button, a, label, [role='button']"))
+            .find((node) => /anteprima|preview/i.test(clean(node.textContent || node.title)));
+        if (!control) {
+            return {
+                ok: false,
+                reason: "preview control not found",
+                cardText: clean(firstCard.textContent).slice(0, 160)
+            };
+        }
+
+        const input = control.matches("label") && control.htmlFor
+            ? document.getElementById(control.htmlFor)
+            : control.querySelector("input[type='checkbox'], input[type='radio']");
+        if (input && !input.checked) input.click();
+        if (!input) control.click();
+
+        return {
+            ok: input ? Boolean(input.checked) : true,
+            cardText: clean(firstCard.textContent).slice(0, 160),
+            method: input ? "input" : "button"
+        };
+    });
+
+    if (!result.ok) {
+        throw new Error(`Incontriamoci preview image selection failed: ${JSON.stringify(result)}`);
+    }
+    console.log("[incontriamoci:publish] Preview image selected", result);
+}
+
 async function uploadImages(page, images = [], picsAudit = []) {
     const imagePaths = resolveImagePaths(images, picsAudit)
         .filter((filePath) => fs.existsSync(filePath))
@@ -490,6 +529,7 @@ async function uploadImages(page, images = [], picsAudit = []) {
         return successCount >= expected || expected === 0;
     }, { timeout: 60000 }, Math.min(imagePaths.length, 1)).catch(() => null);
 
+    await selectPreviewImage(page);
     await delay(1500);
     return imagePaths.length;
 }
