@@ -3,6 +3,7 @@ const path = require("path");
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const TwoCaptcha = require("@2captcha/captcha-solver");
+const { buildPublishData, publishAd } = require("../adsManage/amasens/publishAds");
 
 const LOGIN_URL = "https://amasens.com/user/login";
 const HOME_URL = "https://amasens.com/";
@@ -255,8 +256,22 @@ class AmasensBot {
     }
   }
 
-  async publish() {
-    throw new Error("Amasens publishing is not implemented in Phase 1.");
+  buildPublishData(ad) {
+    return buildPublishData({
+      ...ad,
+      city: ad?.city || ad?.annunci_city || ad?.comune || "",
+      images: ad?.pics || ad?.images || [],
+      picsAudit: ad?.picsAudit || []
+    });
+  }
+
+  async publish(ad) {
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+
+    return publishAd(page, {
+      ...ad,
+      ...this.buildPublishData(ad)
+    });
   }
 
   async restartBrowser(reason) {
