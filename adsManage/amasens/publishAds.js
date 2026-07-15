@@ -5,6 +5,7 @@ const TwoCaptcha = require("@2captcha/captcha-solver");
 const PUBLISH_URL = "https://amasens.com/item/new";
 const FORM_SELECTOR = "form#item-post";
 const API_KEY_FILE = path.join(__dirname, "..", "..", "bots", "settings", "2captchaApiKey.txt");
+const AMASENS_TURNSTILE_SITEKEY = "0x4AAAAAAAHzmvYWlhA4fgK9";
 
 const getCaptchaApiKey = () => {
     if (process.env.TWOCAPTCHA_API_KEY) return process.env.TWOCAPTCHA_API_KEY.trim();
@@ -468,17 +469,19 @@ async function solveTurnstileIfPresent(page) {
     if (!solver) {
         throw new Error("2Captcha API key not configured for Amasens publish Turnstile.");
     }
-    if (!captcha.sitekey) {
+    const sitekey = captcha.sitekey || AMASENS_TURNSTILE_SITEKEY;
+    if (!sitekey) {
         throw new Error(`Amasens Turnstile sitekey not found: ${JSON.stringify(captcha)}`);
     }
 
     console.log("[amasens:publish] Solving Turnstile captcha", {
-        sitekey: captcha.sitekey,
+        sitekey,
+        source: captcha.sitekey ? "dom" : "fallback",
         url: captcha.url
     });
     const solution = await solver.cloudflareTurnstile({
         pageurl: captcha.url || page.url() || PUBLISH_URL,
-        sitekey: captcha.sitekey
+        sitekey
     });
     const token = solution?.data || solution?.request || solution;
     if (!token || typeof token !== "string") {
