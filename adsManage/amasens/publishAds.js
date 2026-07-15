@@ -6,6 +6,7 @@ const PUBLISH_URL = "https://amasens.com/item/new";
 const FORM_SELECTOR = "form#item-post";
 const API_KEY_FILE = path.join(__dirname, "..", "..", "bots", "settings", "2captchaApiKey.txt");
 const AMASENS_TURNSTILE_SITEKEY = "0x4AAAAAAAHzmvYWlhA4fgK9";
+const SCREENSHOT_DIR = path.join("./screenshots", "amasens-publish");
 
 const getCaptchaApiKey = () => {
     if (process.env.TWOCAPTCHA_API_KEY) return process.env.TWOCAPTCHA_API_KEY.trim();
@@ -148,6 +149,31 @@ const PROVINCE_REGIONS = {
 
 function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function ensureScreenshotDir() {
+    if (!fs.existsSync(SCREENSHOT_DIR)) {
+        fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+    }
+    return SCREENSHOT_DIR;
+}
+
+async function captureScreenshot(page, label) {
+    try {
+        const dir = ensureScreenshotDir();
+        const safeLabel = `${label || "step"}`
+            .replace(/[^a-z0-9_-]+/gi, "-")
+            .replace(/^-+|-+$/g, "")
+            .toLowerCase()
+            .slice(0, 120) || "step";
+        const filePath = path.join(dir, `${safeLabel}.png`);
+        await page.screenshot({ path: filePath, fullPage: true });
+        console.log(`[amasens:screenshot] ${label}: ${filePath}`);
+        return filePath;
+    } catch (error) {
+        console.warn(`[amasens:screenshot] Failed to capture ${label}: ${error.message}`);
+        return "";
+    }
 }
 
 function normalizeKey(value) {
@@ -516,8 +542,12 @@ async function solveTurnstileIfPresent(page) {
 async function openPublishPage(page) {
     await page.goto(PUBLISH_URL, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
     const hasForm = await page.$(FORM_SELECTOR);
-    if (hasForm) return PUBLISH_URL;
+    if (hasForm) {
+        await captureScreenshot(page, "01-open-publish-page");
+        return PUBLISH_URL;
+    }
 
+    await captureScreenshot(page, "error-publish-form-not-found");
     throw new Error(`Amasens publish form not found. Last URL: ${page.url()}`);
 }
 
@@ -539,6 +569,7 @@ async function fillFirstStep(page, data) {
     await setCheckbox(page, "#canLivecam, input[name='canLivecam']", data.livecam);
     await setCheckbox(page, "#terms, input[name='terms']", true);
     await solveTurnstileIfPresent(page);
+    await captureScreenshot(page, "02-first-step-filled");
 }
 
 async function clickContinue(page) {
@@ -554,6 +585,7 @@ async function clickContinue(page) {
     ]);
 
     await delay(1500);
+    await captureScreenshot(page, "03-after-continue");
 
     const validation = await page.evaluate(() => {
         const form = document.querySelector("form#item-post");
@@ -571,6 +603,7 @@ async function clickContinue(page) {
     });
 
     if (validation.stillOnFirstStep) {
+        await captureScreenshot(page, "error-first-step-validation");
         throw new Error(`Amasens first step validation failed: ${JSON.stringify(validation)}`);
     }
 }
@@ -594,11 +627,13 @@ async function clickPublishFree(page) {
     });
 
     if (!clicked) {
+        await captureScreenshot(page, "error-free-publish-button-not-found");
         throw new Error("Amasens free publish button not found after CONTINUA.");
     }
 
     await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => null);
     await delay(2000);
+    await captureScreenshot(page, "04-after-publish-click");
     return identifiers;
 }
 
@@ -618,9 +653,11 @@ async function confirmPublished(page, expectedItemId = "") {
     }, expectedItemId);
 
     if (!result.success) {
+        await captureScreenshot(page, "error-publish-not-confirmed");
         throw new Error(`Amasens publish did not confirm success: ${JSON.stringify(result)}`);
     }
 
+    await captureScreenshot(page, "05-confirmed");
     return result;
 }
 
@@ -635,21 +672,26 @@ async function publishAd(page, adData = {}) {
         images: data.images.length
     });
 
-    await openPublishPage(page);
-    await fillFirstStep(page, data);
-    await clickContinue(page);
-    const identifiers = await clickPublishFree(page);
-    const published = await confirmPublished(page, identifiers.itemId);
+    try {
+        await openPublishPage(page);
+        await fillFirstStep(page, data);
+        await clickContinue(page);
+        const identifiers = await clickPublishFree(page);
+        const published = await confirmPublished(page, identifiers.itemId);
 
-    return {
-        ok: true,
-        url: published.url,
-        creditsConsumed: 0,
-        payload: {
-            idpriv: published.remoteId || identifiers.itemId,
-            itemId: published.remoteId || identifiers.itemId
-        }
-    };
+        return {
+            ok: true,
+            url: published.url,
+            creditsConsumed: 0,
+            payload: {
+                idpriv: published.remoteId || identifiers.itemId,
+                itemId: published.remoteId || identifiers.itemId
+            }
+        };
+    } catch (error) {
+        await captureScreenshot(page, `error-${error.message || "publish-failed"}`);
+        throw error;
+    }
 }
 
 module.exports = {
