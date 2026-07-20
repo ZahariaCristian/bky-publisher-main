@@ -519,6 +519,74 @@ function mergePublishState(...states) {
     }), {});
 }
 
+async function extractAmasensTopListPublicState(page, expected = {}) {
+    return page.evaluate((expectedState) => {
+        const abs = (value) => {
+            try {
+                return value ? new URL(value, window.location.href).href : "";
+            } catch {
+                return "";
+            }
+        };
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const normalize = (value) => clean(value)
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]+/gi, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase();
+        const publicFromUrl = (url) => /amasens\.com\/(?:escort|trans|massaggi|coppie)\//i.test(abs(url)) ? abs(url) : "";
+        const currentUrl = window.location.href;
+        const hashListingId = (currentUrl.match(/#top-list-(\d+)/i) || [])[1] || "";
+        const listingId = clean(expectedState.listingId || expectedState.itemId || hashListingId);
+        const expectedTitle = normalize(expectedState.title);
+        const cards = Array.from(document.querySelectorAll("#items [id^='item-'], .item[id^='item-']"));
+        const targetCard = (listingId ? cards.find((card) => card.id === `item-${listingId}`) : null) ||
+            (expectedTitle ? cards.find((card) => {
+                const titleNode = card.querySelector(".item-title, a[title]");
+                const title = normalize(titleNode?.textContent || titleNode?.getAttribute("title"));
+                return title && (title === expectedTitle || title.includes(expectedTitle) || expectedTitle.includes(title));
+            }) : null);
+
+        if (!targetCard) {
+            return {
+                listingId,
+                publicUrl: "",
+                finalListUrl: currentUrl,
+                found: false
+            };
+        }
+
+        const titleUrl = publicFromUrl(targetCard.querySelector("a.item-title[href], .item-title[href]")?.getAttribute("href") || "");
+        const coverOnclick = targetCard.querySelector(".item-cover-bg[onclick], .item-cover button[onclick], button[onclick]")?.getAttribute("onclick") || "";
+        const coverUrl = publicFromUrl((coverOnclick.match(/window\.open\(['"]([^'"]+)/i) || [])[1] || "");
+        const anyLinkUrl = Array.from(targetCard.querySelectorAll("a[href]"))
+            .map((node) => publicFromUrl(node.getAttribute("href") || ""))
+            .find(Boolean) || "";
+        const publicUrl = titleUrl || coverUrl || anyLinkUrl;
+        const cardListingId = (targetCard.id.match(/item-(\d+)/) || [])[1] || listingId;
+
+        return {
+            itemId: cardListingId,
+            listingId: cardListingId,
+            publicUrl,
+            finalListUrl: currentUrl,
+            found: Boolean(publicUrl)
+        };
+    }, {
+        itemId: expected.itemId || "",
+        listingId: expected.listingId || "",
+        title: expected.title || ""
+    }).catch(() => ({
+        itemId: expected.itemId || "",
+        listingId: expected.listingId || "",
+        publicUrl: "",
+        finalListUrl: page.url(),
+        found: false
+    }));
+}
+
 async function selectCategory(page, value) {
     const aliases = categoryAliases(value);
     const selected = await page.evaluate((selector, targetValue, targetAliases) => {
@@ -1003,18 +1071,31 @@ async function clickPayWithCredits(page, expected = {}) {
     }
 
     await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
-    await page.waitForFunction(() => {
+    await page.waitForFunction((expectedId) => {
         const bodyText = (document.body.innerText || "").replace(/\s+/g, " ").trim();
+        const hasExpectedTopList = expectedId && (
+            window.location.hash === `#top-list-${expectedId}` ||
+            Boolean(document.querySelector(`#item-${expectedId}`))
+        );
+        if (hasExpectedTopList) return true;
         return /le mie inserzioni|annunci|congratulazioni|toplist|pubblicato|acquistato|saldo crediti/i.test(bodyText) ||
             /\/user\/items/i.test(window.location.href);
-    }, { timeout: 45000 }).catch(() => null);
+    }, { timeout: 45000 }, expected.listingId || expected.itemId || "").catch(() => null);
     await delay(2500);
     await captureScreenshot(page, "07-after-credits-payment");
+    const state = await extractAmasensPublishState(page, expected);
+    const topListPublicState = await extractAmasensTopListPublicState(page, {
+        itemId: state.itemId || expected.itemId,
+        listingId: state.listingId || expected.listingId,
+        title: expected.title
+    });
 
     return {
         clicked: true,
         credits: paymentState.credits,
-        state: await extractAmasensPublishState(page, expected)
+        state: mergePublishState(state, topListPublicState, {
+            currentUrl: topListPublicState.finalListUrl || state.currentUrl
+        })
     };
 }
 
