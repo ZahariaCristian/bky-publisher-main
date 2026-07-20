@@ -3,6 +3,8 @@ const path = require("path");
 const TwoCaptcha = require("@2captcha/captcha-solver");
 
 const PUBLISH_URL = "https://amasens.com/item/new";
+const EDIT_URL_BASE = "https://amasens.com/item/edit";
+const DELETE_URL_BASE = "https://amasens.com/item/delete";
 const FORM_SELECTOR = "form#item-post";
 const API_KEY_FILE = path.join(__dirname, "..", "..", "bots", "settings", "2captchaApiKey.txt");
 const AMASENS_TURNSTILE_SITEKEY = "0x4AAAAAAAHzmvYWlhA4fgK9";
@@ -209,6 +211,68 @@ function parseNote(note) {
     }
 }
 
+function parseJson(value, fallback = {}) {
+    if (!value) return fallback;
+    if (typeof value === "object") return value;
+    try {
+        return JSON.parse(value);
+    } catch {
+        return fallback;
+    }
+}
+
+function normalizeTopListDays(value) {
+    const days = `${value || "1"}`.match(/\d+/)?.[0] || "1";
+    if (["1", "3", "7", "14", "30"].includes(days)) return days;
+    return "1";
+}
+
+function normalizeTopListFascia(value) {
+    const fascia = `${value || ""}`.trim();
+    if (["08-12", "12-16", "16-20", "08-20", "20-08"].includes(fascia)) return fascia;
+
+    const normalized = fascia.replace(/\s+/g, "");
+    if (/^0?8:00-12:00$/i.test(normalized)) return "08-12";
+    if (/^12:00-16:00$/i.test(normalized)) return "12-16";
+    if (/^16:00-20:00$/i.test(normalized)) return "16-20";
+    if (/^0?8:00-20:00$/i.test(normalized)) return "08-20";
+    if (/^20:00-0?8:00$/i.test(normalized)) return "20-08";
+
+    return "08-12";
+}
+
+function normalizeTopListRisalite(fascia, value) {
+    if (["08-20", "20-08"].includes(`${fascia || ""}`)) return "3";
+    const risalite = `${value || "1"}`.match(/\d+/)?.[0] || "1";
+    if (["1", "2", "3"].includes(risalite)) return risalite;
+    return "1";
+}
+
+function buildPromoData(adData = {}) {
+    const type = `${adData.typeAnnuncio || adData.promo?.visibility || "Free"}`.trim();
+    const normalizedType = type.toLowerCase();
+    const period = parseJson(adData.period, {});
+    const product = `${period.product || adData.promo?.product || normalizedType}`.toLowerCase();
+    const isTopList = normalizedType === "toplist" || product === "toplist" || (normalizedType !== "free" && normalizedType !== "");
+    const fascia = normalizeTopListFascia(period.fascia || adData.promo?.fascia || adData.promo?.schedule);
+
+    return {
+        type: isTopList ? "TopList" : "Free",
+        product: isTopList ? "toplist" : "free",
+        giorni: normalizeTopListDays(period.giorni || period.days || adData.promo?.giorni || adData.promo?.days),
+        fascia,
+        risalite: normalizeTopListRisalite(fascia, period.risalite || adData.promo?.risalite)
+    };
+}
+
+function normalizeRemoteId(remoteId = "") {
+    return `${remoteId || ""}`
+        .trim()
+        .replace(/^https?:\/\/(?:www\.)?amasens\.com\/item\/(?:edit|premium)\//i, "")
+        .replace(/^\/?item\/(?:edit|premium)\//i, "")
+        .replace(/^\/+|\/+$/g, "");
+}
+
 function mapCategory(value) {
     const raw = `${value || ""}`.trim();
     const key = normalizeKey(raw).replace(/[^a-z0-9]/g, "").toUpperCase();
@@ -279,7 +343,8 @@ function buildPublishData(adData = {}) {
         telegram: isEnabled(adData.telegram) || isEnabled(adData.hasTelegram) || Boolean(contactNote.telegram || contactNote.telegramNumber || contactNote.telegramUrl),
         livecam: isEnabled(adData.canLivecam) || isEnabled(adData.hasVideo),
         images: Array.isArray(adData.images) ? adData.images : (Array.isArray(adData.pics) ? adData.pics : []),
-        picsAudit: Array.isArray(adData.picsAudit) ? adData.picsAudit : []
+        picsAudit: Array.isArray(adData.picsAudit) ? adData.picsAudit : [],
+        promo: buildPromoData(adData)
     };
 }
 
@@ -346,6 +411,59 @@ async function selectOption(page, selector, valueOrLabel) {
         select.dispatchEvent(new Event("change", { bubbles: true }));
         return true;
     }, selector, `${valueOrLabel}`);
+}
+
+async function extractAmasensPublishState(page) {
+    return page.evaluate(() => {
+        const abs = (value) => {
+            try {
+                return value ? new URL(value, window.location.href).href : "";
+            } catch {
+                return "";
+            }
+        };
+        const urls = [
+            window.location.href,
+            ...Array.from(document.querySelectorAll("a[href], form[action]")).map((node) => node.getAttribute("href") || node.getAttribute("action") || "")
+        ].map(abs).filter(Boolean);
+        const fullRemoteMatch = urls.map((url) => url.match(/\/item\/(?:edit|premium)\/(\d+\/[a-zA-Z0-9_-]+)/i))
+            .find(Boolean);
+        const publicUrl = urls.find((url) => /amasens\.com\/(?:escort|trans|massaggi|coppie)\//i.test(url)) || "";
+        const itemId = document.querySelector("#itemId, input[name='itemId']")?.value || "";
+        const cart = document.querySelector("#cart, input[name='cart']")?.value || "";
+        const remoteId = fullRemoteMatch?.[1] || "";
+        const listingId = remoteId.split("/")[0] || itemId || "";
+
+        return {
+            itemId,
+            cart,
+            remoteId,
+            listingId,
+            publicUrl,
+            managementUrl: remoteId ? `https://amasens.com/item/edit/${remoteId}` : "",
+            currentUrl: window.location.href
+        };
+    }).catch(() => ({
+        itemId: "",
+        cart: "",
+        remoteId: "",
+        listingId: "",
+        publicUrl: "",
+        managementUrl: "",
+        currentUrl: page.url()
+    }));
+}
+
+function mergePublishState(...states) {
+    return states.reduce((merged, state = {}) => ({
+        itemId: state.itemId || merged.itemId || "",
+        cart: state.cart || merged.cart || "",
+        remoteId: state.remoteId || merged.remoteId || "",
+        listingId: state.listingId || merged.listingId || "",
+        publicUrl: state.publicUrl || merged.publicUrl || "",
+        managementUrl: state.managementUrl || merged.managementUrl || "",
+        currentUrl: state.currentUrl || merged.currentUrl || ""
+    }), {});
 }
 
 async function selectCategory(page, value) {
@@ -551,6 +669,97 @@ async function openPublishPage(page) {
     throw new Error(`Amasens publish form not found. Last URL: ${page.url()}`);
 }
 
+async function openEditPage(page, remoteId) {
+    const normalizedRemoteId = normalizeRemoteId(remoteId);
+    if (!normalizedRemoteId || !/^\d+\/[a-zA-Z0-9_-]+$/.test(normalizedRemoteId)) {
+        throw new Error(`Amasens edit requires full remotePostID like 882802/YZtNPDEQ. Current value: ${remoteId || ""}`);
+    }
+
+    const editUrl = `${EDIT_URL_BASE}/${normalizedRemoteId}`;
+    await page.goto(editUrl, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+    const hasForm = await page.$(FORM_SELECTOR);
+    if (hasForm) {
+        await captureScreenshot(page, "update-01-edit-page");
+        return editUrl;
+    }
+
+    await captureScreenshot(page, "error-edit-form-not-found");
+    throw new Error(`Amasens edit form not found. Last URL: ${page.url()}`);
+}
+
+async function deleteAd(page, remoteId) {
+    const normalizedRemoteId = normalizeRemoteId(remoteId);
+    if (!normalizedRemoteId || !/^\d+\/[a-zA-Z0-9_-]+$/.test(normalizedRemoteId)) {
+        throw new Error(`Amasens delete requires full remotePostID like 882802/YZtNPDEQ. Current value: ${remoteId || ""}`);
+    }
+
+    const deleteUrl = `${DELETE_URL_BASE}/${normalizedRemoteId}`;
+    try {
+        await page.goto(deleteUrl, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+        await delay(1000);
+        await captureScreenshot(page, "delete-01-open-delete-page");
+
+        const clickedConfirmation = await page.evaluate(() => {
+            const visible = (node) => {
+                if (!node) return false;
+                const rect = node.getBoundingClientRect();
+                const style = window.getComputedStyle(node);
+                return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+            };
+            const candidates = Array.from(document.querySelectorAll("button, input[type='submit'], a"))
+                .filter(visible);
+            const button = candidates.find((node) => {
+                const text = `${node.textContent || node.value || ""}`.replace(/\s+/g, " ").trim();
+                const href = `${node.getAttribute("href") || ""}`;
+                return /elimina|cancella|rimuovi|conferma|delete|remove|yes|si\b/i.test(text) ||
+                    /\/item\/delete\//i.test(href);
+            });
+            if (!button) return false;
+            button.click();
+            return true;
+        }).catch(() => false);
+
+        if (clickedConfirmation) {
+            await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => null);
+            await delay(1500);
+            await captureScreenshot(page, "delete-02-after-confirm");
+        }
+
+        const result = await page.evaluate(() => {
+            const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+            const bodyText = clean(document.body?.innerText || "");
+            const url = window.location.href;
+            const successText = /(eliminat|cancellat|rimosso|rimosso|annuncio[^.]{0,80}eliminato|delete|deleted|success|successo)/i.test(bodyText);
+            const errorText = /(errore|error|non autorizzato|unauthorized|login|accedi|permesso|permission)/i.test(bodyText);
+            const redirectedToLogin = /\/user\/login/i.test(url) || /\baccedi\b/i.test(bodyText);
+            return {
+                url,
+                bodyText: bodyText.slice(0, 1000),
+                successText,
+                errorText,
+                redirectedToLogin
+            };
+        });
+
+        const ok = Boolean(result.successText || (!result.redirectedToLogin && !result.errorText));
+        if (!ok) {
+            await captureScreenshot(page, "error-delete-failed");
+            throw new Error(`Amasens delete failed: ${JSON.stringify(result)}`);
+        }
+
+        return {
+            ok: true,
+            id: normalizedRemoteId,
+            url: result.url,
+            action: "delete",
+            diagnostics: result
+        };
+    } catch (error) {
+        await captureScreenshot(page, `error-delete-${error.message || "failed"}`);
+        throw error;
+    }
+}
+
 async function fillFirstStep(page, data) {
     await page.waitForSelector(FORM_SELECTOR, { visible: true, timeout: 30000 });
 
@@ -570,6 +779,51 @@ async function fillFirstStep(page, data) {
     await setCheckbox(page, "#terms, input[name='terms']", true);
     await solveTurnstileIfPresent(page);
     await captureScreenshot(page, "02-first-step-filled");
+}
+
+async function clickUpdateSubmit(page) {
+    await Promise.all([
+        page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => null),
+        page.evaluate(() => {
+            const form = document.querySelector("form#item-post");
+            const submit = form?.querySelector("button[type='submit'], input[type='submit']") ||
+                Array.from(document.querySelectorAll("button, input[type='submit'], a")).find((node) => {
+                    const text = `${node.textContent || node.value || ""}`.replace(/\s+/g, " ").trim();
+                    return /continua|salva|modifica|aggiorna/i.test(text);
+                });
+            if (!submit) throw new Error("Amasens update submit button not found.");
+            submit.click();
+        })
+    ]);
+
+    await delay(1800);
+    await captureScreenshot(page, "update-03-after-submit");
+
+    const validation = await page.evaluate(() => {
+        const bodyText = (document.body.innerText || "").replace(/\s+/g, " ").trim();
+        const form = document.querySelector("form#item-post");
+        const invalidFields = Array.from(document.querySelectorAll(":invalid")).map((node) => node.name || node.id || node.tagName);
+        const validationText = Array.from(document.querySelectorAll(".help-block, .invalid-feedback, .error, .has-error, .alert"))
+            .map((node) => (node.textContent || "").replace(/\s+/g, " ").trim())
+            .filter(Boolean)
+            .slice(0, 10);
+        const successVisible = /annuncio[^.]{0,80}(modificat|aggiornat|salvat)|modifiche[^.]{0,80}salvate|congratulazioni/i.test(bodyText);
+        return {
+            stillOnEditForm: Boolean(form),
+            successVisible,
+            invalidFields,
+            validationText,
+            url: window.location.href,
+            bodyText: bodyText.slice(0, 1000)
+        };
+    });
+
+    if (validation.stillOnEditForm && !validation.successVisible) {
+        await captureScreenshot(page, "error-update-validation");
+        throw new Error(`Amasens update validation failed: ${JSON.stringify(validation)}`);
+    }
+
+    return validation;
 }
 
 async function clickContinue(page) {
@@ -609,10 +863,7 @@ async function clickContinue(page) {
 }
 
 async function clickPublishFree(page) {
-    const identifiers = await page.evaluate(() => ({
-        itemId: document.querySelector("#itemId, input[name='itemId']")?.value || "",
-        url: window.location.href
-    })).catch(() => ({ itemId: "", url: page.url() }));
+    const identifiers = await extractAmasensPublishState(page);
 
     const clicked = await page.evaluate(() => {
         const form = document.querySelector("#frmpublish");
@@ -634,7 +885,65 @@ async function clickPublishFree(page) {
     await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => null);
     await delay(2000);
     await captureScreenshot(page, "04-after-publish-click");
-    return identifiers;
+    return mergePublishState(identifiers, await extractAmasensPublishState(page));
+}
+
+async function selectPromoOption(page, selector, value, label) {
+    const selected = await selectOption(page, selector, value);
+    if (!selected) {
+        const options = await page.evaluate((sel) => Array.from(document.querySelectorAll(`${sel} option`))
+            .map((item) => ({ value: item.value, text: (item.textContent || "").replace(/\s+/g, " ").trim() })), selector).catch(() => []);
+        throw new Error(`Amasens ${label} selection failed: ${JSON.stringify({ value, options })}`);
+    }
+}
+
+async function clickPublishTopList(page, promo) {
+    const beforeState = await extractAmasensPublishState(page);
+    await page.waitForSelector("#itemPremiumForm, #toplist-giorni", { visible: true, timeout: 30000 });
+
+    await selectPromoOption(page, "#toplist-giorni, select[name='toplist-giorni']", promo.giorni, "TopList giorni");
+    await selectPromoOption(page, "#toplist-fascia, select[name='toplist-fascia']", promo.fascia, "TopList fascia");
+    await selectPromoOption(page, "#toplist-risalite, select[name='toplist-risalite']", promo.risalite, "TopList risalite");
+
+    await page.waitForFunction(() => {
+        const button = document.querySelector("#submitPremiumBtn, button[name='submitPremium']");
+        return button && !button.disabled && !button.classList.contains("disabled");
+    }, { timeout: 30000 }).catch(() => null);
+
+    await captureScreenshot(page, "04-toplist-settings-selected");
+
+    const clicked = await page.evaluate(() => {
+        const button = document.querySelector("#submitPremiumBtn, button[name='submitPremium']");
+        if (!button || button.disabled) return false;
+        button.click();
+        return true;
+    });
+
+    if (!clicked) {
+        const diagnostics = await page.evaluate(() => {
+            const button = document.querySelector("#submitPremiumBtn, button[name='submitPremium']");
+            return {
+                buttonFound: Boolean(button),
+                disabled: Boolean(button?.disabled),
+                className: button?.className || "",
+                buttonText: (button?.textContent || "").replace(/\s+/g, " ").trim(),
+                totalPrice: (document.querySelector("#total-price")?.textContent || "").replace(/\s+/g, " ").trim(),
+                url: window.location.href
+            };
+        }).catch(() => ({}));
+        await captureScreenshot(page, "error-toplist-publish-button-not-enabled");
+        throw new Error(`Amasens TopList publish button not enabled: ${JSON.stringify(diagnostics)}`);
+    }
+
+    await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => null);
+    await page.waitForFunction(() => {
+        const bodyText = (document.body.innerText || "").replace(/\s+/g, " ").trim();
+        return /congratulazioni|toplist|pubblicato|acquistato|saldo crediti/i.test(bodyText) || !window.location.href.includes("/item/premium/");
+    }, { timeout: 30000 }).catch(() => null);
+    await delay(2500);
+    await captureScreenshot(page, "05-after-toplist-publish-click");
+
+    return mergePublishState(beforeState, await extractAmasensPublishState(page));
 }
 
 async function confirmPublished(page, expectedItemId = "") {
@@ -669,23 +978,39 @@ async function publishAd(page, adData = {}) {
         region: data.region,
         area: data.area,
         category: data.category,
-        images: data.images.length
+        images: data.images.length,
+        promo: data.promo
     });
 
     try {
         await openPublishPage(page);
         await fillFirstStep(page, data);
         await clickContinue(page);
-        const identifiers = await clickPublishFree(page);
-        const published = await confirmPublished(page, identifiers.itemId);
+        const identifiers = data.promo.type === "TopList"
+            ? await clickPublishTopList(page, data.promo)
+            : await clickPublishFree(page);
+        const expectedId = identifiers.remoteId || identifiers.itemId || identifiers.listingId;
+        const published = await confirmPublished(page, expectedId);
+        const finalState = mergePublishState(identifiers, await extractAmasensPublishState(page), {
+            remoteId: published.remoteId,
+            publicUrl: /\/(?:escort|trans|massaggi|coppie)\//i.test(published.url || "") ? published.url : "",
+            currentUrl: published.url
+        });
+        const remoteId = finalState.remoteId || finalState.itemId || finalState.listingId;
+        const publishedUrl = published.url || finalState.currentUrl || "";
+        const resultUrl = finalState.publicUrl ||
+            (/\/item\/(?:new|premium|edit)\b/i.test(publishedUrl) ? "" : publishedUrl);
 
         return {
             ok: true,
-            url: published.url,
-            creditsConsumed: 0,
+            url: resultUrl,
+            creditsConsumed: data.promo.type === "TopList" ? 1 : 0,
             payload: {
-                idpriv: published.remoteId || identifiers.itemId,
-                itemId: published.remoteId || identifiers.itemId
+                idpriv: remoteId,
+                itemId: remoteId,
+                listingId: finalState.listingId || finalState.itemId || "",
+                managementUrl: finalState.managementUrl || "",
+                publicUrl: finalState.publicUrl || ""
             }
         };
     } catch (error) {
@@ -694,7 +1019,56 @@ async function publishAd(page, adData = {}) {
     }
 }
 
+async function updateAd(page, remoteId, adData = {}) {
+    const normalizedRemoteId = normalizeRemoteId(remoteId || adData.remotePostID);
+    const data = buildPublishData(adData);
+    console.log("[amasens:update] Updating ad", {
+        remoteId: normalizedRemoteId,
+        title: data.title,
+        city: data.city,
+        region: data.region,
+        area: data.area,
+        category: data.category,
+        images: data.images.length
+    });
+
+    try {
+        await openEditPage(page, normalizedRemoteId);
+        await fillFirstStep(page, data);
+        await captureScreenshot(page, "update-02-form-filled");
+        const updated = await clickUpdateSubmit(page);
+        const finalState = mergePublishState(
+            { remoteId: normalizedRemoteId, listingId: normalizedRemoteId.split("/")[0], managementUrl: `${EDIT_URL_BASE}/${normalizedRemoteId}` },
+            await extractAmasensPublishState(page),
+            {
+                currentUrl: updated.url
+            }
+        );
+        const publishedUrl = finalState.currentUrl || "";
+        const resultUrl = finalState.publicUrl ||
+            (/\/item\/(?:new|premium|edit)\b/i.test(publishedUrl) ? "" : publishedUrl);
+
+        return {
+            ok: true,
+            url: resultUrl,
+            creditsConsumed: 0,
+            payload: {
+                idpriv: finalState.remoteId || normalizedRemoteId,
+                itemId: finalState.remoteId || normalizedRemoteId,
+                listingId: finalState.listingId || normalizedRemoteId.split("/")[0] || "",
+                managementUrl: finalState.managementUrl || `${EDIT_URL_BASE}/${normalizedRemoteId}`,
+                publicUrl: finalState.publicUrl || ""
+            }
+        };
+    } catch (error) {
+        await captureScreenshot(page, `error-update-${error.message || "failed"}`);
+        throw error;
+    }
+}
+
 module.exports = {
     buildPublishData,
-    publishAd
+    publishAd,
+    updateAd,
+    deleteAd
 };

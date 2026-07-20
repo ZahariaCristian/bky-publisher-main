@@ -3,7 +3,7 @@ const path = require("path");
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const TwoCaptcha = require("@2captcha/captcha-solver");
-const { buildPublishData, publishAd } = require("../adsManage/amasens/publishAds");
+const { buildPublishData, publishAd, updateAd, deleteAd } = require("../adsManage/amasens/publishAds");
 
 const LOGIN_URL = "https://amasens.com/user/login";
 const HOME_URL = "https://amasens.com/";
@@ -272,6 +272,20 @@ class AmasensBot {
       ...ad,
       ...this.buildPublishData(ad)
     });
+  }
+
+  async update(ad) {
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+
+    return updateAd(page, ad?.remotePostID, {
+      ...ad,
+      ...this.buildPublishData(ad)
+    });
+  }
+
+  async delete(remoteId) {
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+    return deleteAd(page, remoteId);
   }
 
   async restartBrowser(reason) {
