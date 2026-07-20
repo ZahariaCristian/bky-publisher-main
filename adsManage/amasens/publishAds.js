@@ -413,8 +413,8 @@ async function selectOption(page, selector, valueOrLabel) {
     }, selector, `${valueOrLabel}`);
 }
 
-async function extractAmasensPublishState(page) {
-    return page.evaluate(() => {
+async function extractAmasensPublishState(page, expected = {}) {
+    return page.evaluate((expectedState) => {
         const abs = (value) => {
             try {
                 return value ? new URL(value, window.location.href).href : "";
@@ -422,16 +422,59 @@ async function extractAmasensPublishState(page) {
                 return "";
             }
         };
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const normalize = (value) => clean(value)
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]+/gi, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase();
+        const remoteFromUrl = (url) => (abs(url).match(/\/item\/(?:edit|premium|delete)\/(\d+\/[a-zA-Z0-9_-]+)/i) || [])[1] || "";
+        const publicFromUrl = (url) => /amasens\.com\/(?:escort|trans|massaggi|coppie)\//i.test(abs(url)) ? abs(url) : "";
+        const currentRemoteId = remoteFromUrl(window.location.href);
+        const currentListingId = currentRemoteId.split("/")[0] || "";
+        const expectedItemId = clean(expectedState.itemId || expectedState.listingId);
+        const expectedTitle = normalize(expectedState.title);
+        const itemId = currentListingId || document.querySelector("#itemId, input[name='itemId']")?.value || expectedItemId || "";
+        const cart = document.querySelector("#cart, input[name='cart']")?.value || "";
+
+        const itemCards = Array.from(document.querySelectorAll("#items [id^='item-'], .item[id^='item-']"));
+        const targetCard = (itemId ? itemCards.find((card) => card.id === `item-${itemId}`) : null) ||
+            (expectedTitle ? itemCards.find((card) => {
+                const title = normalize(card.querySelector(".item-title, a[title]")?.textContent || card.querySelector(".item-title, a[title]")?.getAttribute("title"));
+                return title && (title === expectedTitle || title.includes(expectedTitle) || expectedTitle.includes(title));
+            }) : null) ||
+            null;
+
+        if (targetCard) {
+            const links = Array.from(targetCard.querySelectorAll("a[href]")).map((node) => abs(node.getAttribute("href"))).filter(Boolean);
+            const editUrl = links.find((url) => /\/item\/edit\/\d+\/[a-zA-Z0-9_-]+/i.test(url)) || "";
+            const deleteUrl = links.find((url) => /\/item\/delete\/\d+\/[a-zA-Z0-9_-]+/i.test(url)) || "";
+            const promoteUrl = links.find((url) => /\/item\/promote\/\d+/i.test(url)) || "";
+            const publicUrl = links.find(publicFromUrl) || "";
+            const remoteId = currentRemoteId || remoteFromUrl(editUrl) || remoteFromUrl(deleteUrl);
+            const listingId = remoteId.split("/")[0] || (targetCard.id.match(/item-(\d+)/) || [])[1] || itemId || "";
+
+            return {
+                itemId: itemId || listingId,
+                cart,
+                remoteId,
+                listingId,
+                publicUrl,
+                managementUrl: editUrl || (remoteId ? `https://amasens.com/item/edit/${remoteId}` : ""),
+                deleteUrl,
+                promoteUrl,
+                currentUrl: window.location.href
+            };
+        }
+
         const urls = [
             window.location.href,
             ...Array.from(document.querySelectorAll("a[href], form[action]")).map((node) => node.getAttribute("href") || node.getAttribute("action") || "")
         ].map(abs).filter(Boolean);
-        const fullRemoteMatch = urls.map((url) => url.match(/\/item\/(?:edit|premium)\/(\d+\/[a-zA-Z0-9_-]+)/i))
-            .find(Boolean);
-        const publicUrl = urls.find((url) => /amasens\.com\/(?:escort|trans|massaggi|coppie)\//i.test(url)) || "";
-        const itemId = document.querySelector("#itemId, input[name='itemId']")?.value || "";
-        const cart = document.querySelector("#cart, input[name='cart']")?.value || "";
-        const remoteId = fullRemoteMatch?.[1] || "";
+        const remoteId = currentRemoteId || urls.map(remoteFromUrl).find(Boolean) || "";
+        const publicUrl = urls.find(publicFromUrl) || "";
         const listingId = remoteId.split("/")[0] || itemId || "";
 
         return {
@@ -441,8 +484,14 @@ async function extractAmasensPublishState(page) {
             listingId,
             publicUrl,
             managementUrl: remoteId ? `https://amasens.com/item/edit/${remoteId}` : "",
+            deleteUrl: remoteId ? `https://amasens.com/item/delete/${remoteId}` : "",
+            promoteUrl: listingId ? `https://amasens.com/item/promote/${listingId}` : "",
             currentUrl: window.location.href
         };
+    }, {
+        itemId: expected.itemId || "",
+        listingId: expected.listingId || "",
+        title: expected.title || ""
     }).catch(() => ({
         itemId: "",
         cart: "",
@@ -450,6 +499,8 @@ async function extractAmasensPublishState(page) {
         listingId: "",
         publicUrl: "",
         managementUrl: "",
+        deleteUrl: "",
+        promoteUrl: "",
         currentUrl: page.url()
     }));
 }
@@ -462,6 +513,8 @@ function mergePublishState(...states) {
         listingId: state.listingId || merged.listingId || "",
         publicUrl: state.publicUrl || merged.publicUrl || "",
         managementUrl: state.managementUrl || merged.managementUrl || "",
+        deleteUrl: state.deleteUrl || merged.deleteUrl || "",
+        promoteUrl: state.promoteUrl || merged.promoteUrl || "",
         currentUrl: state.currentUrl || merged.currentUrl || ""
     }), {});
 }
@@ -862,8 +915,8 @@ async function clickContinue(page) {
     }
 }
 
-async function clickPublishFree(page) {
-    const identifiers = await extractAmasensPublishState(page);
+async function clickPublishFree(page, data = {}) {
+    const identifiers = await extractAmasensPublishState(page, { title: data.title });
 
     const clicked = await page.evaluate(() => {
         const form = document.querySelector("#frmpublish");
@@ -885,7 +938,11 @@ async function clickPublishFree(page) {
     await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => null);
     await delay(2000);
     await captureScreenshot(page, "04-after-publish-click");
-    return mergePublishState(identifiers, await extractAmasensPublishState(page));
+    return mergePublishState(identifiers, await extractAmasensPublishState(page, {
+        itemId: identifiers.itemId,
+        listingId: identifiers.listingId,
+        title: data.title
+    }));
 }
 
 async function selectPromoOption(page, selector, value, label) {
@@ -897,8 +954,8 @@ async function selectPromoOption(page, selector, value, label) {
     }
 }
 
-async function clickPublishTopList(page, promo) {
-    const beforeState = await extractAmasensPublishState(page);
+async function clickPublishTopList(page, promo, data = {}) {
+    const beforeState = await extractAmasensPublishState(page, { title: data.title });
     await page.waitForSelector("#itemPremiumForm, #toplist-giorni", { visible: true, timeout: 30000 });
 
     await selectPromoOption(page, "#toplist-giorni, select[name='toplist-giorni']", promo.giorni, "TopList giorni");
@@ -943,7 +1000,11 @@ async function clickPublishTopList(page, promo) {
     await delay(2500);
     await captureScreenshot(page, "05-after-toplist-publish-click");
 
-    return mergePublishState(beforeState, await extractAmasensPublishState(page));
+    return mergePublishState(beforeState, await extractAmasensPublishState(page, {
+        itemId: beforeState.itemId,
+        listingId: beforeState.listingId,
+        title: data.title
+    }));
 }
 
 async function confirmPublished(page, expectedItemId = "") {
@@ -987,12 +1048,15 @@ async function publishAd(page, adData = {}) {
         await fillFirstStep(page, data);
         await clickContinue(page);
         const identifiers = data.promo.type === "TopList"
-            ? await clickPublishTopList(page, data.promo)
-            : await clickPublishFree(page);
+            ? await clickPublishTopList(page, data.promo, data)
+            : await clickPublishFree(page, data);
         const expectedId = identifiers.remoteId || identifiers.itemId || identifiers.listingId;
         const published = await confirmPublished(page, expectedId);
-        const finalState = mergePublishState(identifiers, await extractAmasensPublishState(page), {
-            remoteId: published.remoteId,
+        const finalState = mergePublishState({ remoteId: published.remoteId }, identifiers, await extractAmasensPublishState(page, {
+            itemId: identifiers.itemId,
+            listingId: identifiers.listingId,
+            title: data.title
+        }), {
             publicUrl: /\/(?:escort|trans|massaggi|coppie)\//i.test(published.url || "") ? published.url : "",
             currentUrl: published.url
         });
@@ -1010,6 +1074,8 @@ async function publishAd(page, adData = {}) {
                 itemId: remoteId,
                 listingId: finalState.listingId || finalState.itemId || "",
                 managementUrl: finalState.managementUrl || "",
+                deleteUrl: finalState.deleteUrl || "",
+                promoteUrl: finalState.promoteUrl || "",
                 publicUrl: finalState.publicUrl || ""
             }
         };
