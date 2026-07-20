@@ -954,6 +954,70 @@ async function selectPromoOption(page, selector, value, label) {
     }
 }
 
+async function clickPayWithCredits(page, expected = {}) {
+    const hasCreditsPayment = await page.$("#frmPublishWithCredits, #submitWithCredits, #publish-with-credits")
+        .then(Boolean)
+        .catch(() => false);
+    if (!hasCreditsPayment) {
+        return {
+            clicked: false,
+            credits: 0,
+            state: await extractAmasensPublishState(page, expected)
+        };
+    }
+
+    await captureScreenshot(page, "06-payment-page");
+
+    const paymentState = await page.evaluate(() => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const creditsText = clean(document.querySelector("#publish-with-credits strong")?.textContent || "");
+        const credits = Number((creditsText.match(/\d+(?:[.,]\d+)?/) || [])[0]?.replace(",", ".") || 0);
+        const totalText = clean(document.querySelector("#total-wrapper #total-price, #total-price")?.textContent || "");
+        const errors = Array.from(document.querySelectorAll(".alert-danger, .payment-errors, .error"))
+            .map((node) => clean(node.textContent))
+            .filter(Boolean);
+        return {
+            credits,
+            totalText,
+            errors,
+            url: window.location.href,
+            hasButton: Boolean(document.querySelector("#submitWithCredits, #frmPublishWithCredits button[type='submit']"))
+        };
+    }).catch(() => ({ credits: 0, totalText: "", errors: [], url: page.url(), hasButton: false }));
+
+    if (!paymentState.hasButton || paymentState.errors.length) {
+        await captureScreenshot(page, "error-credits-payment-not-available");
+        throw new Error(`Amasens credits payment is not available: ${JSON.stringify(paymentState)}`);
+    }
+
+    const clicked = await page.evaluate(() => {
+        const button = document.querySelector("#submitWithCredits, #frmPublishWithCredits button[type='submit']");
+        if (!button) return false;
+        button.click();
+        return true;
+    });
+
+    if (!clicked) {
+        await captureScreenshot(page, "error-credits-payment-button-not-found");
+        throw new Error("Amasens credits payment button not found.");
+    }
+
+    await page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+    await page.waitForFunction(() => {
+        const bodyText = (document.body.innerText || "").replace(/\s+/g, " ").trim();
+        return /le mie inserzioni|annunci|congratulazioni|toplist|pubblicato|acquistato|saldo crediti/i.test(bodyText) ||
+            /\/user\/items/i.test(window.location.href);
+    }, { timeout: 45000 }).catch(() => null);
+    await delay(2500);
+    await captureScreenshot(page, "07-after-credits-payment");
+
+    return {
+        clicked: true,
+        credits: paymentState.credits,
+        state: await extractAmasensPublishState(page, expected)
+    };
+}
+
 async function clickPublishTopList(page, promo, data = {}) {
     const beforeState = await extractAmasensPublishState(page, { title: data.title });
     await page.waitForSelector("#itemPremiumForm, #toplist-giorni", { visible: true, timeout: 30000 });
@@ -999,12 +1063,18 @@ async function clickPublishTopList(page, promo, data = {}) {
     }, { timeout: 30000 }).catch(() => null);
     await delay(2500);
     await captureScreenshot(page, "05-after-toplist-publish-click");
-
-    return mergePublishState(beforeState, await extractAmasensPublishState(page, {
+    const expected = {
         itemId: beforeState.itemId,
         listingId: beforeState.listingId,
         title: data.title
-    }));
+    };
+    const creditsPayment = await clickPayWithCredits(page, expected);
+
+    return {
+        ...mergePublishState(beforeState, creditsPayment.state, await extractAmasensPublishState(page, expected)),
+        creditsConsumed: creditsPayment.credits || 0,
+        paidWithCredits: creditsPayment.clicked
+    };
 }
 
 async function confirmPublished(page, expectedItemId = "") {
@@ -1068,7 +1138,7 @@ async function publishAd(page, adData = {}) {
         return {
             ok: true,
             url: resultUrl,
-            creditsConsumed: data.promo.type === "TopList" ? 1 : 0,
+            creditsConsumed: data.promo.type === "TopList" ? (identifiers.creditsConsumed || 1) : 0,
             payload: {
                 idpriv: remoteId,
                 itemId: remoteId,
