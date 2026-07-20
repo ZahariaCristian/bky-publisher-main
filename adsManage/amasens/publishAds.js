@@ -273,6 +273,12 @@ function normalizeRemoteId(remoteId = "") {
         .replace(/^\/+|\/+$/g, "");
 }
 
+function isAmasensAdDetailUrl(url = "") {
+    const value = `${url || ""}`.trim();
+    return /amasens\.com\/(?:escort|trans|massaggi|coppie)\/[^/#?]+_i\d+(?:[/?#]|$)/i.test(value) &&
+        !/#top-list-\d+/i.test(value);
+}
+
 function mapCategory(value) {
     const raw = `${value || ""}`.trim();
     const key = normalizeKey(raw).replace(/[^a-z0-9]/g, "").toUpperCase();
@@ -431,7 +437,13 @@ async function extractAmasensPublishState(page, expected = {}) {
             .trim()
             .toLowerCase();
         const remoteFromUrl = (url) => (abs(url).match(/\/item\/(?:edit|premium|delete)\/(\d+\/[a-zA-Z0-9_-]+)/i) || [])[1] || "";
-        const publicFromUrl = (url) => /amasens\.com\/(?:escort|trans|massaggi|coppie)\//i.test(abs(url)) ? abs(url) : "";
+        const publicFromUrl = (url) => {
+            const value = abs(url);
+            return /amasens\.com\/(?:escort|trans|massaggi|coppie)\/[^/#?]+_i\d+(?:[/?#]|$)/i.test(value) &&
+                !/#top-list-\d+/i.test(value)
+                ? value
+                : "";
+        };
         const currentRemoteId = remoteFromUrl(window.location.href);
         const currentListingId = currentRemoteId.split("/")[0] || "";
         const expectedItemId = clean(expectedState.itemId || expectedState.listingId);
@@ -536,7 +548,13 @@ async function extractAmasensTopListPublicState(page, expected = {}) {
             .replace(/\s+/g, " ")
             .trim()
             .toLowerCase();
-        const publicFromUrl = (url) => /amasens\.com\/(?:escort|trans|massaggi|coppie)\//i.test(abs(url)) ? abs(url) : "";
+        const publicFromUrl = (url) => {
+            const value = abs(url);
+            return /amasens\.com\/(?:escort|trans|massaggi|coppie)\/[^/#?]+_i\d+(?:[/?#]|$)/i.test(value) &&
+                !/#top-list-\d+/i.test(value)
+                ? value
+                : "";
+        };
         const currentUrl = window.location.href;
         const hashListingId = (currentUrl.match(/#top-list-(\d+)/i) || [])[1] || "";
         const listingId = clean(expectedState.listingId || expectedState.itemId || hashListingId);
@@ -1208,7 +1226,7 @@ async function publishAd(page, adData = {}) {
             listingId: identifiers.listingId,
             title: data.title
         }), {
-            publicUrl: /\/(?:escort|trans|massaggi|coppie)\//i.test(published.url || "") ? published.url : "",
+            publicUrl: isAmasensAdDetailUrl(published.url) ? published.url : "",
             currentUrl: published.url
         });
         const remoteId = finalState.remoteId || finalState.itemId || finalState.listingId;
