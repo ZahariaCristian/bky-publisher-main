@@ -715,6 +715,7 @@ async function mainLoop(group, platform) {
                     s.phone = annuncio.tblDonne.phone;
                     s.whatsapp = annuncio.hasWhatapp;
                     s.telegram = annuncio.hasTelegram;
+                    s.hasVideo = annuncio.serviceVideoChiamata;
                     s.categorie = annuncio.categorie;
 
                     s.sono = annuncio.sono; //add by zaharia

@@ -649,29 +649,71 @@ async function selectCategory(page, value) {
 }
 
 async function selectLocation(page, data) {
-    const regionSelected = await selectOption(page, "#regionId, select[name='regionId']", data.region);
-    if (!regionSelected) {
-        throw new Error(`Amasens region selection failed: ${JSON.stringify({ region: data.region, city: data.city })}`);
-    }
+    const selected = await page.evaluate(async (location) => {
+        const normalize = (value) => `${value || ""}`.normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/gi, " ")
+            .replace(/\s+/g, " ").trim().toLowerCase();
+        const findOption = (select, target) => Array.from(select.options)
+            .find((option) => normalize(option.textContent) === normalize(target));
+        const fill = (select, items, placeholder) => {
+            select.innerHTML = "";
+            select.add(new Option(placeholder, ""));
+            items.forEach((item) => select.add(new Option(item.s_name, `${item.pk_i_id}`)));
+            select.removeAttribute("disabled");
+        };
+        const request = async (action, parameter, id) => {
+            const url = new URL("/index.php", window.location.origin);
+            url.searchParams.set("page", "ajax");
+            url.searchParams.set("action", action);
+            url.searchParams.set(parameter, id);
+            const response = await fetch(url.href, { credentials: "same-origin", cache: "no-cache" });
+            if (!response.ok) throw new Error(`${action} returned ${response.status}`);
+            const payload = await response.json();
+            if (!Array.isArray(payload)) throw new Error(`${action} returned invalid JSON`);
+            return payload;
+        };
 
-    await page.waitForFunction(() => {
-        const select = document.querySelector("#cityId, select[name='cityId']");
-        return select && !select.disabled && select.options.length > 1;
-    }, { timeout: 15000 }).catch(() => null);
+        const regionSelect = document.querySelector("#regionId, select[name='regionId']");
+        const provinceSelect = document.querySelector("#cityId, select[name='cityId']");
+        const comuneSelect = document.querySelector("#cityAreaId, select[name='cityAreaId']");
+        if (!regionSelect || !provinceSelect || !comuneSelect) {
+            return { ok: false, step: "fields", message: "Location select fields not found" };
+        }
 
-    const citySelected = await selectOption(page, "#cityId, select[name='cityId']", data.city);
-    if (!citySelected) {
-        const options = await page.evaluate(() => Array.from(document.querySelectorAll("#cityId option, select[name='cityId'] option"))
-            .map((item) => ({ value: item.value, text: (item.textContent || "").trim() }))).catch(() => []);
-        throw new Error(`Amasens province selection failed: ${JSON.stringify({ city: data.city, options })}`);
-    }
+        const regionOption = findOption(regionSelect, location.region);
+        if (!regionOption?.value) return { ok: false, step: "region", target: location.region };
+        regionSelect.value = regionOption.value;
 
-    await page.waitForFunction(() => {
-        const select = document.querySelector("#cityAreaId, select[name='cityAreaId']");
-        return select && !select.disabled && select.options.length > 1;
-    }, { timeout: 15000 }).catch(() => null);
+        const provinces = await request("cities", "regionId", regionOption.value);
+        fill(provinceSelect, provinces, "Seleziona la Provincia...");
+        const provinceOption = findOption(provinceSelect, location.city);
+        if (!provinceOption?.value) {
+            return { ok: false, step: "province", target: location.city, options: provinces.map((item) => item.s_name) };
+        }
+        provinceSelect.value = provinceOption.value;
 
-    await selectOption(page, "#cityAreaId, select[name='cityAreaId']", data.area);
+        const comuni = await request("city_areas", "cityAreaId", provinceOption.value);
+        fill(comuneSelect, comuni, "Seleziona il Comune...");
+        const comuneOption = findOption(comuneSelect, location.area);
+        if (!comuneOption?.value) {
+            return { ok: false, step: "comune", target: location.area, options: comuni.map((item) => item.s_name) };
+        }
+        comuneSelect.value = comuneOption.value;
+        [regionSelect, provinceSelect, comuneSelect].forEach((select) => {
+            select.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        comuneSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        return {
+            ok: true,
+            region: { value: regionOption.value, text: regionOption.textContent.trim() },
+            province: { value: provinceOption.value, text: provinceOption.textContent.trim() },
+            comune: { value: comuneOption.value, text: comuneOption.textContent.trim() }
+        };
+    }, { region: data.region, city: data.city, area: data.area });
+
+    if (!selected.ok) throw new Error(`Amasens location selection failed: ${JSON.stringify(selected)}`);
+    console.log("[amasens:publish] Location selected", selected);
+    return selected;
 }
 
 async function uploadImages(page, images = [], picsAudit = []) {
