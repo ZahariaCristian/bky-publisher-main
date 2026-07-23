@@ -4,7 +4,7 @@ const puppeteer = require("puppeteer-extra");
 const RecaptchaPlugin = require("puppeteer-extra-plugin-recaptcha");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const TwoCaptcha = require("@2captcha/captcha-solver");
-const { publishAd } = require("../adsManage/trovagnocca/publishAds");
+const { publishAd, captureTrovagnoccaStepScreenshot } = require("../adsManage/trovagnocca/publishAds");
 const { updateAd } = require("../adsManage/trovagnocca/updateAd");
 const { getPrice } = require("../adsManage/trovagnocca/getPrice");
 
@@ -656,6 +656,10 @@ class TrovagnoccaBot {
       lastError = new Error(`Trovagnocca publish returned ok=false on attempt ${attempt}`);
     } catch (error) {
       lastError = error;
+      await captureTrovagnoccaStepScreenshot(this.page, `error-attempt-${attempt}`, {
+        error: true,
+        mode: "publish"
+      }).catch(() => { });
     }
 
     console.warn(`[trovagnocca] publish attempt ${attempt} failed: ${lastError.message}`);

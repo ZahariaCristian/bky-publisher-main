@@ -236,15 +236,30 @@ const NATIONALITY_VALUES = {
   nationality_vietnamese: "127"
 };
 
-const screenshotDir = path.join('./screenshots', 'trovagnocca-publish');
-
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function captureTrovagnoccaStepScreenshot(page, label) {
+function startTrovagnoccaScreenshotRun(page, mode = "publish") {
+  const rootDir = ensureTrovagnoccaScreenshotDir();
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const runDir = path.join(rootDir, `${timestamp}-${mode}`);
+  fs.mkdirSync(runDir, { recursive: true });
+  page.__trovagnoccaScreenshotRun = { dir: runDir, sequence: 0 };
+  console.log(`[trovagnocca:screenshot] Run directory: ${runDir}`);
+  return runDir;
+}
+
+async function captureTrovagnoccaStepScreenshot(page, label, options = {}) {
   try {
-    const dir = ensureTrovagnoccaScreenshotDir();
+    if (!page || page.isClosed()) return "";
+    if (!page.__trovagnoccaScreenshotRun) {
+      startTrovagnoccaScreenshotRun(page, options.mode || "publish");
+    }
+    const run = page.__trovagnoccaScreenshotRun;
     const safeLabel = `${label || "step"}`.replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
-    const filePath = path.join(dir, `${safeLabel}.png`);
+    const prefix = options.error
+      ? "99"
+      : String(++run.sequence).padStart(2, "0");
+    const filePath = path.join(run.dir, `${prefix}-${safeLabel}.png`);
     await page.screenshot({ path: filePath, fullPage: true });
     console.log(`[trovagnocca:screenshot] ${label}: ${filePath}`);
     return filePath;
@@ -2058,6 +2073,7 @@ async function publishAd(page, adData = {}, options = {}) {
   const publishedId = adData?.remotePostID;
   const data = buildPublishData(adData);
   const isUpdateMode = Boolean(options.postUrl && /\/ads-post\/\d+/i.test(options.postUrl));
+  startTrovagnoccaScreenshotRun(page, isUpdateMode ? "update" : "publish");
 
   console.log("[trovagnocca:publish] Publishing ad", {
     mode: isUpdateMode ? "update" : "publish",
@@ -2068,13 +2084,12 @@ async function publishAd(page, adData = {}, options = {}) {
   });
 
   await waitForDmcApp(page, options.postUrl || POST_URL);
-  if (isUpdateMode) await captureTrovagnoccaStepScreenshot(page, "update-after-open-edit-page");
+  await captureTrovagnoccaStepScreenshot(page, "form-opened");
 
   if (isUpdateMode) {
     await ensureWrappedSelectHasValue(page, "category", data.category);
     await delay(500);
     await ensureWrappedSelectHasValue(page, "city", data.city);
-    await captureTrovagnoccaStepScreenshot(page, "update-after-category-city-check");
   } else {
     await setWrappedSelect(page, "category", data.category);
     await delay(500);
@@ -2091,35 +2106,36 @@ async function publishAd(page, adData = {}, options = {}) {
   await setContactMethod(page, "phone");
   await setSwitch(page, "whatsapp", data.whatsapp);
   await setSwitch(page, "telegram", data.telegram);
-  if (isUpdateMode) await captureTrovagnoccaStepScreenshot(page, "update-before-info-step-submit");
+  await captureTrovagnoccaStepScreenshot(page, "information-filled");
 
   // SOLVE reCAPTCHA HERE - RIGHT BEFORE CLICKING NEXT
   const step1Captcha = await solveRecaptcha(page, options);
-  if (isUpdateMode) await captureTrovagnoccaStepScreenshot(page, "update-after-captcha-submit");
   if (!step1Captcha.clickedNext) {
     await clickNext(page);
-    if (isUpdateMode) await captureTrovagnoccaStepScreenshot(page, "update-after-click-next-fallback");
   }
 
   // console.log(responseAdId, "remoteAdId");
   const leftInfoStep = await waitForInfoStepExit(page);
   if (!leftInfoStep) {
-    await captureTrovagnoccaStepScreenshot(page, "update-info-step-still-blocked");
+    await captureTrovagnoccaStepScreenshot(page, "info-step-still-blocked", { error: true });
     throw new Error(`Trovagnocca did not leave contacts step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
   }
-  if (isUpdateMode) await captureTrovagnoccaStepScreenshot(page, "update-left-info-step");
+  await captureTrovagnoccaStepScreenshot(page, "captcha-completed");
 
   const tagsReached = await fillTagsStep(page, data);
   if (!tagsReached) {
-    if (isUpdateMode) await captureTrovagnoccaStepScreenshot(page, "update-tags-step-not-reached");
+    await captureTrovagnoccaStepScreenshot(page, "tags-step-not-reached", { error: true });
     throw new Error(`Trovagnocca did not advance to tags step after info submit: ${JSON.stringify(await collectPublishDiagnostics(page))}`);
   }
+  await captureTrovagnoccaStepScreenshot(page, "tags-filled");
   await clickNext(page);
   // await clearUploadedImages(page);
   const uploadImageslength = await uploadImages(page, data.images, data.picsAudit);
   console.log(uploadImageslength, 'uploaded images count')
+  await captureTrovagnoccaStepScreenshot(page, "images-uploaded");
   await clickNext(page);
   await setSwitch(page, "ck_term", true);
+  await captureTrovagnoccaStepScreenshot(page, "promotion-selected");
 
   if (`${data.typeAnnuncio || ""}`.trim().toLowerCase() === "turbo") {
     await clickTurboPublishFlow(page, data);
@@ -2132,6 +2148,7 @@ async function publishAd(page, adData = {}, options = {}) {
   } else {
     await clickPublish(page);
   }
+  await captureTrovagnoccaStepScreenshot(page, "publish-clicked");
 
   let publishModal = {
     published: false,
@@ -2143,13 +2160,9 @@ async function publishAd(page, adData = {}, options = {}) {
     diagnostics: {}
   };
 
-  if (!fs.existsSync(screenshotDir)) {
-    fs.mkdirSync(screenshotDir, { recursive: true });
-  }
   publishModal = await confirmFreePublishWarning(page);
-  await page.screenshot({ path: `${screenshotDir}/publish1.png`, fullPage: true });
   publishResult = await waitForPublishResult(page);
-  await page.screenshot({ path: `${screenshotDir}/publish2.png`, fullPage: true });
+  await captureTrovagnoccaStepScreenshot(page, "publish-result");
 
   const url = page.url();
   let response = {
@@ -2172,7 +2185,7 @@ async function publishAd(page, adData = {}, options = {}) {
     });
     // }
 
-    await page.screenshot({ path: `${screenshotDir}/publish3.png`, fullPage: true });
+    await captureTrovagnoccaStepScreenshot(page, "active-ad-page");
 
     const goldManageRemoteId = data.promo.active ? await getFirstManageCardRemoteId(page) : "";
     const goldManageLink = goldManageRemoteId
@@ -2205,7 +2218,7 @@ async function publishAd(page, adData = {}, options = {}) {
           return idMatch ? idMatch[1] : "";
         }).catch(() => "");
 
-    const publishLink = await page.evaluate(() => {
+    const detectedPublishLink = await page.evaluate(() => {
       const previewLabel = Array.from(document.querySelectorAll("p, span, div"))
         .find((node) => (node.textContent || "").trim().toLowerCase() === "anteprima");
 
@@ -2215,11 +2228,8 @@ async function publishAd(page, adData = {}, options = {}) {
       return link?.href || "";
     });
 
-    if(!publishLink){
-      publishLink = goldManageLink;
-    }
-
-    await page.screenshot({ path: `${screenshotDir}/publish4.png`, fullPage: true });
+    const publishLink = detectedPublishLink || goldManageLink || currentUrl;
+    await captureTrovagnoccaStepScreenshot(page, "final-manage-page");
 
     console.log(publishLink, remoteId,  "publishLink");
 
@@ -2245,5 +2255,6 @@ async function publishAd(page, adData = {}, options = {}) {
 module.exports = {
   POST_URL,
   buildPublishData,
-  publishAd
+  publishAd,
+  captureTrovagnoccaStepScreenshot
 };
