@@ -1891,6 +1891,47 @@ async function getFirstManageCardRemoteId(page) {
   }).catch(() => "");
 }
 
+async function scrapePublishedAdUrl(page) {
+  await page.waitForFunction(() => {
+    return Array.from(document.querySelectorAll(".manage_ads a[href], .manage_status a[href]"))
+      .some((link) => {
+        try {
+          const url = new URL(link.href, window.location.origin);
+          return /(^|\.)trovagnocca\.com$/i.test(url.hostname) &&
+            !url.pathname.startsWith("/dmc/") &&
+            !url.pathname.startsWith("/auth/") &&
+            url.pathname !== "/";
+        } catch {
+          return false;
+        }
+      });
+  }, { timeout: 20000 }).catch(() => null);
+
+  return page.evaluate(() => {
+    const isPublicAdUrl = (href) => {
+      try {
+        const url = new URL(href, window.location.origin);
+        return /(^|\.)trovagnocca\.com$/i.test(url.hostname) &&
+          !url.pathname.startsWith("/dmc/") &&
+          !url.pathname.startsWith("/auth/") &&
+          url.pathname !== "/";
+      } catch {
+        return false;
+      }
+    };
+
+    const previewLabel = Array.from(document.querySelectorAll("p, span, div"))
+      .find((node) => (node.textContent || "").trim().toLowerCase() === "anteprima");
+    const previewLink = previewLabel?.parentElement?.querySelector("a[href]")?.href || "";
+    if (isPublicAdUrl(previewLink)) return previewLink;
+
+    const manageLink = Array.from(document.querySelectorAll(".manage_ads a[href], .manage_status a[href]"))
+      .map((link) => link.href)
+      .find(isPublicAdUrl);
+    return manageLink || "";
+  }).catch(() => "");
+}
+
 async function scrapeClimbingCalendar(page) {
   await page.waitForSelector(".manage_promo_card, .promo_status", { timeout: 15000 }).catch(() => null);
 
@@ -2150,17 +2191,13 @@ async function publishAd(page, adData = {}, options = {}) {
   }
   await captureTrovagnoccaStepScreenshot(page, "publish-clicked");
 
-  let publishModal = {
-    published: false,
-    pendingApproval: false
-  };
   let publishResult = {
     hasError: false,
     hasSuccess: false,
     diagnostics: {}
   };
 
-  publishModal = await confirmFreePublishWarning(page);
+  await confirmFreePublishWarning(page);
   publishResult = await waitForPublishResult(page);
   await captureTrovagnoccaStepScreenshot(page, "publish-result");
 
@@ -2178,68 +2215,52 @@ async function publishAd(page, adData = {}, options = {}) {
   if (publishedId) {//Status Edit
     response.ok = true;
   } else {// New publish
-    // if (adData.typeAnnuncio == 'Turbo') {
-    await page.goto(ACTIVE_ADS_URL, {
-      waitUntil: "networkidle2",
-      timeout: 60000
-    });
-    // }
+    const planName = `${data.typeAnnuncio || ""}`.trim().toLowerCase();
+    const isTurboPlan = planName.includes("turbo");
+    const isGoldPlan = data.promo.active && !isTurboPlan;
+    const initialManageUrl = page.url();
+    const initialManageMatch = initialManageUrl.match(/\/ads\/manage\/(\d{4,})\b/i);
+    let remoteId = initialManageMatch ? initialManageMatch[1] : "";
+    let publishLink = await scrapePublishedAdUrl(page);
+    let climbingCalendar = [];
 
-    await captureTrovagnoccaStepScreenshot(page, "active-ad-page");
-
-    const goldManageRemoteId = data.promo.active ? await getFirstManageCardRemoteId(page) : "";
-    const goldManageLink = goldManageRemoteId
-      ? `https://www.trovagnocca.com/dmc/account#/ads/manage/${goldManageRemoteId}`
-      : "";
-
-    console.log(goldManageLink, goldManageRemoteId, 'Go to goldManageLink');
-
-    if (data.promo.active && goldManageLink) {
-      await page.goto(goldManageLink, {
+    // Gold publications are resolved from the promoted card on the active-ads page.
+    // Free and Turbo normally already finish on the new ad's manage page.
+    if (isGoldPlan || !remoteId || !publishLink) {
+      await page.goto(ACTIVE_ADS_URL, {
         waitUntil: "networkidle2",
         timeout: 60000
       });
+      await captureTrovagnoccaStepScreenshot(page, "active-ad-page");
+
+      const manageRemoteId = await getFirstManageCardRemoteId(page);
+      const manageLink = manageRemoteId
+        ? `https://www.trovagnocca.com/dmc/account#/ads/manage/${manageRemoteId}`
+        : "";
+
+      if (manageLink) {
+        await page.goto(manageLink, {
+          waitUntil: "networkidle2",
+          timeout: 60000
+        });
+        remoteId = manageRemoteId;
+        publishLink = await scrapePublishedAdUrl(page);
+      }
     }
 
-    const climbingCalendar = data.promo.active ? await scrapeClimbingCalendar(page) : [];
+    if (isGoldPlan) climbingCalendar = await scrapeClimbingCalendar(page);
     const climbingCalendarText = climbingCalendar.join(" - ");
-
-    const currentUrl = page.url();
-    const urlIdMatch = currentUrl.match(/\/ads\/manage\/(\d{4,})\b/i);
-    const remoteId = urlIdMatch
-      ? urlIdMatch[1]
-      : goldManageRemoteId
-        ? goldManageRemoteId
-        : await page.evaluate(() => {
-          const hrefs = Array.from(document.querySelectorAll("a[href]")).map((link) => link.href);
-          hrefs.push(window.location.href);
-          const idMatch = hrefs.join(" ").match(/\/ads\/manage\/(\d{4,})\b/i) ||
-            hrefs.join(" ").match(/(?:annuncio|ads|post|id|manage|edit)[^\d]*(\d{4,})/i);
-          return idMatch ? idMatch[1] : "";
-        }).catch(() => "");
-
-    const detectedPublishLink = await page.evaluate(() => {
-      const previewLabel = Array.from(document.querySelectorAll("p, span, div"))
-        .find((node) => (node.textContent || "").trim().toLowerCase() === "anteprima");
-
-      const container = previewLabel?.parentElement;
-      const link = container?.querySelector("a[href]");
-
-      return link?.href || "";
-    });
-
-    const publishLink = detectedPublishLink || goldManageLink || currentUrl;
     await captureTrovagnoccaStepScreenshot(page, "final-manage-page");
 
     console.log(publishLink, remoteId,  "publishLink");
 
-    if (publishResult.hasError || (!publishResult.hasSuccess && !publishModal.published && !publishModal.pendingApproval && !remoteId)) {
+    if (!remoteId || !publishLink) {
       throw new Error(`Trovagnocca publish did not confirm success: ${JSON.stringify(publishResult.diagnostics)}`);
     }
 
     if (remoteId) {
       response.ok = true;
-      response.url = publishLink || currentUrl;
+      response.url = publishLink;
       response.payload = {
         idpriv: remoteId,
         climbingCalendar,
