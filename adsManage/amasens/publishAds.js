@@ -348,6 +348,7 @@ function buildPublishData(adData = {}) {
         whatsapp: isEnabled(adData.whatsapp) || isEnabled(adData.hasWhatapp),
         telegram: isEnabled(adData.telegram) || isEnabled(adData.hasTelegram) || Boolean(contactNote.telegram || contactNote.telegramNumber || contactNote.telegramUrl),
         livecam: isEnabled(adData.canLivecam) || isEnabled(adData.hasVideo),
+        canComment: isEnabled(adData.canComment) || isEnabled(contactNote.canComment),
         images: Array.isArray(adData.images) ? adData.images : (Array.isArray(adData.pics) ? adData.pics : []),
         picsAudit: Array.isArray(adData.picsAudit) ? adData.picsAudit : [],
         promo: buildPromoData(adData)
@@ -957,6 +958,7 @@ async function fillFirstStep(page, data) {
     await setCheckbox(page, "#canWhatsapp, input[name='canWhatsapp']", data.whatsapp);
     await setCheckbox(page, "#canTelegram, input[name='canTelegram']", data.telegram);
     await setCheckbox(page, "#canLivecam, input[name='canLivecam']", data.livecam);
+    await setCheckbox(page, "#canComment, input[name='canComment']", data.canComment);
     await setCheckbox(page, "#terms, input[name='terms']", true);
     await solveTurnstileIfPresent(page);
     await captureScreenshot(page, "02-first-step-filled");
