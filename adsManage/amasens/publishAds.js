@@ -693,22 +693,32 @@ async function selectLocation(page, data) {
         }
         provinceSelect.value = provinceOption.value;
 
+        const requestedComune = `${location.area || ""}`.trim();
+        if (!requestedComune) {
+            [regionSelect, provinceSelect].forEach((select) => {
+                select.dispatchEvent(new Event("input", { bubbles: true }));
+            });
+            return {
+                ok: true,
+                region: { value: regionOption.value, text: regionOption.textContent.trim() },
+                province: { value: provinceOption.value, text: provinceOption.textContent.trim() },
+                comune: null,
+                comuneSkipped: true
+            };
+        }
+
         const comuni = await request("city_areas", "cityAreaId", provinceOption.value);
         fill(comuneSelect, comuni, "Seleziona il Comune...");
-        const requestedComune = `${location.area || ""}`.trim();
-        const comuneTarget = requestedComune || location.city;
-        const comuneOption = findOption(comuneSelect, comuneTarget);
+        const comuneOption = findOption(comuneSelect, requestedComune);
         if (!comuneOption) {
             return {
                 ok: false,
                 step: "comune",
-                target: comuneTarget,
-                automaticProvinceComune: !requestedComune,
+                target: requestedComune,
                 options: comuni.map((item) => item.s_name)
             };
         }
-        // Amasens represents the province-capital Comune with an empty value.
-        // selectedIndex is required because assigning "" could select the generic placeholder instead.
+        // Select the exact matched option without affecting the empty-Comune branch above.
         comuneSelect.selectedIndex = comuneOption.index;
         [regionSelect, provinceSelect, comuneSelect].forEach((select) => {
             select.dispatchEvent(new Event("input", { bubbles: true }));
@@ -721,7 +731,7 @@ async function selectLocation(page, data) {
             comune: {
                 value: comuneOption.value,
                 text: comuneOption.textContent.trim(),
-                automaticProvinceComune: !requestedComune
+                automaticProvinceComune: false
             }
         };
     }, { region: data.region, city: data.city, area: data.area });
