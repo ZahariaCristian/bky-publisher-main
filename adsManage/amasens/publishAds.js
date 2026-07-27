@@ -698,6 +698,9 @@ async function selectLocation(page, data) {
             [regionSelect, provinceSelect].forEach((select) => {
                 select.dispatchEvent(new Event("input", { bubbles: true }));
             });
+            // Let Amasens create/select its same-name, empty-value Comune option.
+            // The publisher never interacts with the Comune field in this branch.
+            provinceSelect.dispatchEvent(new Event("change", { bubbles: true }));
             return {
                 ok: true,
                 region: { value: regionOption.value, text: regionOption.textContent.trim() },
