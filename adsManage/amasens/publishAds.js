@@ -339,7 +339,7 @@ function buildPublishData(adData = {}) {
         category: mapCategory(firstNonEmpty(adData.categorie, adData.sono, adData.category)),
         region: firstNonEmpty(adData.region, adData.regione, PROVINCE_REGIONS[provinceKey(city)]),
         city,
-        area: firstNonEmpty(adData.area, adData.location, adData.zone, adData.zona, city),
+        area: firstNonEmpty(adData.area, adData.location, adData.zone, adData.zona),
         address: firstNonEmpty(adData.address, adData.indirizzo, adData.location, adData.city, adData.annunci_city),
         phone: firstNonEmpty(adData.phone, adData.contattotelefonico),
         contactName: `${contactName || ""}`.trim().slice(0, 35),
@@ -695,11 +695,21 @@ async function selectLocation(page, data) {
 
         const comuni = await request("city_areas", "cityAreaId", provinceOption.value);
         fill(comuneSelect, comuni, "Seleziona il Comune...");
-        const comuneOption = findOption(comuneSelect, location.area);
-        if (!comuneOption?.value) {
-            return { ok: false, step: "comune", target: location.area, options: comuni.map((item) => item.s_name) };
+        const requestedComune = `${location.area || ""}`.trim();
+        const comuneTarget = requestedComune || location.city;
+        const comuneOption = findOption(comuneSelect, comuneTarget);
+        if (!comuneOption) {
+            return {
+                ok: false,
+                step: "comune",
+                target: comuneTarget,
+                automaticProvinceComune: !requestedComune,
+                options: comuni.map((item) => item.s_name)
+            };
         }
-        comuneSelect.value = comuneOption.value;
+        // Amasens represents the province-capital Comune with an empty value.
+        // selectedIndex is required because assigning "" could select the generic placeholder instead.
+        comuneSelect.selectedIndex = comuneOption.index;
         [regionSelect, provinceSelect, comuneSelect].forEach((select) => {
             select.dispatchEvent(new Event("input", { bubbles: true }));
         });
@@ -708,7 +718,11 @@ async function selectLocation(page, data) {
             ok: true,
             region: { value: regionOption.value, text: regionOption.textContent.trim() },
             province: { value: provinceOption.value, text: provinceOption.textContent.trim() },
-            comune: { value: comuneOption.value, text: comuneOption.textContent.trim() }
+            comune: {
+                value: comuneOption.value,
+                text: comuneOption.textContent.trim(),
+                automaticProvinceComune: !requestedComune
+            }
         };
     }, { region: data.region, city: data.city, area: data.area });
 
