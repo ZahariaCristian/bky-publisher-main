@@ -985,35 +985,54 @@ async function deleteAd(page, remoteId) {
     }
 }
 
-async function fillFirstStep(page, data) {
+async function runFormStep(label, action) {
+    console.log(`[amasens:form] ${label} started`);
+    try {
+        const result = await action();
+        console.log(`[amasens:form] ${label} completed`);
+        return result;
+    } catch (error) {
+        error.message = `Amasens form step "${label}" failed: ${error.message}`;
+        throw error;
+    }
+}
+
+async function fillFirstStep(page, data, options = {}) {
+    const shouldUploadImages = options.uploadImages !== false;
     await page.waitForSelector(FORM_SELECTOR, { visible: true, timeout: 30000 });
 
-    await setInput(page, "#title, input[name='title']", data.title);
-    await selectCategory(page, data.category);
-    await setInput(page, "#description, textarea[name='description']", data.description);
-    await uploadImages(page, data.images, data.picsAudit);
-    await setInput(page, "#address, input[name='address']", data.address);
-    await selectLocation(page, data);
-    await setInput(page, "#telephone, input[name='telephone']", data.phone);
-    await setInput(page, "#contactName, input[name='contactName']", data.contactName);
-    await setInput(page, "#age, input[name='age']", data.age);
-    await setInput(page, "#sito_web, input[name='sito_web']", data.website);
-    await setCheckbox(page, "#canWhatsapp, input[name='canWhatsapp']", data.whatsapp);
-    await setCheckbox(page, "#canTelegram, input[name='canTelegram']", data.telegram);
-    await setCheckbox(page, "#canLivecam, input[name='canLivecam']", data.livecam);
-    await setCheckbox(page, "#canComment, input[name='canComment']", data.canComment);
-    await setCheckbox(page, "#terms, input[name='terms']", true);
-    await solveTurnstileIfPresent(page);
+    await runFormStep("title", () => setInput(page, "#title, input[name='title']", data.title));
+    await runFormStep("category", () => selectCategory(page, data.category));
+    await runFormStep("description", () => setInput(page, "#description, textarea[name='description']", data.description));
+    if (shouldUploadImages) {
+        await runFormStep("images", () => uploadImages(page, data.images, data.picsAudit));
+    } else {
+        console.log("[amasens:form] images skipped for update; existing Amasens images are preserved");
+    }
+    await runFormStep("address", () => setInput(page, "#address, input[name='address']", data.address));
+    await runFormStep("location", () => selectLocation(page, data));
+    await runFormStep("telephone", () => setInput(page, "#telephone, input[name='telephone']", data.phone));
+    await runFormStep("contact name", () => setInput(page, "#contactName, input[name='contactName']", data.contactName));
+    await runFormStep("age", () => setInput(page, "#age, input[name='age']", data.age));
+    await runFormStep("website", () => setInput(page, "#sito_web, input[name='sito_web']", data.website));
+    await runFormStep("WhatsApp", () => setCheckbox(page, "#canWhatsapp, input[name='canWhatsapp']", data.whatsapp));
+    await runFormStep("Telegram", () => setCheckbox(page, "#canTelegram, input[name='canTelegram']", data.telegram));
+    await runFormStep("CAM Live", () => setCheckbox(page, "#canLivecam, input[name='canLivecam']", data.livecam));
+    await runFormStep("reviews", () => setCheckbox(page, "#canComment, input[name='canComment']", data.canComment));
+    await runFormStep("terms", () => setCheckbox(page, "#terms, input[name='terms']", true));
+    await runFormStep("Turnstile", () => solveTurnstileIfPresent(page));
     await captureScreenshot(page, "02-first-step-filled");
 }
 
 async function clickUpdateSubmit(page) {
-    const submit = await page.$("form#item-post button[type='submit'], form#item-post input[type='submit']");
-    if (!submit) throw new Error("Amasens update submit button not found.");
+    const submitSelector = "form#item-post button[type='submit'], form#item-post input[type='submit']";
+    const hasSubmit = await page.evaluate((selector) => Boolean(document.querySelector(selector)), submitSelector);
+    if (!hasSubmit) throw new Error("Amasens update submit button not found.");
 
+    console.log("[amasens:update] Submitting update form");
     const [navigationResponse] = await Promise.all([
         page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }),
-        submit.click()
+        page.click(submitSelector)
     ]);
     const status = navigationResponse?.status() || 0;
     if (status >= 400) {
@@ -1330,7 +1349,7 @@ async function updateAd(page, remoteId, adData = {}) {
 
     try {
         await openEditPage(page, normalizedRemoteId);
-        await fillFirstStep(page, data);
+        await fillFirstStep(page, data, { uploadImages: false });
         await captureScreenshot(page, "update-02-form-filled");
         const updated = await clickUpdateSubmit(page);
         const listingId = normalizedRemoteId.split("/")[0] || "";
