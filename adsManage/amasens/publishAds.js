@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
-const axios = require("axios");
 const TwoCaptcha = require("@2captcha/captcha-solver");
+const AMASENS_LOCATIONS = require("./amasens-locations.json");
 
 const PUBLISH_URL = "https://amasens.com/item/new";
 const EDIT_URL_BASE = "https://amasens.com/item/edit";
@@ -657,25 +657,33 @@ async function selectCategory(page, value) {
 }
 
 async function selectLocation(page, data) {
-    const requestLocations = async (action, parameter, id) => {
-        const cookies = await page.cookies("https://amasens.com");
-        const cookieHeader = cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
-        try {
-            const response = await axios.get("https://amasens.com/index.php", {
-                params: { page: "ajax", action, [parameter]: id },
-                timeout: 15000,
-                headers: {
-                    Accept: "application/json",
-                    Cookie: cookieHeader,
-                    "X-Requested-With": "XMLHttpRequest"
-                }
-            });
-            if (!Array.isArray(response.data)) throw new Error("invalid JSON payload");
-            return response.data;
-        } catch (error) {
-            const status = error.response?.status ? ` HTTP ${error.response.status}` : "";
-            throw new Error(`Amasens ${action} location request failed${status}: ${error.message}`);
+    const requestLocations = (action, id) => {
+        const locationId = `${id || ""}`;
+        if (action === "cities") {
+            const region = AMASENS_LOCATIONS.find((item) => `${item.id}` === locationId);
+            if (!region) throw new Error(`Amasens local region ${locationId} was not found`);
+            return (region.provinces || []).map((province) => ({
+                pk_i_id: `${province.id}`,
+                fk_i_region_id: `${region.id}`,
+                s_name: province.name,
+                s_slug: province.slug || ""
+            }));
         }
+
+        if (action === "city_areas") {
+            const province = AMASENS_LOCATIONS
+                .flatMap((region) => region.provinces || [])
+                .find((item) => `${item.id}` === locationId);
+            if (!province) throw new Error(`Amasens local province ${locationId} was not found`);
+            return (province.comuni || []).map((comune) => ({
+                pk_i_id: `${comune.id}`,
+                fk_i_city_id: `${province.id}`,
+                s_name: comune.name,
+                s_slug: comune.slug || ""
+            }));
+        }
+
+        throw new Error(`Unsupported Amasens local location action: ${action}`);
     };
 
     console.log("[amasens:location] Selecting Regione", data.region);
@@ -698,9 +706,9 @@ async function selectLocation(page, data) {
     }, data.region);
     if (!region.ok) throw new Error(`Amasens location selection failed: ${JSON.stringify(region)}`);
 
-    console.log("[amasens:location] Requesting Province", region.value);
-    const provinces = await requestLocations("cities", "regionId", region.value);
-    console.log("[amasens:location] Province received", provinces.length);
+    console.log("[amasens:location] Loading Province from local JSON", region.value);
+    const provinces = requestLocations("cities", region.value);
+    console.log("[amasens:location] Province loaded", provinces.length);
     const province = await page.evaluate(({ items, targetCity }) => {
         const normalize = (value) => `${value || ""}`.normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/gi, " ")
@@ -730,9 +738,9 @@ async function selectLocation(page, data) {
         return selected;
     }
 
-    console.log("[amasens:location] Requesting Comuni", province.value);
-    const comuni = await requestLocations("city_areas", "cityAreaId", province.value);
-    console.log("[amasens:location] Comuni received", comuni.length);
+    console.log("[amasens:location] Loading Comuni from local JSON", province.value);
+    const comuni = requestLocations("city_areas", province.value);
+    console.log("[amasens:location] Comuni loaded", comuni.length);
     const comune = await page.evaluate(({ items, targetComune }) => {
         const normalize = (value) => `${value || ""}`.normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/gi, " ")
