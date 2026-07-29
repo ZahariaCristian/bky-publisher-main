@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const axios = require("axios");
 const TwoCaptcha = require("@2captcha/captcha-solver");
 
 const PUBLISH_URL = "https://amasens.com/item/new";
@@ -656,96 +657,105 @@ async function selectCategory(page, value) {
 }
 
 async function selectLocation(page, data) {
-    const selected = await page.evaluate(async (location) => {
+    const requestLocations = async (action, parameter, id) => {
+        const cookies = await page.cookies("https://amasens.com");
+        const cookieHeader = cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ");
+        try {
+            const response = await axios.get("https://amasens.com/index.php", {
+                params: { page: "ajax", action, [parameter]: id },
+                timeout: 15000,
+                headers: {
+                    Accept: "application/json",
+                    Cookie: cookieHeader,
+                    "X-Requested-With": "XMLHttpRequest"
+                }
+            });
+            if (!Array.isArray(response.data)) throw new Error("invalid JSON payload");
+            return response.data;
+        } catch (error) {
+            const status = error.response?.status ? ` HTTP ${error.response.status}` : "";
+            throw new Error(`Amasens ${action} location request failed${status}: ${error.message}`);
+        }
+    };
+
+    console.log("[amasens:location] Selecting Regione", data.region);
+    const region = await page.evaluate((targetRegion) => {
         const normalize = (value) => `${value || ""}`.normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/gi, " ")
             .replace(/\s+/g, " ").trim().toLowerCase();
-        const findOption = (select, target) => Array.from(select.options)
-            .find((option) => normalize(option.textContent) === normalize(target));
-        const fill = (select, items, placeholder) => {
-            select.innerHTML = "";
-            select.add(new Option(placeholder, ""));
-            items.forEach((item) => select.add(new Option(item.s_name, `${item.pk_i_id}`)));
-            select.removeAttribute("disabled");
-        };
-        const request = async (action, parameter, id) => {
-            const url = new URL("/index.php", window.location.origin);
-            url.searchParams.set("page", "ajax");
-            url.searchParams.set("action", action);
-            url.searchParams.set(parameter, id);
-            const response = await fetch(url.href, { credentials: "same-origin", cache: "no-cache" });
-            if (!response.ok) throw new Error(`${action} returned ${response.status}`);
-            const payload = await response.json();
-            if (!Array.isArray(payload)) throw new Error(`${action} returned invalid JSON`);
-            return payload;
-        };
-
         const regionSelect = document.querySelector("#regionId, select[name='regionId']");
         const provinceSelect = document.querySelector("#cityId, select[name='cityId']");
         const comuneSelect = document.querySelector("#cityAreaId, select[name='cityAreaId']");
         if (!regionSelect || !provinceSelect || !comuneSelect) {
             return { ok: false, step: "fields", message: "Location select fields not found" };
         }
-
-        const regionOption = findOption(regionSelect, location.region);
-        if (!regionOption?.value) return { ok: false, step: "region", target: location.region };
+        const regionOption = Array.from(regionSelect.options)
+            .find((option) => normalize(option.textContent) === normalize(targetRegion));
+        if (!regionOption?.value) return { ok: false, step: "region", target: targetRegion };
         regionSelect.value = regionOption.value;
+        regionSelect.dispatchEvent(new Event("input", { bubbles: true }));
+        return { ok: true, value: regionOption.value, text: regionOption.textContent.trim() };
+    }, data.region);
+    if (!region.ok) throw new Error(`Amasens location selection failed: ${JSON.stringify(region)}`);
 
-        const provinces = await request("cities", "regionId", regionOption.value);
-        fill(provinceSelect, provinces, "Seleziona la Provincia...");
-        const provinceOption = findOption(provinceSelect, location.city);
+    console.log("[amasens:location] Requesting Province", region.value);
+    const provinces = await requestLocations("cities", "regionId", region.value);
+    console.log("[amasens:location] Province received", provinces.length);
+    const province = await page.evaluate(({ items, targetCity }) => {
+        const normalize = (value) => `${value || ""}`.normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/gi, " ")
+            .replace(/\s+/g, " ").trim().toLowerCase();
+        const provinceSelect = document.querySelector("#cityId, select[name='cityId']");
+        if (!provinceSelect) return { ok: false, step: "province-field" };
+        provinceSelect.innerHTML = "";
+        provinceSelect.add(new Option("Seleziona la Provincia...", ""));
+        items.forEach((item) => provinceSelect.add(new Option(item.s_name, `${item.pk_i_id}`)));
+        provinceSelect.removeAttribute("disabled");
+        const provinceOption = Array.from(provinceSelect.options)
+            .find((option) => normalize(option.textContent) === normalize(targetCity));
         if (!provinceOption?.value) {
-            return { ok: false, step: "province", target: location.city, options: provinces.map((item) => item.s_name) };
+            return { ok: false, step: "province", target: targetCity, options: items.map((item) => item.s_name) };
         }
         provinceSelect.value = provinceOption.value;
+        provinceSelect.dispatchEvent(new Event("input", { bubbles: true }));
+        return { ok: true, value: provinceOption.value, text: provinceOption.textContent.trim() };
+    }, { items: provinces, targetCity: data.city });
+    if (!province.ok) throw new Error(`Amasens location selection failed: ${JSON.stringify(province)}`);
+    console.log("[amasens:location] Provincia selected", province.text);
 
-        const requestedComune = `${location.area || ""}`.trim();
-        if (!requestedComune) {
-            [regionSelect, provinceSelect].forEach((select) => {
-                select.dispatchEvent(new Event("input", { bubbles: true }));
-            });
-            // Do not dispatch Provincia "change" here. Amasens handles it with a
-            // blocking AJAX callback that can freeze Puppeteer's page.evaluate().
-            // An untouched empty cityAreaId represents the Provincia capital.
-            return {
-                ok: true,
-                region: { value: regionOption.value, text: regionOption.textContent.trim() },
-                province: { value: provinceOption.value, text: provinceOption.textContent.trim() },
-                comune: null,
-                comuneSkipped: true
-            };
-        }
+    const requestedComune = `${data.area || ""}`.trim();
+    if (!requestedComune) {
+        const selected = { ok: true, region, province, comune: null, comuneSkipped: true };
+        console.log("[amasens:publish] Location selected", selected);
+        return selected;
+    }
 
-        const comuni = await request("city_areas", "cityAreaId", provinceOption.value);
-        fill(comuneSelect, comuni, "Seleziona il Comune...");
-        const comuneOption = findOption(comuneSelect, requestedComune);
+    console.log("[amasens:location] Requesting Comuni", province.value);
+    const comuni = await requestLocations("city_areas", "cityAreaId", province.value);
+    console.log("[amasens:location] Comuni received", comuni.length);
+    const comune = await page.evaluate(({ items, targetComune }) => {
+        const normalize = (value) => `${value || ""}`.normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/gi, " ")
+            .replace(/\s+/g, " ").trim().toLowerCase();
+        const comuneSelect = document.querySelector("#cityAreaId, select[name='cityAreaId']");
+        if (!comuneSelect) return { ok: false, step: "comune-field" };
+        comuneSelect.innerHTML = "";
+        comuneSelect.add(new Option("Seleziona il Comune...", ""));
+        items.forEach((item) => comuneSelect.add(new Option(item.s_name, `${item.pk_i_id}`)));
+        comuneSelect.removeAttribute("disabled");
+        const comuneOption = Array.from(comuneSelect.options)
+            .find((option) => normalize(option.textContent) === normalize(targetComune));
         if (!comuneOption) {
-            return {
-                ok: false,
-                step: "comune",
-                target: requestedComune,
-                options: comuni.map((item) => item.s_name)
-            };
+            return { ok: false, step: "comune", target: targetComune, options: items.map((item) => item.s_name) };
         }
-        // Select the exact matched option without affecting the empty-Comune branch above.
         comuneSelect.selectedIndex = comuneOption.index;
-        [regionSelect, provinceSelect, comuneSelect].forEach((select) => {
-            select.dispatchEvent(new Event("input", { bubbles: true }));
-        });
+        comuneSelect.dispatchEvent(new Event("input", { bubbles: true }));
         comuneSelect.dispatchEvent(new Event("change", { bubbles: true }));
-        return {
-            ok: true,
-            region: { value: regionOption.value, text: regionOption.textContent.trim() },
-            province: { value: provinceOption.value, text: provinceOption.textContent.trim() },
-            comune: {
-                value: comuneOption.value,
-                text: comuneOption.textContent.trim(),
-                automaticProvinceComune: false
-            }
-        };
-    }, { region: data.region, city: data.city, area: data.area });
+        return { ok: true, value: comuneOption.value, text: comuneOption.textContent.trim() };
+    }, { items: comuni, targetComune: requestedComune });
+    if (!comune.ok) throw new Error(`Amasens location selection failed: ${JSON.stringify(comune)}`);
 
-    if (!selected.ok) throw new Error(`Amasens location selection failed: ${JSON.stringify(selected)}`);
+    const selected = { ok: true, region, province, comune, comuneSkipped: false };
     console.log("[amasens:publish] Location selected", selected);
     return selected;
 }
