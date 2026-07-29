@@ -160,8 +160,14 @@ function ensureScreenshotDir() {
     return SCREENSHOT_DIR;
 }
 
+function isProtocolTimeoutError(error) {
+    return /Runtime\.callFunctionOn timed out|Page\.captureScreenshot timed out|ProtocolError|Target closed/i
+        .test(`${error?.message || ""}`);
+}
+
 async function captureScreenshot(page, label) {
     try {
+        if (!page || page.isClosed()) return "";
         const dir = ensureScreenshotDir();
         const safeLabel = `${label || "step"}`
             .replace(/[^a-z0-9_-]+/gi, "-")
@@ -992,48 +998,22 @@ async function fillFirstStep(page, data) {
 }
 
 async function clickUpdateSubmit(page) {
-    await Promise.all([
-        page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 45000 }).catch(() => null),
-        page.evaluate(() => {
-            const form = document.querySelector("form#item-post");
-            const submit = form?.querySelector("button[type='submit'], input[type='submit']") ||
-                Array.from(document.querySelectorAll("button, input[type='submit'], a")).find((node) => {
-                    const text = `${node.textContent || node.value || ""}`.replace(/\s+/g, " ").trim();
-                    return /continua|salva|modifica|aggiorna/i.test(text);
-                });
-            if (!submit) throw new Error("Amasens update submit button not found.");
-            submit.click();
-        })
+    const submit = await page.$("form#item-post button[type='submit'], form#item-post input[type='submit']");
+    if (!submit) throw new Error("Amasens update submit button not found.");
+
+    const [navigationResponse] = await Promise.all([
+        page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }),
+        submit.click()
     ]);
-
-    await delay(1800);
-    await captureScreenshot(page, "update-03-after-submit");
-
-    const validation = await page.evaluate(() => {
-        const bodyText = (document.body.innerText || "").replace(/\s+/g, " ").trim();
-        const form = document.querySelector("form#item-post");
-        const invalidFields = Array.from(document.querySelectorAll(":invalid")).map((node) => node.name || node.id || node.tagName);
-        const validationText = Array.from(document.querySelectorAll(".help-block, .invalid-feedback, .error, .has-error, .alert"))
-            .map((node) => (node.textContent || "").replace(/\s+/g, " ").trim())
-            .filter(Boolean)
-            .slice(0, 10);
-        const successVisible = /annuncio[^.]{0,80}(modificat|aggiornat|salvat)|modifiche[^.]{0,80}salvate|congratulazioni/i.test(bodyText);
-        return {
-            stillOnEditForm: Boolean(form),
-            successVisible,
-            invalidFields,
-            validationText,
-            url: window.location.href,
-            bodyText: bodyText.slice(0, 1000)
-        };
-    });
-
-    if (validation.stillOnEditForm && !validation.successVisible) {
-        await captureScreenshot(page, "error-update-validation");
-        throw new Error(`Amasens update validation failed: ${JSON.stringify(validation)}`);
+    const status = navigationResponse?.status() || 0;
+    if (status >= 400) {
+        throw new Error(`Amasens update returned HTTP ${status}`);
     }
 
-    return validation;
+    return {
+        url: page.url(),
+        status
+    };
 }
 
 async function clickContinue(page) {
@@ -1343,31 +1323,25 @@ async function updateAd(page, remoteId, adData = {}) {
         await fillFirstStep(page, data);
         await captureScreenshot(page, "update-02-form-filled");
         const updated = await clickUpdateSubmit(page);
-        const finalState = mergePublishState(
-            { remoteId: normalizedRemoteId, listingId: normalizedRemoteId.split("/")[0], managementUrl: `${EDIT_URL_BASE}/${normalizedRemoteId}` },
-            await extractAmasensPublishState(page),
-            {
-                currentUrl: updated.url
-            }
-        );
-        const publishedUrl = finalState.currentUrl || "";
-        const resultUrl = finalState.publicUrl ||
-            (/\/item\/(?:new|premium|edit)\b/i.test(publishedUrl) ? "" : publishedUrl);
+        const listingId = normalizedRemoteId.split("/")[0] || "";
+        const managementUrl = `${EDIT_URL_BASE}/${normalizedRemoteId}`;
 
         return {
             ok: true,
-            url: resultUrl,
+            url: updated.url || managementUrl,
             creditsConsumed: 0,
             payload: {
-                idpriv: finalState.remoteId || normalizedRemoteId,
-                itemId: finalState.remoteId || normalizedRemoteId,
-                listingId: finalState.listingId || normalizedRemoteId.split("/")[0] || "",
-                managementUrl: finalState.managementUrl || `${EDIT_URL_BASE}/${normalizedRemoteId}`,
-                publicUrl: finalState.publicUrl || ""
+                idpriv: normalizedRemoteId,
+                itemId: normalizedRemoteId,
+                listingId,
+                managementUrl,
+                publicUrl: ""
             }
         };
     } catch (error) {
-        await captureScreenshot(page, `error-update-${error.message || "failed"}`);
+        if (!isProtocolTimeoutError(error)) {
+            await captureScreenshot(page, `error-update-${error.message || "failed"}`);
+        }
         throw error;
     }
 }

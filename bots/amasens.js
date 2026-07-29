@@ -45,6 +45,7 @@ class AmasensBot {
     this.browser = await puppeteer.launch({
       headless: true,
       executablePath,
+      protocolTimeout: 120000,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
       defaultViewport: { width: 1366, height: 900 }
     });
@@ -281,10 +282,17 @@ class AmasensBot {
       city: ad?.annunci_city || ad?.city || ad?.comune || ""
     };
 
-    return updateAd(page, updateData.remotePostID, {
-      ...updateData,
-      ...this.buildPublishData(updateData)
-    });
+    try {
+      return await updateAd(page, updateData.remotePostID, {
+        ...updateData,
+        ...this.buildPublishData(updateData)
+      });
+    } catch (error) {
+      if (/Runtime\.callFunctionOn timed out|Page\.captureScreenshot timed out|ProtocolError|Target closed/i.test(`${error?.message || ""}`)) {
+        await this.restartBrowser("after Amasens update protocol failure");
+      }
+      throw error;
+    }
   }
 
   async delete(remoteId) {
