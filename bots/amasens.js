@@ -276,10 +276,14 @@ class AmasensBot {
 
   async update(ad) {
     const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
-
-    return updateAd(page, ad?.remotePostID, {
+    const updateData = {
       ...ad,
-      ...this.buildPublishData(ad)
+      city: ad?.annunci_city || ad?.city || ad?.comune || ""
+    };
+
+    return updateAd(page, updateData.remotePostID, {
+      ...updateData,
+      ...this.buildPublishData(updateData)
     });
   }
 

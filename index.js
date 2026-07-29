@@ -707,7 +707,11 @@ async function mainLoop(group, platform) {
 
                     //Se schedulazione non contiene città, usa quella dell'annuncio
                     s.annunci_city = annuncio.city; //Add by Zaharia
-                    if (!s.city) s.city = annuncio.city;
+                    if (s.platform === "amasens" && s.state === "EDIT") {
+                        s.city = annuncio.city;
+                    } else if (!s.city) {
+                        s.city = annuncio.city;
+                    }
                     s.location = annuncio.location;
                     s.age = annuncio.tblDonne.years;
                     s.description = annuncio.description;
