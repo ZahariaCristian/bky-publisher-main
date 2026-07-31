@@ -635,7 +635,11 @@ async function mainLoop(group, platform) {
                     });
 
                     console.log(galleriaSchedulazione.length, "gallery images length");
-                    let picLimit = platform.platform === "trovagnocca" ? 6 : 5
+                    const picLimit = platform.platform === "amasens"
+                        ? 9
+                        : platform.platform === "trovagnocca"
+                            ? 6
+                            : 5;
                     for (const photo of galleriaSchedulazione) {
                         if (pics.length < picLimit) {
                             if (pics.includes(`${GLOBAL_PATH}/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`) == false) {

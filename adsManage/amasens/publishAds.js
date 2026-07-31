@@ -848,7 +848,7 @@ async function selectPreviewImage(page) {
 async function uploadImages(page, images = [], picsAudit = []) {
     const imagePaths = resolveImagePaths(images, picsAudit)
         .filter((filePath) => fs.existsSync(filePath))
-        .slice(0, 20);
+        .slice(0, 9);
 
     if (!imagePaths.length) return 0;
 
