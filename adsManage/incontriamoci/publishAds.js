@@ -351,6 +351,34 @@ async function setCheckbox(page, selector, checked = true) {
     return true;
 }
 
+async function acceptRequiredTerms(page) {
+    const selector = "#terms, input[name='terms']";
+    const state = await page.evaluate((sel) => {
+        const checkbox = document.querySelector(sel);
+        return checkbox ? { found: true, checked: checkbox.checked } : { found: false, checked: false };
+    }, selector);
+
+    if (!state.found) {
+        throw new Error("Incontriamoci terms checkbox was not found.");
+    }
+
+    if (!state.checked) {
+        await page.click(selector);
+    }
+
+    const accepted = await page.evaluate((sel) => {
+        const checkbox = document.querySelector(sel);
+        return Boolean(checkbox && checkbox.checked && !checkbox.disabled);
+    }, selector);
+
+    if (!accepted) {
+        throw new Error("Incontriamoci terms checkbox could not be accepted.");
+    }
+
+    console.log("[incontriamoci:publish] Terms and conditions accepted");
+    return true;
+}
+
 async function selectOption(page, selector, valueOrLabel) {
     if (`${valueOrLabel ?? ""}`.trim() === "") return false;
     const exists = await page.$(selector);
@@ -673,7 +701,7 @@ async function fillFirstStep(page, data, options = {}) {
     await setCheckbox(page, "#canTelegram, input[name='canTelegram']", data.telegram);
     await setCheckbox(page, "#canLivecam, input[name='canLivecam']", data.livecam);
     await setCheckbox(page, "#canComment, input[name='canComment']", data.canComment);
-    await setCheckbox(page, "#publish_item_terms, input[name='publish_item_terms']", true);
+    await acceptRequiredTerms(page);
 }
 
 async function clickContinue(page) {
