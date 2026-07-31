@@ -768,6 +768,83 @@ async function selectLocation(page, data) {
     return selected;
 }
 
+async function clearExistingImages(page) {
+    const countImages = () => page.evaluate(() => document.querySelectorAll("input[name='ajax_images[]']").length)
+        .catch(() => 0);
+    const beforeCount = await countImages();
+    let deletedCount = 0;
+
+    while (deletedCount < beforeCount && deletedCount < 20) {
+        const currentCount = await countImages();
+        if (!currentCount) break;
+
+        const clicked = await page.evaluate(() => {
+            window.confirm = () => true;
+            const image = document.querySelector("input[name='ajax_images[]']");
+            const wrapper = image?.closest(".file-wrapper, .qq-upload-success, li, .col-sm-4") || image?.parentElement;
+            const button = wrapper?.querySelector(
+                ".qq-upload-delete-selector, .qq-upload-delete, button[title*='Elimina'], .btn-danger, button.delete"
+            );
+            if (!button) return false;
+            button.click();
+            return true;
+        }).catch(() => false);
+        if (!clicked) break;
+
+        await delay(300);
+        await page.evaluate(() => {
+            const visible = (node) => {
+                if (!node) return false;
+                const style = window.getComputedStyle(node);
+                const rect = node.getBoundingClientRect();
+                return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+            };
+            const dialog = Array.from(document.querySelectorAll(
+                ".modal.show, .modal.in, .bootbox.modal, .swal2-container, [role='dialog'][aria-modal='true']"
+            )).find(visible);
+            if (!dialog) return false;
+            const confirm = Array.from(dialog.querySelectorAll("button, a.btn, input[type='submit']"))
+                .filter(visible)
+                .find((node) => /elimina|cancella|rimuovi|conferma|si|yes|ok/i.test(node.textContent || node.value || ""));
+            if (!confirm) return false;
+            confirm.click();
+            return true;
+        }).catch(() => false);
+
+        const removed = await page.waitForFunction((previousCount) => (
+            document.querySelectorAll("input[name='ajax_images[]']").length < previousCount
+        ), { timeout: 10000 }, currentCount).then(() => true).catch(() => false);
+        if (!removed) break;
+        deletedCount++;
+    }
+
+    const afterCount = await countImages();
+    console.log("[amasens:update] Existing images cleanup", { beforeCount, deletedCount, afterCount });
+    if (afterCount > 0) {
+        throw new Error(`Amasens could not delete existing images. Remaining images: ${afterCount}`);
+    }
+    return deletedCount;
+}
+
+async function selectPreviewImage(page) {
+    const result = await page.evaluate(() => {
+        const cards = Array.from(document.querySelectorAll(".qq-upload-list li, .qq-upload-success"));
+        const first = cards[0];
+        if (!first) return { ok: false, reason: "uploaded image card not found" };
+        const controls = Array.from(first.querySelectorAll("button, a, label, [role='button']"));
+        const control = controls.find((node) => /anteprima|preview/i.test(node.textContent || node.title || ""));
+        if (!control) return { ok: false, reason: "preview control not found" };
+        const input = control.matches("label") && control.htmlFor
+            ? document.getElementById(control.htmlFor)
+            : control.querySelector("input[type='checkbox'], input[type='radio']");
+        if (input && !input.checked) input.click();
+        if (!input) control.click();
+        return { ok: input ? input.checked : true };
+    });
+    if (!result.ok) throw new Error(`Amasens preview image selection failed: ${JSON.stringify(result)}`);
+    console.log("[amasens:update] Preview image selected from first ordered panel image");
+}
+
 async function uploadImages(page, images = [], picsAudit = []) {
     const imagePaths = resolveImagePaths(images, picsAudit)
         .filter((filePath) => fs.existsSync(filePath))
@@ -780,8 +857,9 @@ async function uploadImages(page, images = [], picsAudit = []) {
         timeout: 15000
     }).catch(() => null);
 
-    const input = await page.$(".qq-upload-button input[type='file'], input[type='file'][name='images'], input[type='file'][accept*='image'], input[type='file']");
-    if (!input) {
+    const inputSelector = ".qq-upload-button input[type='file'], input[type='file'][name='images'], input[type='file'][accept*='image'], input[type='file']";
+    const hasInput = await page.$(inputSelector);
+    if (!hasInput) {
         const diagnostics = await page.evaluate(() => ({
             url: window.location.href,
             fileInputs: Array.from(document.querySelectorAll("input[type='file']")).map((node) => ({
@@ -794,13 +872,19 @@ async function uploadImages(page, images = [], picsAudit = []) {
         throw new Error(`Amasens image file input not found: ${JSON.stringify(diagnostics)}`);
     }
 
-    await input.uploadFile(...imagePaths);
+    for (let index = 0; index < imagePaths.length; index++) {
+        const input = await page.$(inputSelector);
+        if (!input) throw new Error(`Amasens image input disappeared before upload ${index + 1}`);
+        const previousCount = await page.evaluate(() => document.querySelectorAll("input[name='ajax_images[]']").length);
+        console.log(`[amasens:images] Uploading ${index + 1}/${imagePaths.length}`);
+        await input.uploadFile(imagePaths[index]);
+        const uploaded = await page.waitForFunction((count) => (
+            document.querySelectorAll("input[name='ajax_images[]']").length > count
+        ), { timeout: 30000 }, previousCount).then(() => true).catch(() => false);
+        if (!uploaded) throw new Error(`Amasens image upload ${index + 1}/${imagePaths.length} did not complete`);
+    }
 
-    await page.waitForFunction((expected) => {
-        const successCount = document.querySelectorAll(".qq-upload-success, .qq-file-id, .qq-upload-list li").length;
-        return successCount >= expected || expected === 0;
-    }, { timeout: 60000 }, Math.min(imagePaths.length, 1)).catch(() => null);
-
+    await selectPreviewImage(page);
     await delay(1500);
     return imagePaths.length;
 }
@@ -1012,6 +1096,9 @@ async function fillFirstStep(page, data, options = {}) {
     await runFormStep("title", () => setInput(page, "#title, input[name='title']", data.title));
     await runFormStep("category", () => selectCategory(page, data.category));
     await runFormStep("description", () => setInput(page, "#description, textarea[name='description']", data.description));
+    if (options.replaceImages) {
+        await runFormStep("remove existing images", () => clearExistingImages(page));
+    }
     if (shouldUploadImages) {
         await runFormStep("images", () => uploadImages(page, data.images, data.picsAudit));
     } else {
@@ -1357,7 +1444,7 @@ async function updateAd(page, remoteId, adData = {}) {
 
     try {
         await openEditPage(page, normalizedRemoteId);
-        await fillFirstStep(page, data, { uploadImages: false });
+        await fillFirstStep(page, data, { replaceImages: true });
         await captureScreenshot(page, "update-02-form-filled");
         const updated = await clickUpdateSubmit(page);
         const listingId = normalizedRemoteId.split("/")[0] || "";
