@@ -751,9 +751,13 @@ async function mainLoop(group, platform) {
         for (var ad of adss) {
             group.overBusyBot = group.overBusyBot + 1
             //console.log("\n ad.state in MAIN LOOP",ad);
+            const attemptState = { errorReason: null };
             if (ad.state != "CLOSE" && ad.state != "DELETE") {
-                await ctx.tblSchedulazioni.update({ state: "ALERT" }, { where: { id: ad.id } });
-            } else if (ad.state == "CLOSE") {
+                attemptState.state = "ALERT";
+            }
+            await ctx.tblSchedulazioni.update(attemptState, { where: { id: ad.id } });
+
+            if (ad.state == "CLOSE") {
                 //add in tblSchedulazioni expiry date based on the package they got 
                 //Bakecaincontrii -> Free, 1x1, 1x3, 1x7, 10x1, 10x3, 10x7
                 //Bakeca -> Free, 1x1, 1x3, 1x7, 1x14, 1x28, 3x1, 3x3, 3x7, 3x14, 3x28
@@ -794,7 +798,7 @@ async function mainLoop(group, platform) {
                     }, { where: { id: ad.id } });
                 }
                 //await ctx.tblSchedulazioni.update({state: "CLOSED"}, {where: {id: ad.id}});
-            } else {
+            } else if (ad.state == "DELETE") {
                 console.log(`${new Date} ad.state is DELETE, deleting ad`);
             }
         }
@@ -822,9 +826,55 @@ async function mainLoop(group, platform) {
     }
 };
 
+const MAX_PUBLISH_ERROR_REASON_LENGTH = 2000;
+
+function formatPublishErrorReason(error, fallback = "La pubblicazione non e riuscita.") {
+    let source = error;
+    if (source && typeof source === "object" && !(source instanceof Error)) {
+        source = source.error || source.reason || source.message || source;
+    }
+
+    let reason;
+    if (source instanceof Error) {
+        reason = source.message;
+    } else if (typeof source === "string") {
+        reason = source;
+    } else {
+        try {
+            reason = JSON.stringify(source);
+        } catch (_) {
+            reason = "";
+        }
+    }
+
+    reason = `${reason || ""}`.replace(/\s+/g, " ").replace(/^(?:Error:\s*)+/i, "").trim();
+
+    const jsonStart = reason.indexOf("{");
+    if (jsonStart >= 0) {
+        try {
+            const details = JSON.parse(reason.slice(jsonStart));
+            const validationMessage = Array.isArray(details.validationText)
+                ? details.validationText.find((message) => `${message || ""}`.trim())
+                : "";
+            const conciseDetail = validationMessage || details.message || details.reason || details.error;
+            if (conciseDetail) reason = `${conciseDetail}`.replace(/\s+/g, " ").trim();
+        } catch (_) {
+            // Keep the original message when the suffix is not valid JSON.
+        }
+    }
+
+    return (reason || fallback).slice(0, MAX_PUBLISH_ERROR_REASON_LENGTH);
+}
+
+function requireSuccessfulOperation(result, operationName) {
+    if (result?.ok) return result;
+    throw new Error(formatPublishErrorReason(result, `${operationName} non riuscita.`));
+}
+
 async function postThis(ad, group, platform) {
     let remotePostID = null;
     let pubStatus = "OK";
+    let errorReason = null;
     let uriDateTimes = { uri: "", datetimes: [], err: null };
     let dateGetted = "";
 
@@ -878,7 +928,7 @@ async function postThis(ad, group, platform) {
                         }
                     } else {
                         console.log(`${new Date()} Schedule ${ad.id} is a duplicate, skipping...`);
-                        await ad.update({ state: "OK" });
+                        await ad.update({ state: "OK", errorReason: null });
                         logger.Write(`${new Date()} Schedule ${ad.id} duplicate, skipped.`);
                         sleep(3);
                         if (group.overBusyBot > 0) group.overBusyBot -= 1;
@@ -892,6 +942,7 @@ async function postThis(ad, group, platform) {
                 published.splice(index, 1);
             }
             pubStatus = "KO";
+            errorReason = formatPublishErrorReason(error);
             logger.Write(`Publisher ERROR during operation: ${error.stack || error}`);
         }
 
@@ -927,6 +978,7 @@ async function postThis(ad, group, platform) {
 
                 if (remotePostID == null) {
                     pubStatus = "KO";
+                    errorReason = errorReason || "La pubblicazione non ha restituito un identificativo remoto.";
                     pagato = false;
                 }
 
@@ -936,7 +988,8 @@ async function postThis(ad, group, platform) {
                         payed: pagato,
                         remotePostID: remotePostID,
                         urlBK: uriDateTimes.uri,
-                        dateTimeTop: dateGetted
+                        dateTimeTop: dateGetted,
+                        errorReason: pubStatus === "KO" ? errorReason : null
                     });
                 } catch (dbUpdateError) {
                     console.error("Error updating ad in the database:", dbUpdateError);
@@ -947,7 +1000,11 @@ async function postThis(ad, group, platform) {
             console.log("Saving state without capturing URI and datetime.");
             console.log(`${new Date()} Saving data: ${pubStatus}, ${remotePostID}, No additional info, Schedule ID: ${ad.id}`);
             try {
-                await ad.update({ state: pubStatus, remotePostID: remotePostID });
+                await ad.update({
+                    state: pubStatus,
+                    remotePostID: remotePostID,
+                    errorReason: pubStatus === "KO" ? errorReason : null
+                });
             } catch (finalDbUpdateError) {
                 console.error("Final database update failed:", finalDbUpdateError);
             }
@@ -959,7 +1016,8 @@ async function postThis(ad, group, platform) {
                 state: pubStatus,
                 remotePostID: remotePostID,
                 urlBK: uriDateTimes.uri,
-                dateTimeTop: dateGetted
+                dateTimeTop: dateGetted,
+                errorReason: pubStatus === "KO" ? errorReason : null
             });
         } catch (finalStateUpdateError) {
             console.error("Final update of ad state failed:", finalStateUpdateError);
@@ -981,13 +1039,13 @@ async function postThis(ad, group, platform) {
                         throw new Error(`Bakeca remotePostID missing for EDIT state on schedule ${ad.id}`);
                     }
 
-                    const updateResult = await runWithIncontriamociSessionRecovery(
+                    const updateResult = requireSuccessfulOperation(await runWithIncontriamociSessionRecovery(
                         platform,
                         "update",
                         () => platform.bot.update(ad, group, platform)
-                    );
+                    ), `${platform.platform} update`);
                     console.log(`${new Date()} Bakeca update result for schedule ${ad.id}:`, updateResult);
-                    pubStatus = updateResult?.ok ? "OK" : "KO";
+                    pubStatus = "OK";
                     platform.needRefresh = true;
                     break;
                 case 'DELETE':
@@ -999,13 +1057,13 @@ async function postThis(ad, group, platform) {
                         throw new Error(`Bakeca remotePostID missing for DELETE state on schedule ${ad.id}`);
                     }
 
-                    const deleteResult = await runWithIncontriamociSessionRecovery(
+                    const deleteResult = requireSuccessfulOperation(await runWithIncontriamociSessionRecovery(
                         platform,
                         "delete",
                         () => platform.bot.delete(ad.remotePostID, platform.platform)
-                    );
+                    ), `${platform.platform} delete`);
                     console.log(`${new Date()} Bakeca delete result for schedule ${ad.id}:`, deleteResult);
-                    pubStatus = deleteResult?.ok ? "DELETED" : "KO";
+                    pubStatus = "DELETED";
                     platform.needRefresh = true;
                     break;
                 case 'CLOSE':
@@ -1017,13 +1075,13 @@ async function postThis(ad, group, platform) {
                         throw new Error(`Bakeca remotePostID missing for CLOSE state on schedule ${ad.id}`);
                     }
 
-                    const suspendResult = await runWithIncontriamociSessionRecovery(
+                    const suspendResult = requireSuccessfulOperation(await runWithIncontriamociSessionRecovery(
                         platform,
                         "suspend",
                         () => platform.bot.suspend(ad.remotePostID, ad, platform.platform)
-                    );
+                    ), `${platform.platform} suspend`);
                     console.log(`${new Date()} Bakeca suspend result for schedule ${ad.id}:`, suspendResult);
-                    pubStatus = suspendResult?.ok ? "CLOSED" : "KO";
+                    pubStatus = "CLOSED";
                     platform.needRefresh = true;
                     break;
                 case 'REPUBLISH':
@@ -1035,23 +1093,23 @@ async function postThis(ad, group, platform) {
                         throw new Error(`Bakeca remotePostID missing for REPUBLISH state on schedule ${ad.id}`);
                     }
 
-                    const rePublishResult = await runWithIncontriamociSessionRecovery(
+                    const rePublishResult = requireSuccessfulOperation(await runWithIncontriamociSessionRecovery(
                         platform,
                         "republish",
                         () => platform.bot.republish(ad.remotePostID, ad, platform.platform)
-                    );
+                    ), `${platform.platform} republish`);
                     console.log(`${new Date()} Bakeca republish result for schedule ${ad.id}:`, rePublishResult);
-                    pubStatus = rePublishResult?.ok ? "OK" : "KO";
+                    pubStatus = "OK";
                     platform.needRefresh = true;
                     break;
                 default:
-                    const result = await runWithIncontriamociSessionRecovery(
+                    const result = requireSuccessfulOperation(await runWithIncontriamociSessionRecovery(
                         platform,
                         "publish",
                         () => platform.bot.publish(ad, group, platform)
-                    );
+                    ), `${platform.platform} publish`);
                     console.log(result);
-                    pubStatus = result?.ok ? "OK" : "KO";
+                    pubStatus = "OK";
                     ad.remotePostID = result?.payload?.idpriv || result?.megaId || null
                     ad.urlBK = result?.url || null;
                     ad.payed = Number(result?.creditsConsumed || 0) > 0;
@@ -1069,17 +1127,26 @@ async function postThis(ad, group, platform) {
                 urlBK: ad.urlBK,
                 payed: ad.payed,
                 dateTimeTop: ad.dateTimeTop,
-                period: ad.period
+                period: ad.period,
+                errorReason: null
             });
         } catch (bakecaActionError) {
             pubStatus = "KO";
+            errorReason = formatPublishErrorReason(bakecaActionError);
             console.error(`Error in ${platform.platform} postThis state handling:`, bakecaActionError);
             logger.Write(`Publisher ERROR during ${platform.platform} operation: ${bakecaActionError.stack || bakecaActionError}`);
-            if (ad.state == 'EDIT' || ad.state == 'CLOSE' || ad.state == 'DELETE') {
+            try {
                 await ad.update({
                     state: "KO",
-                    remotePostID: ad.remotePostID
+                    remotePostID: ad.remotePostID || null,
+                    errorReason
                 });
+                console.log(`[${platform.platform}] Saved failed schedule ${ad.id} with state KO`);
+            } catch (failureStateUpdateError) {
+                console.error(
+                    `[${platform.platform}] Failed to save KO state for schedule ${ad.id}:`,
+                    failureStateUpdateError
+                );
             }
         }
 

@@ -785,6 +785,10 @@ var tblSchedulazioni = model.define("tblSchedulazioni",{
         type: Sequelize.ENUM("OK", "ALERT", "KO", "EDIT", "REPUBLISH", "CLOSE", "CLOSED", "DELETE", "DELETED", "BLOCKED"),
         allowNull: true
     },
+    errorReason:{
+        type: Sequelize.TEXT,
+        allowNull: true
+    },
     editedBy:{
         type: Sequelize.UUID,
         allowNull: true
