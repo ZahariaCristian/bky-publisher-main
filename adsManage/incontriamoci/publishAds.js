@@ -482,7 +482,7 @@ async function selectPreviewImage(page) {
     const result = await page.evaluate(() => {
         const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
         const cards = Array.from(document.querySelectorAll(".qq-upload-list li, .qq-upload-success"));
-        const firstCard = cards.find((card) => /anteprima|preview/i.test(clean(card.textContent)));
+        const firstCard = cards[0];
         if (!firstCard) return { ok: false, reason: "uploaded preview card not found" };
 
         const control = Array.from(firstCard.querySelectorAll("button, a, label, [role='button']"))
@@ -512,51 +512,53 @@ async function selectPreviewImage(page) {
         throw new Error(`Incontriamoci preview image selection failed: ${JSON.stringify(result)}`);
     }
     console.log("[incontriamoci:publish] Preview image selected", result);
+    return result;
 }
 
 async function uploadImages(page, images = [], picsAudit = []) {
     const imagePaths = resolveImagePaths(images, picsAudit)
         .filter((filePath) => fs.existsSync(filePath))
-        .slice(0, 20);
+        .slice(0, 9);
 
     if (!imagePaths.length) return 0;
+
+    console.log("[incontriamoci:images] Ordered preview image", path.basename(imagePaths[0]));
 
     await setCheckbox(page, "#image_uploader_instance_auth, input[name='image_uploader_instance_auth']", true);
     await page.waitForSelector(".qq-upload-button input[type='file'], input[type='file'][name='images'], input[type='file']", {
         timeout: 15000
     }).catch(() => null);
 
-    const input = await page.$(".qq-upload-button input[type='file'], input[type='file'][name='images'], input[type='file'][accept*='image'], input[type='file']");
-    if (input) {
-        await input.uploadFile(...imagePaths);
-    } else {
-        const uploadButtonSelector = ".qq-upload-button, #image-uploader-upload-area";
-        const uploadButton = await page.$(uploadButtonSelector);
-        if (!uploadButton) {
-            const diagnostics = await page.evaluate(() => ({
-                url: window.location.href,
-                fileInputs: Array.from(document.querySelectorAll("input[type='file']")).map((node) => ({
-                    name: node.name,
-                    accept: node.accept,
-                    visible: Boolean(node.offsetWidth || node.offsetHeight || node.getClientRects().length)
-                })),
-                uploadButtons: document.querySelectorAll(".qq-upload-button, #image-uploader-upload-area").length,
-                bodyText: (document.body.innerText || "").replace(/\s+/g, " ").trim().slice(0, 500)
-            })).catch(() => ({}));
-            throw new Error(`Incontriamoci image file input not found: ${JSON.stringify(diagnostics)}`);
-        }
-
-        const [fileChooser] = await Promise.all([
-            page.waitForFileChooser({ timeout: 15000 }),
-            uploadButton.click()
-        ]);
-        await fileChooser.accept(imagePaths);
+    const inputSelector = ".qq-upload-button input[type='file'], input[type='file'][name='images'], input[type='file'][accept*='image'], input[type='file']";
+    const hasInput = await page.$(inputSelector);
+    if (!hasInput) {
+        const diagnostics = await page.evaluate(() => ({
+            url: window.location.href,
+            fileInputs: Array.from(document.querySelectorAll("input[type='file']")).map((node) => ({
+                name: node.name,
+                accept: node.accept,
+                visible: Boolean(node.offsetWidth || node.offsetHeight || node.getClientRects().length)
+            })),
+            uploadButtons: document.querySelectorAll(".qq-upload-button, #image-uploader-upload-area").length,
+            bodyText: (document.body.innerText || "").replace(/\s+/g, " ").trim().slice(0, 500)
+        })).catch(() => ({}));
+        throw new Error(`Incontriamoci image file input not found: ${JSON.stringify(diagnostics)}`);
     }
 
-    await page.waitForFunction((expected) => {
-        const successCount = document.querySelectorAll(".qq-upload-success, .qq-file-id, .qq-upload-list li").length;
-        return successCount >= expected || expected === 0;
-    }, { timeout: 60000 }, Math.min(imagePaths.length, 1)).catch(() => null);
+    for (let index = 0; index < imagePaths.length; index++) {
+        const input = await page.$(inputSelector);
+        if (!input) throw new Error(`Incontriamoci image input disappeared before upload ${index + 1}`);
+
+        const previousCount = await page.evaluate(() => document.querySelectorAll("input[name='ajax_images[]']").length);
+        console.log(`[incontriamoci:images] Uploading ${index + 1}/${imagePaths.length}`);
+        await input.uploadFile(imagePaths[index]);
+        const uploaded = await page.waitForFunction((count) => (
+            document.querySelectorAll("input[name='ajax_images[]']").length > count
+        ), { timeout: 30000 }, previousCount).then(() => true).catch(() => false);
+        if (!uploaded) {
+            throw new Error(`Incontriamoci image upload ${index + 1}/${imagePaths.length} did not complete`);
+        }
+    }
 
     await selectPreviewImage(page);
     await delay(1500);

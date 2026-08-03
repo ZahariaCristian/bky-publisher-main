@@ -51,6 +51,8 @@ let activeLoginCount = 0;
 const loginWaitQueue = [];
 const rawPublisherApiPort = Number.parseInt(process.env.PUBLISHER_API_PORT || "9998", 10);
 const PUBLISHER_API_PORT = Number.isFinite(rawPublisherApiPort) && rawPublisherApiPort > 0 ? rawPublisherApiPort : 9998;
+const PUBLISH_IMAGE_LIMITS = Object.freeze({ amasens: 9, incontriamoci: 9, trovagnocca: 6 });
+const getPublishImageLimit = (platformName) => PUBLISH_IMAGE_LIMITS[platformName] || 5;
 let publisherApiServer = null;
 
 const getLastNumber = (str) => {
@@ -635,11 +637,7 @@ async function mainLoop(group, platform) {
                     });
 
                     console.log(galleriaSchedulazione.length, "gallery images length");
-                    const picLimit = platform.platform === "amasens"
-                        ? 9
-                        : platform.platform === "trovagnocca"
-                            ? 6
-                            : 5;
+                    const picLimit = getPublishImageLimit(platform.platform);
                     for (const photo of galleriaSchedulazione) {
                         if (pics.length < picLimit) {
                             if (pics.includes(`${GLOBAL_PATH}/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`) == false) {
