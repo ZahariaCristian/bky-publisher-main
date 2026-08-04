@@ -228,6 +228,7 @@ var tblPlatform = model.define("tblPlatform", {
         type: Sequelize.ENUM(
             'incontriamoci',
             'amasens',
+            'moscarossa',
             'trovagnocca',
             'megaescort',
             'incontriescort',
@@ -835,6 +836,7 @@ var tblSchedulazioni = model.define("tblSchedulazioni",{
         type: Sequelize.ENUM(
             'incontriamoci',
             'amasens',
+            'moscarossa',
             'trovagnocca',
             'megaescort',
             'incontriescort',

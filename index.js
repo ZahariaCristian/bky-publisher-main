@@ -454,6 +454,14 @@ async function CreateGroupsBot() {
                                 panel.bot = await new AmasensBot(panel.username, decryptedPlatformPass, panel.credit, panel.platform)
                                 panel.overBusyBot = 0
                                 break;
+                            case "moscarossa":
+                                // Moscarossa is registered explicitly so it can never fall through to
+                                // the Bakecaincontrii bot while its site-specific workflow is pending.
+                                panel.bot = null
+                                panel.integrationPending = true
+                                panel.overBusyBot = 0
+                                logger.Write(`Publisher INFO: Moscarossa is configured for ${panel.username}, but automation is not enabled yet.`)
+                                break;
                             default:
                                 panel.bot = await new BakecaincontriiBot(panel.username, decryptedPlatformPass)
                                 panel.overBusyBot = 0
