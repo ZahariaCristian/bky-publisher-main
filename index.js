@@ -16,6 +16,7 @@ const MeBot = require("./bots/megaescort");
 const TrovagnoccaBot = require("./bots/trovagnocca");
 const IncontriamociBot = require("./bots/incontriamoci");
 const AmasensBot = require("./bots/amasens");
+const MoscarossaBot = require("./bots/moscarossa");
 const { getApiKey } = require("./adsManage/megaescort/client");
 const { raw } = require('mysql');
 const { platform } = require('os');
@@ -455,12 +456,10 @@ async function CreateGroupsBot() {
                                 panel.overBusyBot = 0
                                 break;
                             case "moscarossa":
-                                // Moscarossa is registered explicitly so it can never fall through to
-                                // the Bakecaincontrii bot while its site-specific workflow is pending.
-                                panel.bot = null
+                                panel.bot = await new MoscarossaBot(panel.username, decryptedPlatformPass, panel.credit, panel.platform)
                                 panel.integrationPending = true
                                 panel.overBusyBot = 0
-                                logger.Write(`Publisher INFO: Moscarossa is configured for ${panel.username}, but automation is not enabled yet.`)
+                                logger.Write(`Publisher INFO: Moscarossa login is configured for ${panel.username}; publishing automation is still pending.`)
                                 break;
                             default:
                                 panel.bot = await new BakecaincontriiBot(panel.username, decryptedPlatformPass)
