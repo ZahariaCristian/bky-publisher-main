@@ -350,20 +350,24 @@ async function clickPublishFree(page, remoteId) {
     const responseBody = await response.text().catch(() => "");
     await delay(750);
 
-    const result = await page.evaluate(() => {
+    const result = await page.evaluate((expectedRemoteId) => {
         const visible = (node) => {
             if (!node) return false;
             const style = getComputedStyle(node);
             return style.display !== "none" && style.visibility !== "hidden" && !node.classList.contains("d-none");
         };
         const phoneLayers = Array.from(document.querySelectorAll(".div_verifica_telefono"));
+        const publicLink = Array.from(document.querySelectorAll("a[href*='/girl-']"))
+            .map((link) => link.href)
+            .find((href) => href.includes(`/girl-${expectedRemoteId}.php`)) || "";
         return {
             content: `${document.querySelector("#div_dopo_free")?.innerText || ""}`.replace(/\s+/g, " ").trim(),
             phoneVerificationVisible: phoneLayers.some(visible),
             originalButtonPresent: Boolean(document.querySelector("#button_pubblica_gratis")),
-            updateFreeButtonPresent: Boolean(document.querySelector("#button_pubblica_gratis_aggiorna"))
+            updateFreeButtonPresent: Boolean(document.querySelector("#button_pubblica_gratis_aggiorna")),
+            publicLink
         };
-    });
+    }, remoteId);
 
     const combined = `${responseBody} ${result.content}`.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
     const negative = /errore|non (?:puoi|possibile|consentito)|impossibile|verifica(?:re|zione).*telefon|codice sms|annuncio non visible|accesso negato/i;
@@ -385,9 +389,13 @@ async function clickPublishFree(page, remoteId) {
         throw new Error(`Risposta Moscarossa non riconosciuta dopo PUBBLICA GRATIS: ${combined.slice(0, 700)}`);
     }
 
+    const responsePublicId = responseBody.match(/(?:https?:\/\/www\.moscarossa\.biz)?\/girl-(\d+)\.php/i)?.[1] || "";
+    const publicUrl = result.publicLink ||
+        `https://www.moscarossa.biz/girl-${responsePublicId || remoteId}.php`;
     return {
         ok: true,
         remoteId,
+        publicUrl,
         response: combined.slice(0, 700)
     };
 }
@@ -420,7 +428,7 @@ async function publishAd(page, adData = {}) {
         const freeResult = await clickPublishFree(page, remoteId);
         await captureScreenshot(page, "04-free-published");
 
-        const url = `${VIEW_URL}?id_accompa=${encodeURIComponent(remoteId)}`;
+        const url = freeResult.publicUrl || `${VIEW_URL}?id_accompa=${encodeURIComponent(remoteId)}`;
         console.log("[moscarossa:publish] Free publication completed", { remoteId, url });
         return {
             ok: true,
