@@ -1,13 +1,16 @@
 const fs = require("fs");
 const path = require("path");
+const axios = require("axios");
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const TwoCaptcha = require("@2captcha/captcha-solver");
+const { buildPublishData, publishAd } = require("../adsManage/moscarossa/publishAds");
 
 const HOME_URL = "https://www.moscarossa.biz/";
 const LOGIN_URL = "https://www.moscarossa.biz/login-escort";
 const PRIVATE_NEW_AD_URL = "https://www.moscarossa.biz/private/inserimento.php";
 const CREDIT_URL = "https://www.moscarossa.biz/private/crediti.php";
+const LOCATION_SEARCH_URL = "https://www.moscarossa.biz/private/ajax_sel_comune.php";
 const RECAPTCHA_SITEKEY = "6LeQvfcUAAAAABV9eiDsuqJOKT15Aba_cuBl7IFQ";
 const SCREENSHOT_DIR = path.join(__dirname, "screenshots", "moscarossa-login");
 const API_KEY_FILE = path.join(__dirname, "settings", "2captchaApiKey.txt");
@@ -25,6 +28,30 @@ const solver = CAPTCHA_API_KEY ? new TwoCaptcha.Solver(CAPTCHA_API_KEY) : null;
 puppeteer.use(StealthPlugin());
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const normalizeLocationResults = (payload) => {
+  const source = Array.isArray(payload)
+    ? payload
+    : (payload?.results || payload?.items || payload?.data || []);
+  const seen = new Set();
+
+  return (Array.isArray(source) ? source : []).map((item) => {
+    if (typeof item === "string" || typeof item === "number") {
+      return { id: `${item}`.trim(), text: `${item}`.trim() };
+    }
+
+    return {
+      id: `${item?.id ?? item?.value ?? item?.id_comune ?? item?.pk_i_id ?? ""}`.trim(),
+      text: `${item?.text ?? item?.label ?? item?.name ?? item?.comune ?? item?.s_name ?? ""}`
+        .replace(/\s+/g, " ")
+        .trim()
+    };
+  }).filter((item) => {
+    if (!item.id || !item.text || seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  }).slice(0, 50);
+};
 
 const ensureDir = (directory) => {
   if (!fs.existsSync(directory)) fs.mkdirSync(directory, { recursive: true });
@@ -369,11 +396,95 @@ class MoscarossaBot {
     }
   }
 
+  async searchLocations({ term, idAccompa = "0" } = {}) {
+    const query = `${term || ""}`.replace(/\s+/g, " ").trim().slice(0, 80);
+    if (query.length < 2) {
+      const error = new Error("Moscarossa Comune search requires at least two characters.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    let cookies = Array.isArray(this.cookies) ? this.cookies : [];
+    if (!cookies.length && this.page && !this.page.isClosed()) {
+      cookies = await this.page.cookies();
+      this.cookies = cookies;
+    }
+    if (!cookies.length) {
+      const error = new Error("Moscarossa session expired before Comune search.");
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const response = await axios.get(LOCATION_SEARCH_URL, {
+      params: {
+        id_accompa: /^\d+$/.test(`${idAccompa || ""}`) ? `${idAccompa}` : "0",
+        term: query,
+        _type: "query",
+        q: query
+      },
+      headers: {
+        accept: "application/json, text/javascript, */*; q=0.01",
+        "x-requested-with": "XMLHttpRequest",
+        cookie: cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; "),
+        referer: PRIVATE_NEW_AD_URL,
+        "user-agent": USER_AGENT
+      },
+      timeout: 30000,
+      maxRedirects: 0,
+      validateStatus: () => true
+    });
+
+    const responseText = typeof response.data === "string" ? response.data : "";
+    const redirectedToLogin = response.status >= 300 && response.status < 400 &&
+      /login-escort/i.test(`${response.headers?.location || ""}`);
+    if (redirectedToLogin || [401, 403].includes(response.status) || /id=["']form_login|login-escort/i.test(responseText)) {
+      const error = new Error("Moscarossa session expired during Comune search.");
+      error.statusCode = 401;
+      throw error;
+    }
+    if (response.status < 200 || response.status >= 300) {
+      const error = new Error(`Moscarossa Comune search failed with HTTP ${response.status}.`);
+      error.statusCode = response.status || 502;
+      throw error;
+    }
+
+    let payload = response.data;
+    if (typeof payload === "string") {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        const error = new Error("Moscarossa Comune search returned invalid JSON.");
+        error.statusCode = 502;
+        throw error;
+      }
+    }
+
+    const results = normalizeLocationResults(payload);
+    console.log(`[Moscarossa] Comune search "${query}" returned ${results.length} result(s).`);
+    return { results };
+  }
+
+  buildPublishData(ad) {
+    return buildPublishData({
+      ...ad,
+      city: ad?.city || ad?.annunci_city || ad?.comune || "",
+      images: ad?.pics || ad?.images || [],
+      picsAudit: ad?.picsAudit || []
+    });
+  }
+
+  async publish(ad) {
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+    const publishData = this.buildPublishData(ad);
+    const result = await publishAd(page, { ...ad, ...publishData });
+    this.cookies = await page.cookies().catch(() => this.cookies);
+    return result;
+  }
+
   unsupported(operation) {
     throw new Error(`Moscarossa ${operation} workflow is not implemented yet.`);
   }
 
-  async publish() { return this.unsupported("publish"); }
   async update() { return this.unsupported("update"); }
   async delete() { return this.unsupported("delete"); }
   async suspend() { return this.unsupported("suspend"); }

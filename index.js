@@ -52,7 +52,7 @@ let activeLoginCount = 0;
 const loginWaitQueue = [];
 const rawPublisherApiPort = Number.parseInt(process.env.PUBLISHER_API_PORT || "9998", 10);
 const PUBLISHER_API_PORT = Number.isFinite(rawPublisherApiPort) && rawPublisherApiPort > 0 ? rawPublisherApiPort : 9998;
-const PUBLISH_IMAGE_LIMITS = Object.freeze({ amasens: 9, incontriamoci: 9, trovagnocca: 6 });
+const PUBLISH_IMAGE_LIMITS = Object.freeze({ amasens: 9, incontriamoci: 9, trovagnocca: 6, moscarossa: 20 });
 const getPublishImageLimit = (platformName) => PUBLISH_IMAGE_LIMITS[platformName] || 5;
 let publisherApiServer = null;
 
@@ -245,10 +245,10 @@ function normalizePublisherTimeSlots(timeSlots = []) {
     )];
 }
 
-function findTrovagnoccaPlatform({ username } = {}) {
+function findPlatformByName(platformName, { username } = {}) {
     for (const group of groups) {
         const platform = (group.platforms || []).find((candidate) => {
-            if (candidate.platform !== "trovagnocca") return false;
+            if (candidate.platform !== platformName) return false;
             if (!username) return true;
             return `${candidate.username || ""}`.toLowerCase() === `${username}`.toLowerCase();
         });
@@ -257,6 +257,10 @@ function findTrovagnoccaPlatform({ username } = {}) {
     }
 
     return null;
+}
+
+function findTrovagnoccaPlatform(options = {}) {
+    return findPlatformByName("trovagnocca", options);
 }
 
 function getErrorDetails(error) {
@@ -330,6 +334,63 @@ async function calculateTrovagnoccaPriceFromPublisher(payload = {}) {
     return await platform.bot.getPrice({ numberDays, timeSlots, productId });
 }
 
+function isMoscarossaSessionFailure(error) {
+    const message = `${error?.message || error || ""}`.toLowerCase();
+    return error?.statusCode === 401 || /moscarossa session.*expired|redirected? to login|login required/.test(message);
+}
+
+async function searchMoscarossaLocationsFromPublisher(payload = {}) {
+    const term = `${payload.term || ""}`.replace(/\s+/g, " ").trim().slice(0, 80);
+    if (term.length < 2) {
+        const error = new Error("Moscarossa Comune search requires at least two characters.");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const target = findPlatformByName("moscarossa", { username: payload.username });
+    if (!target?.platform) {
+        const error = new Error("No active Moscarossa platform found in publisher.");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const { platform } = target;
+    if (!platform.bot || typeof platform.bot.searchLocations !== "function") {
+        const error = new Error("Moscarossa location service is not initialized.");
+        error.statusCode = 503;
+        throw error;
+    }
+
+    if (platform.cookie && (!Array.isArray(platform.bot.cookies) || !platform.bot.cookies.length)) {
+        const reused = await platform.bot.initWithCookies?.(platform.cookie);
+        if (!reused) platform.cookie = null;
+    }
+
+    if (!platform.cookie) {
+        platform.cookie = await ensureSession(platform.bot, platform.username);
+        platform.needRefresh = true;
+    }
+
+    const search = () => platform.bot.searchLocations({
+        term,
+        idAccompa: payload.idAccompa
+    });
+
+    try {
+        return await search();
+    } catch (error) {
+        if (!isMoscarossaSessionFailure(error)) throw error;
+
+        logger.Write(`Publisher WARNING: Moscarossa session expired for ${platform.username}; re-login before Comune search.`);
+        sessionCache.delete(getSessionKey(platform.bot, platform.username));
+        platform.cookie = null;
+        platform.needRefresh = true;
+        await platform.bot.restartBrowser?.("expired session during Comune search");
+        platform.cookie = await ensureSession(platform.bot, platform.username);
+        return await search();
+    }
+}
+
 function startPublisherApiServer() {
     if (publisherApiServer) return;
 
@@ -340,22 +401,37 @@ function startPublisherApiServer() {
             return sendJson(res, 200, { ok: true });
         }
 
-        if (req.method !== "POST" || url.pathname !== "/api/trovagnocca/price") {
-            return sendJson(res, 404, { error: "Publisher API route not found." });
+        if (req.method === "POST" && url.pathname === "/api/trovagnocca/price") {
+            try {
+                const payload = await readJsonBody(req);
+                const data = await calculateTrovagnoccaPriceFromPublisher(payload);
+                return sendJson(res, 200, data);
+            } catch (error) {
+                const statusCode = error.statusCode || error.response?.status || 500;
+                console.error("[publisher-api] Trovagnocca price error:", error);
+                return sendJson(res, statusCode, {
+                    error: "Unable to calculate Trovagnocca price.",
+                    details: error.response?.data || getErrorDetails(error)
+                });
+            }
         }
 
-        try {
-            const payload = await readJsonBody(req);
-            const data = await calculateTrovagnoccaPriceFromPublisher(payload);
-            return sendJson(res, 200, data);
-        } catch (error) {
-            const statusCode = error.statusCode || error.response?.status || 500;
-            console.error("[publisher-api] Trovagnocca price error:", error);
-            return sendJson(res, statusCode, {
-                error: "Unable to calculate Trovagnocca price.",
-                details: error.response?.data || getErrorDetails(error)
-            });
+        if (req.method === "POST" && url.pathname === "/api/moscarossa/locations") {
+            try {
+                const payload = await readJsonBody(req);
+                const data = await searchMoscarossaLocationsFromPublisher(payload);
+                return sendJson(res, 200, data);
+            } catch (error) {
+                const statusCode = error.statusCode || error.response?.status || 500;
+                console.error("[publisher-api] Moscarossa Comune search error:", error);
+                return sendJson(res, statusCode, {
+                    error: "Unable to search Moscarossa Comuni.",
+                    details: error.response?.data || getErrorDetails(error)
+                });
+            }
         }
+
+        return sendJson(res, 404, { error: "Publisher API route not found." });
     });
 
     publisherApiServer.on("error", (error) => {
@@ -457,9 +533,8 @@ async function CreateGroupsBot() {
                                 break;
                             case "moscarossa":
                                 panel.bot = await new MoscarossaBot(panel.username, decryptedPlatformPass, panel.credit, panel.platform)
-                                panel.integrationPending = true
                                 panel.overBusyBot = 0
-                                logger.Write(`Publisher INFO: Moscarossa login is configured for ${panel.username}; publishing automation is still pending.`)
+                                logger.Write(`Publisher INFO: Moscarossa free publishing is configured for ${panel.username}.`)
                                 break;
                             default:
                                 panel.bot = await new BakecaincontriiBot(panel.username, decryptedPlatformPass)
