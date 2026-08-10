@@ -51,6 +51,14 @@ const normalizeBakecaContactType = (value) => {
   return "donna";
 };
 
+const parseBakecaCredit = (value) => {
+  const text = `${value ?? ""}`.replace(/\u00a0/g, " ").trim();
+  const match = text.match(/-?\d[\d.,]*/);
+  if (!match) return Number.NaN;
+  const digits = match[0].replace(/[^\d-]/g, "");
+  return /^-?\d+$/.test(digits) ? Number.parseInt(digits, 10) : Number.NaN;
+};
+
 // puppeteer.use(StealthPlugin());
 puppeteer.use(
   StealthPlugin(),
@@ -128,6 +136,46 @@ class BakecaBot {
     this.browser = null;
     this.page = null;
     this.token = null;
+  }
+
+  async getAuthenticationState() {
+    if (!this.page || this.page.isClosed()) {
+      return { authenticated: false, reason: "page-not-available", url: "" };
+    }
+
+    const expectedEmail = `${this.email || ""}`.trim().toLowerCase();
+    return this.page.evaluate((email) => {
+      const normalize = value => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+      const url = window.location.href;
+      const links = Array.from(document.querySelectorAll("a"));
+      const visibleLinks = links.filter(link => {
+        const style = window.getComputedStyle(link);
+        const rect = link.getBoundingClientRect();
+        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      });
+      const hasAnonymousNavigation = visibleLinks.some(link => {
+        const text = normalize(link.textContent);
+        const href = `${link.getAttribute("href") || ""}`.toLowerCase();
+        return text === "accedi" || text === "registrati" || /\/login\/?(?:[?#]|$)/.test(href);
+      });
+      const hasLoginForm = Boolean(document.querySelector("#email, #password, #entra, .bk-miaBakecaAnnunciForm"));
+      const hasAccountNavigation = visibleLinks.some(link => {
+        const href = `${link.href || link.getAttribute("href") || ""}`.toLowerCase();
+        return /\/miabakeca\/(?:annuncio|alert|impostazioni)/.test(href) || /\/logout\/?(?:[?#]|$)/.test(href);
+      });
+      const emailPrefix = email.split("@")[0];
+      const hasExpectedAccount = emailPrefix.length >= 4 && normalize(document.body?.innerText).includes(emailPrefix.slice(0, 8));
+      const redirectedToLogin = /\/login\/?(?:[?#]|$)/i.test(url);
+      const authenticated = !redirectedToLogin && !hasLoginForm && !hasAnonymousNavigation
+        && (hasAccountNavigation || hasExpectedAccount);
+
+      return {
+        authenticated,
+        reason: authenticated ? "authenticated" : redirectedToLogin ? "login-redirect" : hasLoginForm
+          ? "login-form-visible" : hasAnonymousNavigation ? "anonymous-navigation" : "account-marker-missing",
+        url
+      };
+    }, expectedEmail);
   }
 
   async solveAndInjectTurnstile(page, solver) {
@@ -208,29 +256,32 @@ class BakecaBot {
 
     try {
       console.log("Bakeca-");
-      console.log(1, await puppeteer.executablePath(), RESIDENTIAL_PROXY, "Launching browser...");
+      console.log(1, await puppeteer.executablePath(), {
+        host: RESIDENTIAL_PROXY.host,
+        port: RESIDENTIAL_PROXY.port
+      }, "Launching browser...");
 
       if (this.browser) {
-        this.browser.close().catch(() => { });
+        await this.browser.close().catch(() => { });
         this.browser = null;
-      } else {
-        this.browser = await puppeteer.launch({
-          headless: true,
-          executablePath: await puppeteer.executablePath(),
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            "--disable-blink-features=AutomationControlled",
-            "--disable-dev-shm-usage",
-            "--disable-infobars",
-            "--disable-web-security",
-            "--disable-features=IsolateOrigins,site-per-process",
-            '--window-size=1280,960',
-            `--proxy-server=http://${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`
-          ],
-          defaultViewport: null,
-        });
+        this.page = null;
       }
+      this.browser = await puppeteer.launch({
+        headless: true,
+        executablePath: await puppeteer.executablePath(),
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          "--disable-blink-features=AutomationControlled",
+          "--disable-dev-shm-usage",
+          "--disable-infobars",
+          "--disable-web-security",
+          "--disable-features=IsolateOrigins,site-per-process",
+          '--window-size=1280,960',
+          `--proxy-server=http://${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`
+        ],
+        defaultViewport: null,
+      });
 
       this.page = await this.browser.newPage();
 
@@ -285,7 +336,7 @@ class BakecaBot {
       await this.waitTillHTMLRendered(this.page);
       await this.page.screenshot({ path: `${screenshotDir}/LoginBakeca4.png`, fullPage: true });
 
-      console.log(`[i] Bakeca-Login password for "${creds.email}": "${creds.password}"`);
+      console.log(`[i] Bakeca-Login credentials loaded for "${creds.email}".`);
 
       // ===== TYPE EMAIL =====
       await this.fillInputWithRetry('#email', creds.email);
@@ -304,25 +355,26 @@ class BakecaBot {
         email: creds.email,
         password: creds.password
       });
-      // ===== CLICK LOGIN =====
-      await this.page.click('#entra');
+      // Register the navigation listener before clicking so a fast redirect is not missed.
+      await Promise.all([
+        this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => null),
+        this.page.click('#entra')
+      ]);
       await this.page.screenshot({ path: `${screenshotDir}/LoginBakeca5.png`, fullPage: true });
 
-      // ===== WAIT NAVIGATION =====
-      await this.page.waitForNavigation({
-        waitUntil: 'networkidle2',
-        timeout: 30000
-      }).catch(() => { });
-      // ===== CHECK LOGIN SUCCESS =====
-      const isLogged = await this.page.evaluate(() => {
-        return !document.querySelector('.bk-miaBakecaAnnunciForm'); // login form disappears
-      });
+      // Validate authentication on a protected account page. The public credit page
+      // also renders a zero balance, so cookies alone are not proof of login.
+      await this.page.goto(ANNOUNCEMENTS, { waitUntil: "networkidle2", timeout: 30000 });
+      const authState = await this.getAuthenticationState();
       await this.page.screenshot({ path: `${screenshotDir}/LoginBakeca6.png`, fullPage: true });
 
+      if (!authState.authenticated) {
+        throw new Error(`Bakeca login failed (${authState.reason}) at ${authState.url}`);
+      }
+
       const cookies = await this.page.cookies();
-      // console.log(cookies, "cookies");
+      if (!cookies.length) throw new Error("Bakeca login returned no cookies");
       console.log("[i] Bakeca-Login success as: ", creds.email);
-      // return { browser, page };
       return JSON.stringify(cookies);
     } catch (err) {
       // screenNum = 1;
@@ -334,6 +386,7 @@ class BakecaBot {
         this.token = null;
       }
       await this.delay(3000);
+      throw err;
     }
   }
 
@@ -357,44 +410,36 @@ class BakecaBot {
       await this.page.goto(CREDIT, { waitUntil: "networkidle2", timeout: 30000 });
       // await this.waitTillHTMLRendered(this.page);
 
-      // ===== WAIT NAVIGATION =====
-      await this.page.waitForNavigation({
-        waitUntil: 'networkidle2',
-        timeout: 30000
-      }).catch(() => { });
+      // Always keep the latest credit-page evidence, including anonymous/session-expired pages.
+      await this.page.screenshot({ path: `${screenshotDir}/bakeca_refresh1.png`, fullPage: true });
+
+      const authState = await this.getAuthenticationState();
+      if (!authState.authenticated) {
+        console.warn(`[!] Bakeca anonymous credit page detected (${authState.reason}): ${authState.url}`);
+        return { error: `Bakeca session expired (${authState.reason})` };
+      }
       // await this.page.waitForFunction(() => {
       //   return document.querySelector('.b-percent-title"]');
       // }, { timeout: 30000 });
 
-      await this.page.screenshot({ path: `${screenshotDir}/bakeca_refresh1.png`, fullPage: true });
-
       let credit = null;
       try {
-        // await this.page.waitForSelector(CREDIT_SELECTOR, { timeout: 5000 });
-        // credit = await this.page.$eval(CREDIT_SELECTOR, el => el.textContent.trim());
-        credit = await this.page.$eval('.b-percent-title', el =>
-          parseInt(el.innerText)
-        );
+        const creditText = await this.page.$eval('.b-percent-title', el => el.textContent || el.innerText || "");
+        credit = parseBakecaCredit(creditText);
       } catch (e) {
         console.warn("[!] Bakeca-Primary credit selector failed (refresh2), fallback parsing.");
-        // try {
-        //   const liSelector = 'ul.list-group li.list-group-item';
-        //   await this.page.waitForSelector(liSelector, { timeout: 4000 });
-        //   const items = await this.page.$$(liSelector);
-        //   for (const item of items) {
-        //     const text = await this.page.evaluate(el => el.textContent, item);
-        //     if (text.includes('ATTUALI')) {
-        //       credit = await this.page.evaluate(el => {
-        //         const badge = el.querySelector('span.badge, span');
-        //         return badge ? badge.textContent.trim() : null;
-        //       }, item);
-        //       break;
-        //     }
-        //   }
-        // } catch { }
       }
 
-      if (!credit) {
+      if (!Number.isFinite(credit)) {
+        const fallbackCreditText = await this.page.evaluate(() => {
+          const text = document.body?.innerText || "";
+          const match = text.match(/(?:crediti?|credito|saldo)[^\d]{0,50}(\d[\d.,]*)/i);
+          return match?.[1] || "";
+        });
+        credit = parseBakecaCredit(fallbackCreditText);
+      }
+
+      if (!Number.isFinite(credit) || credit < 0) {
         console.log("[!] Bakeca-Credit not found (refresh2).");
         return { error: "Credit not found" };
       }
