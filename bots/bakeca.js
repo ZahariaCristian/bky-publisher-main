@@ -2,7 +2,7 @@ const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require("fs");
 const path = require('path');
-const { publishAd, log } = require('../adsManage/bakeca/publishAds');
+const { publishAd } = require('../adsManage/bakeca/publishAds');
 const { updateAd } = require('../adsManage/bakeca/updateAds');
 const { suspendAds, deleteAds, republishAds } = require('../adsManage/bakeca/suspendAds');
 const { openPublishPage } = require('../adsManage/bakeca/uploadImages');
@@ -14,13 +14,7 @@ const TwoCaptcha = require("@2captcha/captcha-solver")
 
 const { RESIDENTIAL_PROXY } = require("../const");
 
-const API_KEY = fs.readFileSync(__dirname + "/settings/2captchaApiKey.txt", "utf-8", function read(error, data) {
-  if (err) {
-    throw err;
-  }
-  var content = data;
-  console.log(content);
-});
+const API_KEY = fs.readFileSync(path.join(__dirname, "settings", "2captchaApiKey.txt"), "utf8").trim();
 const solver = new TwoCaptcha.Solver(API_KEY)
 
 const LOGIN_URL = "https://www.bakeca.it/login/";
@@ -30,7 +24,6 @@ const PUBLISH_INCONTRI_URL = "https://www.bakeca.it/inserisci/annuncio/sel_categ
 const ANNOUNCEMENTS = "https://www.bakeca.it/miabakeca/annuncio/elencoutente/"
 const CREDIT = "https://www.bakeca.it/miabakeca/crediti/acquista/";
 
-const PUBLISH_URL = "https://www.bakeca.it/pubblica/annuncio/idPriv/";
 const MODIFY_URL = "https://www.bakeca.it/modifica/annuncio/idpriv/";
 
 const normalizeBakecaCategory = (category) => {
@@ -81,8 +74,6 @@ class BakecaBot {
     this.platform = platform;
     this.browser = null;
     this.page = null;
-    this.token = null;
-    this.remotePostID = null;
   };
 
   getCredential() {
@@ -135,7 +126,6 @@ class BakecaBot {
     }
     this.browser = null;
     this.page = null;
-    this.token = null;
   }
 
   async getAuthenticationState() {
@@ -171,13 +161,21 @@ class BakecaBot {
       const hasExpectedAccount = emailPrefix.length >= 4 && normalize(document.body?.innerText).includes(emailPrefix.slice(0, 8));
       const redirectedToLogin = /\/login(?:\/|[?#]|$)/i.test(url);
       const protectedAccountPage = /\/miabakeca\//i.test(url);
-      const authenticated = !redirectedToLogin && !hasLoginForm && !hasAnonymousNavigation
-        && (protectedAccountPage || hasAccountNavigation || hasExpectedAccount);
+      // Bakeca keeps login-modal markup in authenticated pages. A protected
+      // MiaBakeca URL is authoritative unless anonymous navigation is visible.
+      const authenticated = protectedAccountPage
+        ? !hasAnonymousNavigation
+        : !redirectedToLogin && !hasLoginForm && !hasAnonymousNavigation
+          && (hasAccountNavigation || hasExpectedAccount);
+      const reason = authenticated ? "authenticated"
+        : redirectedToLogin ? "login-redirect"
+          : protectedAccountPage && hasAnonymousNavigation ? "anonymous-navigation"
+            : hasLoginForm ? "login-form-visible"
+              : hasAnonymousNavigation ? "anonymous-navigation" : "account-marker-missing";
 
       return {
         authenticated,
-        reason: authenticated ? "authenticated" : redirectedToLogin ? "login-redirect" : hasLoginForm
-          ? "login-form-visible" : hasAnonymousNavigation ? "anonymous-navigation" : "account-marker-missing",
+        reason,
         url
       };
     }, expectedEmail);
@@ -346,9 +344,6 @@ class BakecaBot {
       await this.page.setUserAgent(
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36'
       );
-      // await page.setViewport({ width: 1366, height: 768 });
-      // await takeShot(this.page, "start");
-
       // ===== TARGET =====
       console.log(2, "Bakeca-Opening target...");
       await this.page.goto(LOGIN_URL, { waitUntil: "networkidle2", timeout: 30000 });
@@ -362,29 +357,26 @@ class BakecaBot {
       }, { timeout: 30000 }).catch(() => {
         console.log(3, "Bakeca-Cloudflare timeout");
       });
-      // await new Promise(r => setTimeout(r, 2000));
       await this.page.screenshot({ path: `${screenshotDir}/LoginBakeca3.png`, fullPage: true });
       await this.dismissCookieBanner(this.page);
 
       // ===== WAIT Email Input =====
       console.log(4, "Bakeca-Waiting Email Input...");
-      const hasEmailInput = await this.page.waitForFunction(() => {
+      await this.page.waitForFunction(() => {
         return document.querySelectorAll('#email').length > 0;
       }, { timeout: 20000 })
 
       console.log(5, "Bakeca-Waiting Password Input...");
-      const hasPasswordInput = await this.page.waitForFunction(() => {
+      await this.page.waitForFunction(() => {
         return document.querySelectorAll('#password').length > 0;
       }, { timeout: 20000 })
 
       console.log(6, "Bakeca-Waiting Submit Button...");
-      const hasSubmitButton = await this.page.waitForFunction(() => {
+      await this.page.waitForFunction(() => {
         return document.querySelectorAll('#entra').length > 0;
       }, { timeout: 20000 })
-      // await this.page.screenshot({ path: `${screenshotDir}/LoginBakeca4.png`, fullPage: true });
 
       // ===== FULL RENDER =====
-      // log(7, "Waiting render...");
       await this.waitTillHTMLRendered(this.page);
       await this.page.screenshot({ path: `${screenshotDir}/LoginBakeca4.png`, fullPage: true });
 
@@ -460,7 +452,6 @@ class BakecaBot {
         await this.browser.close();
         this.browser = null;
         this.page = null;
-        this.token = null;
       }
       await this.delay(3000);
       throw err;
@@ -485,7 +476,6 @@ class BakecaBot {
       }
 
       await this.page.goto(CREDIT, { waitUntil: "networkidle2", timeout: 30000 });
-      // await this.waitTillHTMLRendered(this.page);
 
       // Always keep the latest credit-page evidence, including anonymous/session-expired pages.
       await this.page.screenshot({ path: `${screenshotDir}/bakeca_refresh1.png`, fullPage: true });
@@ -495,10 +485,6 @@ class BakecaBot {
         console.warn(`[!] Bakeca anonymous credit page detected (${authState.reason}): ${authState.url}`);
         return { error: `Bakeca session expired (${authState.reason})` };
       }
-      // await this.page.waitForFunction(() => {
-      //   return document.querySelector('.b-percent-title"]');
-      // }, { timeout: 30000 });
-
       let credit = null;
       try {
         const creditText = await this.page.$eval('.b-percent-title', el => el.textContent || el.innerText || "");
@@ -523,11 +509,6 @@ class BakecaBot {
 
       this.credit = credit;
       console.log("[✓] Bakeca-Credit found:refresh", this.credit);
-
-      // this.coupon = await this.page.$$eval(
-      //   'div.coupon.rounded-lg.flex-column.h-100.coupon-border.p-3',
-      //   els => els.length > 0 ? 1 : 0
-      // ).catch(() => 0);
 
       let cookies = await this.page.cookies();
       if (!cookies || cookies.length === 0) {
@@ -625,12 +606,11 @@ class BakecaBot {
 
   async publish(ad, group, platform) {
     const bakecaCategory = normalizeBakecaCategory(ad.categorie);
-    let publishUrl = bakecaCategory === "massaggi-benessere" ? PUBLISH_MASSAGGI_URL : PUBLISH_INCONTRI_URL;
+    const publishUrl = bakecaCategory === "massaggi-benessere" ? PUBLISH_MASSAGGI_URL : PUBLISH_INCONTRI_URL;
 
     await openPublishPage(this.page, publishUrl)
-    // console.log(ad.promo, ad.sono, 'ad promo')
 
-    let publishData = {
+    const publishData = {
       titolo: ad?.title || '',
       testo: ad.description || '',
       email: ad.username,
@@ -645,14 +625,9 @@ class BakecaBot {
       images: ad.pics,
       typeAnnuncio: ad.promo.visibility,
       period: ad.promo.schedule
-      // imageFolder: "./images",
-      // imageLimit: 20
     }
 
     const result = await publishAd(this.page, publishData);
-
-    // log("result", "Publish flow result", result);
-    // console.log(JSON.stringify(result, null, 2));
     return result;
   }
 
@@ -668,7 +643,7 @@ class BakecaBot {
     await this.delay(1000);
 
     const bakecaCategory = normalizeBakecaCategory(ad.categorie);
-    let publishData = {
+    const publishData = {
       titolo: ad?.title || '',
       testo: ad.description || '',
       email: ad.username,
@@ -684,9 +659,6 @@ class BakecaBot {
     }
 
     const result = await updateAd(this.page, publishData);
-
-    // log("result", "Update flow result", result);
-    // console.log(JSON.stringify(result, null, 2));
     return result;
   }
 
