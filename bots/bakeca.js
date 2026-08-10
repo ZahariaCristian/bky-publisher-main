@@ -178,70 +178,116 @@ class BakecaBot {
     }, expectedEmail);
   }
 
+  async dismissCookieBanner(page = this.page) {
+    if (!page || page.isClosed()) return false;
+    const clicked = await page.evaluate(() => {
+      const normalize = value => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+      const preferredLabels = [
+        "continua senza accettare",
+        "accetta",
+        "accetta tutti",
+        "rifiuta"
+      ];
+      const controls = Array.from(document.querySelectorAll("button, a, [role='button']"));
+      for (const label of preferredLabels) {
+        const control = controls.find(element => normalize(element.textContent) === label);
+        if (control) {
+          control.click();
+          return label;
+        }
+      }
+      return "";
+    }).catch(() => "");
+
+    if (clicked) {
+      console.log(`[i] Bakeca-Cookie banner dismissed with "${clicked}".`);
+      await this.delay(500);
+      return true;
+    }
+    return false;
+  }
+
+  async getLoginValidation() {
+    if (!this.page || this.page.isClosed()) return [];
+    return this.page.evaluate(() => {
+      const selectors = [
+        "[role='alert']",
+        ".alert-danger",
+        ".alert-error",
+        ".error-message",
+        ".form-error",
+        ".invalid-feedback",
+        ".help-block"
+      ];
+      return Array.from(document.querySelectorAll(selectors.join(",")))
+        .map(element => `${element.textContent || ""}`.replace(/\s+/g, " ").trim())
+        .filter((text, index, values) => text && values.indexOf(text) === index)
+        .slice(0, 10);
+    }).catch(() => []);
+  }
+
   async solveAndInjectTurnstile(page, solver) {
     try {
-      // Step 1: Solve Turnstile via 2Captcha
-      const solution = await solver.cloudflareTurnstile({
-        pageurl: "https://www.bakeca.it/login/",
-        sitekey: "0x4AAAAAABMyNd-c0BvRFF_d"
+      const challenge = await page.evaluate(() => {
+        const widget = document.querySelector("[data-sitekey]");
+        const iframe = document.querySelector("iframe[src*='turnstile'], iframe[src*='challenges.cloudflare.com']");
+        const input = document.querySelector("input[name='cf-turnstile-response']");
+        const html = document.documentElement?.innerHTML || "";
+        let sitekey = widget?.getAttribute("data-sitekey") || "";
+        if (!sitekey && iframe?.src) {
+          try {
+            const iframeUrl = new URL(iframe.src, window.location.href);
+            sitekey = iframeUrl.searchParams.get("sitekey") || iframeUrl.searchParams.get("k") || "";
+          } catch (_) { }
+        }
+        if (!sitekey) {
+          sitekey = html.match(/0x4[A-Za-z0-9_-]{10,}/)?.[0] || "";
+        }
+        return {
+          present: Boolean(widget || iframe || input),
+          sitekey,
+          pageurl: window.location.href
+        };
       });
-      console.log('Turnstile token received:', solution);
-      // Step 2: Wait for hidden input to appear
+
+      if (!challenge.present) return false;
+      if (!challenge.sitekey) throw new Error("Bakeca Turnstile detected but its site key was not found");
+
+      console.log(`[i] Bakeca-Turnstile detected; requesting solution for site key ${challenge.sitekey.slice(0, 8)}...`);
+      const solveRequest = {
+        pageurl: challenge.pageurl,
+        sitekey: challenge.sitekey
+      };
+      if (RESIDENTIAL_PROXY.username && RESIDENTIAL_PROXY.password && RESIDENTIAL_PROXY.host && RESIDENTIAL_PROXY.port) {
+        solveRequest.proxy = `${RESIDENTIAL_PROXY.username}:${RESIDENTIAL_PROXY.password}@${RESIDENTIAL_PROXY.host}:${RESIDENTIAL_PROXY.port}`;
+        solveRequest.proxytype = "HTTP";
+      }
+      const solution = await solver.cloudflareTurnstile(solveRequest);
+      const token = `${solution?.data || ""}`;
+      if (!token) throw new Error("2Captcha returned an empty Bakeca Turnstile token");
+
       await page.waitForSelector('input[name="cf-turnstile-response"]', {
         visible: false,
         timeout: 10000
       });
 
-      // Step 3: Inject token into inputs with retries
-      for (let i = 0; i < 2; i++) {
-        const success = await page.evaluate((token) => {
-          const turnstileInput = document.querySelector('input[name="cf-turnstile-response"]');
-          const recaptchaInput = document.querySelector('input[name="g-recaptcha-response"]');
-          let injected = false;
-          if (turnstileInput) {
-            turnstileInput.value = token;
-            turnstileInput.setAttribute('value', token);
-            turnstileInput.dispatchEvent(new Event('input', { bubbles: true }));
-            turnstileInput.dispatchEvent(new Event('change', { bubbles: true }));
-            injected = true;
-          }
-          if (recaptchaInput) {
-            recaptchaInput.value = token;
-            recaptchaInput.setAttribute('value', token);
-            recaptchaInput.dispatchEvent(new Event('input', { bubbles: true }));
-            recaptchaInput.dispatchEvent(new Event('change', { bubbles: true }));
-            injected = true;
-          }
-          return injected;
-        }, solution);
-        if (success) {
-          console.log('Token successfully injected');
-          break;
+      const injected = await page.evaluate((captchaToken) => {
+        const inputs = Array.from(document.querySelectorAll(
+          "input[name='cf-turnstile-response'], textarea[name='cf-turnstile-response']"
+        ));
+        for (const input of inputs) {
+          input.value = captchaToken;
+          input.setAttribute("value", captchaToken);
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.dispatchEvent(new Event("change", { bubbles: true }));
         }
-        console.warn('Injection failed, retrying...');
-        await delay(1000);
-      }
-      // Step 4 (Optional): Submit the form manually if the site doesn't do it
-      // Uncomment if needed
-      try {
-        await page.evaluate(() => {
-          try {
-            const form = document.querySelector('form');
-            if (form) {
-              form.submit();
-              console.log('Form submitted successfully.');
-            } else {
-              console.warn('No form element found on the page.');
-            }
-          } catch (err) {
-            console.log('Error during form submission inside page context:', err);
-          }
-        });
-      } catch (outerErr) {
-        console.log('Error evaluating form submission:', outerErr);
-      }
+        return inputs.length;
+      }, token);
+      if (!injected) throw new Error("Bakeca Turnstile token input disappeared before injection");
+      console.log("[i] Bakeca-Turnstile token injected.");
+      return true;
     } catch (err) {
-      console.log('Error solving/injecting Turnstile:', err);
+      console.log('Bakeca-Error solving/injecting Turnstile:', err.message || err);
       throw err;
     }
   }
@@ -313,6 +359,7 @@ class BakecaBot {
       });
       // await new Promise(r => setTimeout(r, 2000));
       await this.page.screenshot({ path: `${screenshotDir}/LoginBakeca3.png`, fullPage: true });
+      await this.dismissCookieBanner(this.page);
 
       // ===== WAIT Email Input =====
       console.log(4, "Bakeca-Waiting Email Input...");
@@ -355,12 +402,37 @@ class BakecaBot {
         email: creds.email,
         password: creds.password
       });
+
+      const turnstileSolved = await this.solveAndInjectTurnstile(this.page, solver);
+      if (!turnstileSolved) {
+        const hasRecaptcha = await this.page.evaluate(() => Boolean(
+          document.querySelector(".g-recaptcha, iframe[src*='recaptcha'], textarea[name='g-recaptcha-response']")
+        ));
+        if (hasRecaptcha) {
+          console.log("[i] Bakeca-reCAPTCHA detected; requesting solution.");
+          const captchaResult = await this.page.solveRecaptchas();
+          if (captchaResult?.error) throw new Error(`${captchaResult.error}`);
+          const solvedCount = Array.isArray(captchaResult?.solved) ? captchaResult.solved.length : 0;
+          if (!solvedCount) throw new Error("Bakeca reCAPTCHA was detected but not solved");
+          console.log(`[i] Bakeca-reCAPTCHA solved (${solvedCount}).`);
+        }
+      }
+
+      // A consent layer can be recreated after a captcha callback.
+      await this.dismissCookieBanner(this.page);
       // Register the navigation listener before clicking so a fast redirect is not missed.
       await Promise.all([
         this.page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => null),
-        this.page.click('#entra')
+        this.page.$eval('#entra', element => element.click())
       ]);
       await this.page.screenshot({ path: `${screenshotDir}/LoginBakeca5.png`, fullPage: true });
+
+      const submitState = await this.getAuthenticationState();
+      if (!submitState.authenticated && /\/login\/?(?:backUrl\/|[?#]|$)/i.test(submitState.url)) {
+        const validation = await this.getLoginValidation();
+        const details = validation.length ? validation.join(" | ") : submitState.reason;
+        throw new Error(`Bakeca login rejected: ${details} at ${submitState.url}`);
+      }
 
       // Validate authentication on a protected account page. The public credit page
       // also renders a zero balance, so cookies alone are not proof of login.
