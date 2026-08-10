@@ -146,28 +146,33 @@ class BakecaBot {
     const expectedEmail = `${this.email || ""}`.trim().toLowerCase();
     return this.page.evaluate((email) => {
       const normalize = value => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+      const isVisible = element => {
+        if (!element) return false;
+        const style = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return style.display !== "none" && style.visibility !== "hidden"
+          && Number(style.opacity || 1) !== 0 && rect.width > 0 && rect.height > 0;
+      };
       const url = window.location.href;
       const links = Array.from(document.querySelectorAll("a"));
-      const visibleLinks = links.filter(link => {
-        const style = window.getComputedStyle(link);
-        const rect = link.getBoundingClientRect();
-        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
-      });
+      const visibleLinks = links.filter(isVisible);
       const hasAnonymousNavigation = visibleLinks.some(link => {
         const text = normalize(link.textContent);
         const href = `${link.getAttribute("href") || ""}`.toLowerCase();
-        return text === "accedi" || text === "registrati" || /\/login\/?(?:[?#]|$)/.test(href);
+        return text === "accedi" || text === "registrati" || /\/login(?:\/|[?#]|$)/.test(href);
       });
-      const hasLoginForm = Boolean(document.querySelector("#email, #password, #entra, .bk-miaBakecaAnnunciForm"));
+      const loginControls = Array.from(document.querySelectorAll("#email, #password, #entra, .bk-miaBakecaAnnunciForm"));
+      const hasLoginForm = loginControls.some(isVisible);
       const hasAccountNavigation = visibleLinks.some(link => {
         const href = `${link.href || link.getAttribute("href") || ""}`.toLowerCase();
         return /\/miabakeca\/(?:annuncio|alert|impostazioni)/.test(href) || /\/logout\/?(?:[?#]|$)/.test(href);
       });
       const emailPrefix = email.split("@")[0];
       const hasExpectedAccount = emailPrefix.length >= 4 && normalize(document.body?.innerText).includes(emailPrefix.slice(0, 8));
-      const redirectedToLogin = /\/login\/?(?:[?#]|$)/i.test(url);
+      const redirectedToLogin = /\/login(?:\/|[?#]|$)/i.test(url);
+      const protectedAccountPage = /\/miabakeca\//i.test(url);
       const authenticated = !redirectedToLogin && !hasLoginForm && !hasAnonymousNavigation
-        && (hasAccountNavigation || hasExpectedAccount);
+        && (protectedAccountPage || hasAccountNavigation || hasExpectedAccount);
 
       return {
         authenticated,
