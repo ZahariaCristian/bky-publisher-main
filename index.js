@@ -53,7 +53,7 @@ const loginWaitQueue = [];
 const rawPublisherApiPort = Number.parseInt(process.env.PUBLISHER_API_PORT || "9998", 10);
 const PUBLISHER_API_PORT = Number.isFinite(rawPublisherApiPort) && rawPublisherApiPort > 0 ? rawPublisherApiPort : 9998;
 const PUBLISHER_API_HOST = `${process.env.PUBLISHER_API_HOST || "127.0.0.1"}`.trim() || "127.0.0.1";
-const PUBLISH_IMAGE_LIMITS = Object.freeze({ amasens: 9, incontriamoci: 9, trovagnocca: 6, moscarossa: 3 });
+const PUBLISH_IMAGE_LIMITS = Object.freeze({ amasens: 9, incontriamoci: 9, trovagnocca: 6, moscarossa: 20 });
 const getPublishImageLimit = (platformName) => PUBLISH_IMAGE_LIMITS[platformName] || 5;
 let publisherApiServer = null;
 

@@ -5,6 +5,7 @@ const PUBLISH_URL = "https://www.moscarossa.biz/private/inserimento.php";
 const VIEW_URL = "https://www.moscarossa.biz/private/vedi_annuncio_ut.php";
 const SCREENSHOT_DIR = path.join("./screenshots", "moscarossa-publish");
 const FREE_IMAGE_LIMIT = 20;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 const CATEGORY_VALUES = Object.freeze({
     DONNAUOMO: "1",
@@ -299,13 +300,37 @@ async function uploadImages(page, images, picsAudit) {
         return [];
     }
 
-    const input = await page.waitForSelector("input.fileuploader_upload[name='files[]']", { timeout: 30000 });
-    await input.uploadFile(...imagePaths);
-    await page.waitForFunction((expected) => {
-        const inputNode = document.querySelector("input.fileuploader_upload[name='files[]']");
-        return Number(inputNode?.files?.length || 0) >= expected;
-    }, { timeout: 20000 }, imagePaths.length);
-    await delay(1500);
+    const fileAudit = imagePaths.map((filePath) => {
+        const stats = fs.statSync(filePath);
+        return { path: filePath, bytes: stats.size, megabytes: Number((stats.size / 1024 / 1024).toFixed(2)) };
+    });
+    console.log("[moscarossa:images] Upload candidates", fileAudit.map((file) => ({
+        file: path.basename(file.path),
+        megabytes: file.megabytes
+    })));
+    const oversized = fileAudit.filter((file) => file.bytes > MAX_IMAGE_BYTES);
+    if (oversized.length) {
+        throw new Error(
+            `Moscarossa accetta immagini fino a 5 MB. File troppo grandi: ${oversized.map((file) => `${path.basename(file.path)} (${file.megabytes} MB)`).join(", ")}`
+        );
+    }
+
+    // Feed files to Moscarossa one at a time. Its fileuploader plugin clones
+    // and retains each input batch; assigning a large batch in one CDP command
+    // can block the renderer and make DOM.setFileInputFiles time out.
+    for (let index = 0; index < imagePaths.length; index += 1) {
+        const input = await page.waitForSelector("input.fileuploader_upload[name='files[]']", { timeout: 30000 });
+        await input.uploadFile(imagePaths[index]);
+        await page.waitForFunction((minimumItems) => {
+            const renderedItems = document.querySelectorAll(
+                ".fileuploader-items-list .fileuploader-item, .fileuploader-items-list li"
+            ).length;
+            const selectedFiles = Number(document.querySelector("input.fileuploader_upload[name='files[]']")?.files?.length || 0);
+            return renderedItems >= minimumItems || (minimumItems === 1 && selectedFiles >= 1);
+        }, { timeout: 30000 }, index + 1);
+        await delay(250);
+    }
+    await delay(1000);
     console.log(`[moscarossa:images] Prepared ${imagePaths.length} free-ad image(s).`);
     return imagePaths;
 }
