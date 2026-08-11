@@ -6,6 +6,7 @@ const VIEW_URL = "https://www.moscarossa.biz/private/vedi_annuncio_ut.php";
 const SCREENSHOT_DIR = path.join("./screenshots", "moscarossa-publish");
 const FREE_IMAGE_LIMIT = 20;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const NATIVE_UPLOAD_INPUT_ID = "bky-moscarossa-native-images";
 
 const CATEGORY_VALUES = Object.freeze({
     DONNAUOMO: "1",
@@ -315,22 +316,52 @@ async function uploadImages(page, images, picsAudit) {
         );
     }
 
-    // Feed files to Moscarossa one at a time. Its fileuploader plugin clones
-    // and retains each input batch; assigning a large batch in one CDP command
-    // can block the renderer and make DOM.setFileInputFiles time out.
-    for (let index = 0; index < imagePaths.length; index += 1) {
-        const input = await page.waitForSelector("input.fileuploader_upload[name='files[]']", { timeout: 30000 });
-        await input.uploadFile(imagePaths[index]);
-        await page.waitForFunction((minimumItems) => {
-            const renderedItems = document.querySelectorAll(
-                ".fileuploader-items-list .fileuploader-item, .fileuploader-items-list li"
-            ).length;
-            const selectedFiles = Number(document.querySelector("input.fileuploader_upload[name='files[]']")?.files?.length || 0);
-            return renderedItems >= minimumItems || (minimumItems === 1 && selectedFiles >= 1);
-        }, { timeout: 30000 }, index + 1);
-        await delay(250);
+    const empty = fileAudit.filter((file) => file.bytes === 0);
+    if (empty.length) {
+        throw new Error(`Moscarossa immagini vuote: ${empty.map((file) => path.basename(file.path)).join(", ")}`);
     }
-    await delay(1000);
+
+    // Moscarossa enhances its visible file input with a thumbnail plugin. Sending
+    // files to that element fires expensive synchronous handlers and can leave the
+    // renderer unable to answer DOM.setFileInputFiles. Use a listener-free native
+    // input in the same form: FormData still receives files[] normally, without
+    // running the client-side preview plugin.
+    const prepared = await page.evaluate((nativeInputId) => {
+        const pluginInput = document.querySelector("input.fileuploader_upload[name='files[]']");
+        const form = pluginInput?.closest("form") || document.querySelector("#dati_annuncio");
+        if (!pluginInput || !form) return false;
+
+        document.getElementById(nativeInputId)?.remove();
+        pluginInput.removeAttribute("name");
+        pluginInput.disabled = true;
+
+        const nativeInput = document.createElement("input");
+        nativeInput.type = "file";
+        nativeInput.id = nativeInputId;
+        nativeInput.name = "files[]";
+        nativeInput.multiple = true;
+        nativeInput.hidden = true;
+        form.enctype = "multipart/form-data";
+        form.appendChild(nativeInput);
+        return true;
+    }, NATIVE_UPLOAD_INPUT_ID);
+
+    if (!prepared) throw new Error("Moscarossa input immagini non trovato nel modulo di pubblicazione.");
+
+    const input = await page.waitForSelector(`#${NATIVE_UPLOAD_INPUT_ID}`, { timeout: 30000 });
+    console.log(`[moscarossa:images] Assigning ${imagePaths.length} image(s) to native form input.`);
+    await input.uploadFile(...imagePaths);
+
+    const assignedFiles = await page.evaluate((nativeInputId) => {
+        const files = Array.from(document.getElementById(nativeInputId)?.files || []);
+        return files.map((file) => ({ name: file.name, size: file.size }));
+    }, NATIVE_UPLOAD_INPUT_ID);
+    if (assignedFiles.length !== imagePaths.length) {
+        throw new Error(
+            `Moscarossa ha ricevuto ${assignedFiles.length} immagini su ${imagePaths.length} nel modulo.`
+        );
+    }
+
     console.log(`[moscarossa:images] Prepared ${imagePaths.length} free-ad image(s).`);
     return imagePaths;
 }
@@ -532,7 +563,13 @@ async function publishAd(page, adData = {}) {
             response: freeResult.response
         };
     } catch (error) {
-        await captureScreenshot(page, `error-${error.message}`);
+        const protocolUnavailable = /ProtocolError|Runtime\.callFunctionOn timed out|DOM\.setFileInputFiles timed out|Target closed|Session closed/i
+            .test(`${error?.name || ""} ${error?.message || error || ""}`);
+        if (protocolUnavailable) {
+            console.warn(`[moscarossa:screenshot] Skipped error screenshot because the browser protocol is unavailable: ${error.message}`);
+        } else {
+            await captureScreenshot(page, `error-${error.message}`);
+        }
         throw error;
     }
 }
