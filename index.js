@@ -52,6 +52,7 @@ let activeLoginCount = 0;
 const loginWaitQueue = [];
 const rawPublisherApiPort = Number.parseInt(process.env.PUBLISHER_API_PORT || "9998", 10);
 const PUBLISHER_API_PORT = Number.isFinite(rawPublisherApiPort) && rawPublisherApiPort > 0 ? rawPublisherApiPort : 9998;
+const PUBLISHER_API_HOST = `${process.env.PUBLISHER_API_HOST || "127.0.0.1"}`.trim() || "127.0.0.1";
 const PUBLISH_IMAGE_LIMITS = Object.freeze({ amasens: 9, incontriamoci: 9, trovagnocca: 6, moscarossa: 3 });
 const getPublishImageLimit = (platformName) => PUBLISH_IMAGE_LIMITS[platformName] || 5;
 let publisherApiServer = null;
@@ -440,8 +441,8 @@ function startPublisherApiServer() {
         logger.Write(`Publisher API ERROR: ${error.message}`);
     });
 
-    publisherApiServer.listen(PUBLISHER_API_PORT, "127.0.0.1", () => {
-        const message = `[publisher-api] Listening on http://127.0.0.1:${PUBLISHER_API_PORT}`;
+    publisherApiServer.listen(PUBLISHER_API_PORT, PUBLISHER_API_HOST, () => {
+        const message = `[publisher-api] Listening on http://${PUBLISHER_API_HOST}:${PUBLISHER_API_PORT}`;
         console.log(message);
         logger.Write(message);
     });
@@ -1468,9 +1469,12 @@ async function startAllGroupLoops(groups) {
     }
 }
 
-CreateGroupsBot().then(async (groups) => {
-    startPublisherApiServer();
+// The website uses this API for Moscarossa Comune resolution. Start it before
+// database/bot initialization so a slow or failed bot startup does not leave
+// the local service unavailable.
+startPublisherApiServer();
 
+CreateGroupsBot().then(async (groups) => {
     if (groups) {
         await startCheckPhoneBot();
         await startAllGroupLoops(groups);
