@@ -4,7 +4,7 @@ const path = require("path");
 const PUBLISH_URL = "https://www.moscarossa.biz/private/inserimento.php";
 const VIEW_URL = "https://www.moscarossa.biz/private/vedi_annuncio_ut.php";
 const SCREENSHOT_DIR = path.join("./screenshots", "moscarossa-publish");
-const FREE_IMAGE_LIMIT = 3;
+const FREE_IMAGE_LIMIT = 20;
 
 const CATEGORY_VALUES = Object.freeze({
     DONNAUOMO: "1",
@@ -13,6 +13,18 @@ const CATEGORY_VALUES = Object.freeze({
     UOMODONNA: "2",
     GIGOLO: "2",
     MASSAGGI: "12"
+});
+const MOSCAROSSA_TARIFF_IDS = new Set(["185", "186", "187", "188", "189", "190", "191", "192", "193", "194", "195"]);
+const MOSCAROSSA_SERVICE_IDS = new Set([
+    "184", "214", "108", "110", "109", "98", "204", "196", "203", "202", "197", "99", "162", "101",
+    "213", "102", "114", "212", "198", "103", "104", "105", "201", "205", "199", "200", "97", "111",
+    "112", "222", "106", "215", "107"
+]);
+const MOSCAROSSA_SELECT_IDS = new Set(["2", "3", "5", "6", "7", "8", "9", "10", "11", "13", "14", "17", "22"]);
+const MOSCAROSSA_MULTI_IDS = new Set(["12", "16"]);
+const MOSCAROSSA_MULTI_OPTIONS = Object.freeze({
+    "12": new Set(["55", "54", "56", "57", "59", "48", "63", "60", "62", "47", "50", "64", "58", "65", "51", "66", "52", "68", "69", "53", "221", "49", "67", "61"]),
+    "16": new Set(["218", "219", "167", "220", "113", "217", "216"])
 });
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -50,6 +62,34 @@ function mapCategory(value) {
     if (["1", "2", "5", "12"].includes(raw)) return raw;
     const key = normalizeKey(raw).replace(/[^a-z0-9]/g, "").toUpperCase();
     return CATEGORY_VALUES[key] || "1";
+}
+
+function normalizeMoscarossaDetails(input = {}) {
+    const details = input && typeof input === "object" && !Array.isArray(input) ? input : {};
+    const validNumeric = (value) => /^\d{1,7}$/.test(`${value ?? ""}`.trim()) ? `${value}`.trim() : "";
+    const validId = (value) => /^\d{1,4}$/.test(`${value || ""}`) ? `${value}` : "";
+    const normalized = { tariffs: {}, services: {}, selects: {}, multiSelects: {} };
+
+    Object.entries(details.tariffs || {}).forEach(([id, value]) => {
+        const price = validNumeric(value);
+        if (MOSCAROSSA_TARIFF_IDS.has(`${id}`) && price) normalized.tariffs[id] = price;
+    });
+    Object.entries(details.services || {}).forEach(([id, value]) => {
+        if (!MOSCAROSSA_SERVICE_IDS.has(`${id}`)) return;
+        const enabled = value === true || isEnabled(value?.enabled);
+        if (!enabled) return;
+        normalized.services[id] = { enabled: true, supplement: validNumeric(value?.supplement) };
+    });
+    Object.entries(details.selects || {}).forEach(([groupId, value]) => {
+        const optionId = validId(value);
+        if (MOSCAROSSA_SELECT_IDS.has(`${groupId}`) && optionId) normalized.selects[groupId] = optionId;
+    });
+    Object.entries(details.multiSelects || {}).forEach(([groupId, values]) => {
+        if (!MOSCAROSSA_MULTI_IDS.has(`${groupId}`) || !Array.isArray(values)) return;
+        const selected = [...new Set(values.map(validId).filter((value) => MOSCAROSSA_MULTI_OPTIONS[groupId]?.has(value)))];
+        if (selected.length) normalized.multiSelects[groupId] = selected;
+    });
+    return normalized;
 }
 
 function resolveImagePaths(images = [], picsAudit = []) {
@@ -109,6 +149,7 @@ function buildPublishData(adData = {}) {
         age: firstNonEmpty(adData.age, adData.years),
         website: firstNonEmpty(options.website, adData.website, adData.sito_web),
         airConditioned: isEnabled(options.airConditioned) || isEnabled(adData.airConditioned),
+        details: normalizeMoscarossaDetails(options.details),
         images,
         picsAudit: Array.isArray(adData.picsAudit) ? adData.picsAudit : [],
         isFree: normalizeKey(typeAnnuncio) === "free"
@@ -269,6 +310,32 @@ async function uploadImages(page, images, picsAudit) {
     return imagePaths;
 }
 
+async function fillMoscarossaDetails(page, details = {}) {
+    for (const [id, value] of Object.entries(details.tariffs || {})) {
+        await setInput(page, `#sottospecifica_${id}`, value);
+    }
+    for (const [id, service] of Object.entries(details.services || {})) {
+        await setCheckbox(page, `#check_${id}`, service.enabled);
+        if (service.enabled && service.supplement) {
+            await setInput(page, `#valore_check_${id}`, service.supplement);
+        }
+    }
+    for (const [groupId, optionId] of Object.entries(details.selects || {})) {
+        await selectNativeOption(page, `#specifiche_${groupId}`, optionId);
+    }
+    for (const values of Object.values(details.multiSelects || {})) {
+        for (const optionId of values) {
+            await setCheckbox(page, `#sottospecifica_${optionId}`, true);
+        }
+    }
+    console.log("[moscarossa:details] Ulteriori specifiche compilate", {
+        tariffs: Object.keys(details.tariffs || {}).length,
+        services: Object.keys(details.services || {}).length,
+        selects: Object.keys(details.selects || {}).length,
+        multi: Object.values(details.multiSelects || {}).reduce((total, values) => total + values.length, 0)
+    });
+}
+
 async function collectValidation(page) {
     return page.evaluate(() => {
         const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
@@ -317,6 +384,7 @@ async function fillFirstStep(page, data) {
     await setInput(page, "input[name='eta']", data.age);
     await setInput(page, "input[name='link_sito']", data.website);
     await setCheckbox(page, "#specifiche_25", data.airConditioned);
+    await fillMoscarossaDetails(page, data.details);
     await uploadImages(page, data.images, data.picsAudit);
     await setCheckbox(page, "#regolamento", true);
 }
