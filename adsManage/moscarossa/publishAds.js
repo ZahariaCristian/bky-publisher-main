@@ -8,6 +8,19 @@ const FREE_IMAGE_LIMIT = 20;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const NATIVE_UPLOAD_INPUT_ID = "bky-moscarossa-native-images";
 
+class MoscarossaWorkflowPendingError extends Error {
+    constructor(message, { remoteId = "", reasonCode = "MOSCAROSSA_WAITING_ACTION" } = {}) {
+        super(message);
+        this.name = "MoscarossaWorkflowPendingError";
+        this.remoteId = `${remoteId || ""}`;
+        this.scheduleState = "ALERT";
+        this.reasonCode = reasonCode;
+        this.url = this.remoteId
+            ? `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(this.remoteId)}`
+            : "";
+    }
+}
+
 const CATEGORY_VALUES = Object.freeze({
     DONNAUOMO: "1",
     ESCORT: "1",
@@ -197,6 +210,19 @@ async function setInput(page, selector, value) {
     return true;
 }
 
+async function typePhone(page, value) {
+    const phone = `${value || ""}`.trim();
+    const input = await page.waitForSelector("#presenza_telefono", { visible: true, timeout: 30000 });
+    await input.click({ clickCount: 3 });
+    await page.keyboard.press("Backspace");
+    await input.type(phone, { delay: 75 });
+    await page.waitForFunction(
+        (expected) => document.querySelector("#presenza_telefono")?.value === expected,
+        { timeout: 10000 },
+        phone
+    );
+}
+
 async function setCheckbox(page, selector, checked) {
     if (!(await page.$(selector))) return false;
     await page.evaluate((fieldSelector, desired) => {
@@ -235,6 +261,102 @@ async function selectNativeOption(page, selector, value) {
         if (window.jQuery) window.jQuery(select).trigger("change");
         return { value: option.value, text: `${option.textContent || ""}`.trim() };
     }, selector, raw);
+}
+
+async function extractRemoteId(page, fallback = "") {
+    const remoteId = await page.evaluate(() => {
+        const valid = (value) => /^\d{4,}$/.test(`${value || ""}`.trim()) ? `${value}`.trim() : "";
+        const urlId = valid(new URL(location.href).searchParams.get("id_accompa"));
+        if (urlId) return urlId;
+
+        const fields = Array.from(document.querySelectorAll(
+            "input[name='id_accompa'], [data-id-accompa], [data-id_accompa]"
+        ));
+        for (const field of fields) {
+            const candidate = valid(
+                field.value || field.dataset?.idAccompa || field.getAttribute("data-id_accompa")
+            );
+            if (candidate) return candidate;
+        }
+
+        const candidates = Array.from(document.querySelectorAll("a[href], [onclick], [data-id]"));
+        for (const node of candidates) {
+            const source = [
+                node.getAttribute("href"),
+                node.getAttribute("onclick"),
+                node.getAttribute("data-id")
+            ].filter(Boolean).join(" ");
+            const explicit = source.match(/id_accompa(?:=|[^0-9]{1,12})(\d{4,})/i)?.[1];
+            if (explicit) return explicit;
+        }
+        return "";
+    }).catch(() => "");
+
+    return remoteId || (/^\d{4,}$/.test(`${fallback || ""}`) ? `${fallback}` : "");
+}
+
+async function reuseExistingAdForPhone(page, phone) {
+    await page.evaluate(() => {
+        const input = document.querySelector("#presenza_telefono");
+        if (!input) return;
+        input.dispatchEvent(new Event("blur", { bubbles: true }));
+        input.dispatchEvent(new Event("focusout", { bubbles: true }));
+    });
+
+    const promptFound = await page.waitForFunction((targetPhone) => {
+        const normalize = (value) => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+        const visible = (node) => {
+            if (!node) return false;
+            const style = getComputedStyle(node);
+            return style.display !== "none" && style.visibility !== "hidden" && node.getClientRects().length > 0;
+        };
+        return Array.from(document.querySelectorAll("button, a, [role='button'], .btn"))
+            .some((node) => visible(node) &&
+                /continua con questo annuncio|continue with this ad/.test(normalize(node.textContent))
+            );
+    }, { timeout: 6000 }, `${phone}`.replace(/\D/g, "")).then(() => true).catch(() => false);
+
+    if (!promptFound) return { reusedExisting: false, remoteId: "" };
+
+    const selected = await page.evaluate((targetPhone) => {
+        const normalize = (value) => `${value || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+        const visible = (node) => {
+            if (!node) return false;
+            const style = getComputedStyle(node);
+            return style.display !== "none" && style.visibility !== "hidden" && node.getClientRects().length > 0;
+        };
+        const buttons = Array.from(document.querySelectorAll("button, a, [role='button'], .btn"))
+            .filter((node) => visible(node) &&
+                /continua con questo annuncio|continue with this ad/.test(normalize(node.textContent))
+            );
+        const containsTargetPhone = (node) => {
+            let parent = node;
+            for (let depth = 0; parent && depth < 7; depth += 1, parent = parent.parentElement) {
+                if (normalize(parent.textContent).replace(/\D/g, "").includes(targetPhone)) return true;
+            }
+            return false;
+        };
+        const button = buttons.find(containsTargetPhone) || buttons[0];
+        if (!button) return null;
+
+        const container = button.closest("form, .modal, [role='dialog'], .swal2-popup, .bootbox, .panel, .card") || button.parentElement;
+        const href = `${button.getAttribute("href") || ""}`;
+        const onclick = `${button.getAttribute("onclick") || ""}`;
+        const directId = `${button.getAttribute("data-id-accompa") ||
+            button.getAttribute("data-id_accompa") || button.getAttribute("data-id") ||
+            container?.querySelector("input[name='id_accompa']")?.value || ""}`.trim();
+        const remoteId = (/^\d{4,9}$/.test(directId) ? directId : "") ||
+            href.match(/id_accompa(?:=|[^0-9]{1,12})(\d{4,9})/i)?.[1] ||
+            onclick.match(/(?:continua|continue|carica|load|modifica|edit)[^(]*\(\s*['\"]?(\d{4,9})/i)?.[1] || "";
+        button.click();
+        return { remoteId, text: normalize(button.textContent) };
+    }, `${phone}`.replace(/\D/g, ""));
+
+    if (!selected) return { reusedExisting: false, remoteId: "" };
+    await delay(1800);
+    const remoteId = await extractRemoteId(page, selected.remoteId);
+    console.log("[moscarossa:existing] Reusing existing ad", { remoteId: remoteId || "pending detection" });
+    return { reusedExisting: true, remoteId };
 }
 
 async function selectMoscarossaCity(page, city, cityId = "") {
@@ -416,12 +538,17 @@ async function fillFirstStep(page, data) {
     const missing = Object.entries(required).filter(([, value]) => !`${value || ""}`.trim()).map(([key]) => key);
     if (missing.length) throw new Error(`Moscarossa dati obbligatori mancanti: ${missing.join(", ")}`);
 
+    // The telephone field can open Moscarossa's "existing ad" chooser. Handle
+    // that branch before filling the rest because selecting an ad hydrates and
+    // replaces the form values.
+    await typePhone(page, data.phone);
+    const existingAd = await reuseExistingAdForPhone(page, data.phone);
+
     const category = await selectNativeOption(page, "#id_categoria", data.category);
     if (!category) throw new Error(`Moscarossa categoria non trovata: ${data.category}`);
     await setInput(page, "input[name='nome']", data.contactName);
     await setInput(page, "textarea[name='titolo']", data.title);
     await setInput(page, "#descrizione", data.description);
-    await setInput(page, "#presenza_telefono", data.phone);
     await setCheckbox(page, "input[name='wa']", data.whatsapp);
     await setCheckbox(page, "input[name='tg']", data.telegram);
 
@@ -441,30 +568,102 @@ async function fillFirstStep(page, data) {
     await setInput(page, "input[name='link_sito']", data.website);
     await setCheckbox(page, "#specifiche_25", data.airConditioned);
     await fillMoscarossaDetails(page, data.details);
-    await uploadImages(page, data.images, data.picsAudit);
+    if (existingAd.reusedExisting) {
+        console.log("[moscarossa:images] Existing Moscarossa images preserved; new-ad upload skipped.");
+    } else {
+        await uploadImages(page, data.images, data.picsAudit);
+    }
     await setCheckbox(page, "#regolamento", true);
+    return existingAd;
 }
 
-async function continueToPromotion(page) {
+async function findAndOpenPromotion(page, remoteId) {
+    if (await page.$("#button_pubblica_gratis, #button_pubblica_gratis_aggiorna, .button_pubblica_gratis")) {
+        return true;
+    }
+
+    const promotionControl = await page.evaluate(() => {
+        const normalize = (value) => `${value || ""}`
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/\s+/g, " ").trim().toLowerCase();
+        const visible = (node) => {
+            if (!node) return false;
+            const style = getComputedStyle(node);
+            return style.display !== "none" && style.visibility !== "hidden" && node.getClientRects().length > 0;
+        };
+        const candidates = Array.from(document.querySelectorAll("a[href], button, [role='button'], .btn"))
+            .filter(visible)
+            .map((node) => {
+                const text = normalize(node.textContent);
+                const href = `${node.getAttribute("href") || ""}`;
+                let score = 0;
+                if (/promuovi\.php/i.test(href)) score += 100;
+                if (/attiva una promozione|activate a promotion/.test(text)) score += 80;
+                if (/^promuovi!?$|^promote!?$/.test(text)) score += 60;
+                return { node, text, href, score };
+            })
+            .filter((candidate) => candidate.score > 0)
+            .sort((left, right) => right.score - left.score);
+        if (!candidates.length) return null;
+        candidates[0].node.click();
+        return { text: candidates[0].text, href: candidates[0].href };
+    });
+
+    if (!promotionControl) {
+        if (!remoteId) return false;
+        const promotionUrl = `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(remoteId)}`;
+        console.log("[moscarossa:promotion] Promotion control not found; opening saved ad promotion URL", promotionUrl);
+        await page.goto(promotionUrl, { waitUntil: "networkidle2", timeout: 60000 });
+    } else {
+        console.log("[moscarossa:promotion] Opening promotion", promotionControl);
+    }
+
+    return page.waitForSelector(
+        "#button_pubblica_gratis, #button_pubblica_gratis_aggiorna, .button_pubblica_gratis",
+        { visible: true, timeout: 60000 }
+    ).then(() => true).catch(() => false);
+}
+
+async function continueToPromotion(page, existingAd = {}) {
     const continueButton = await page.waitForSelector(".buttonNext", { visible: true, timeout: 30000 });
     await continueButton.click();
-    try {
-        await page.waitForSelector("#button_pubblica_gratis", { visible: true, timeout: 90000 });
-    } catch {
+
+    const firstStepCompleted = await page.waitForFunction(() => {
+        const url = location.href.toLowerCase();
+        if (/\/private\/(?:promuovi|vedi_annuncio_ut)\.php/.test(url)) return true;
+        if (document.querySelector("#button_pubblica_gratis, #button_pubblica_gratis_aggiorna, .button_pubblica_gratis")) return true;
+        const text = `${document.body?.innerText || ""}`.replace(/\s+/g, " ").toLowerCase();
+        return /attiva una promozione|activate a promotion|promuovi!|promote!/.test(text);
+    }, { timeout: 90000 }).then(() => true).catch(() => false);
+
+    if (!firstStepCompleted) {
         const validation = await collectValidation(page);
         throw new Error(`Moscarossa primo passaggio non completato: ${JSON.stringify(validation)}`);
     }
 
-    const remoteId = await page.evaluate(() => {
-        const fields = Array.from(document.querySelectorAll("input[name='id_accompa']"));
-        return `${fields.find((field) => field.value)?.value || ""}`.trim();
-    });
+    const remoteId = await extractRemoteId(page, existingAd.remoteId);
     if (!remoteId) throw new Error("Moscarossa non ha restituito id_accompa dopo Continua.");
+
+    const promotionOpened = await findAndOpenPromotion(page, remoteId);
+    if (!promotionOpened) {
+        const validation = await collectValidation(page);
+        const bodyText = await page.evaluate(() => `${document.body?.innerText || ""}`.replace(/\s+/g, " ").trim());
+        if (/un solo annuncio ogni 10 giorni|only one free ad/i.test(bodyText)) {
+            throw new MoscarossaWorkflowPendingError(
+                "Moscarossa Free non disponibile: il limite dell'annuncio gratuito non consente una nuova attivazione.",
+                { remoteId, reasonCode: "MOSCAROSSA_FREE_LIMIT" }
+            );
+        }
+        throw new Error(`Pagina promozione Moscarossa non disponibile: ${JSON.stringify(validation)}`);
+    }
     return remoteId;
 }
 
 async function clickPublishFree(page, remoteId) {
-    const button = await page.waitForSelector("#button_pubblica_gratis", { visible: true, timeout: 30000 });
+    const button = await page.waitForSelector(
+        "#button_pubblica_gratis, #button_pubblica_gratis_aggiorna, .button_pubblica_gratis",
+        { visible: true, timeout: 30000 }
+    );
     const responsePromise = page.waitForResponse(
         (response) => /\/private\/promuovi_free\.php(?:\?|$)/i.test(response.url()),
         { timeout: 60000 }
@@ -498,7 +697,10 @@ async function clickPublishFree(page, remoteId) {
     const positive = /pubblicat|annuncio (?:online|attiv|visibile)|complimenti|aggiorna annuncio gratis/i;
 
     if (result.phoneVerificationVisible || /verifica(?:re|zione).*telefon|codice sms/i.test(combined)) {
-        throw new Error("Moscarossa richiede la verifica SMS del telefono prima della pubblicazione gratuita.");
+        throw new MoscarossaWorkflowPendingError(
+            "Moscarossa richiede la verifica SMS del telefono. Verifica il numero e riprendi lo stesso annuncio.",
+            { remoteId, reasonCode: "MOSCAROSSA_WAITING_SMS" }
+        );
     }
     if (response.status() < 200 || response.status() >= 300) {
         throw new Error(`Moscarossa pubblicazione gratuita HTTP ${response.status()}: ${combined.slice(0, 500)}`);
@@ -544,10 +746,10 @@ async function publishAd(page, adData = {}) {
         }
         await page.waitForSelector("#dati_annuncio", { visible: true, timeout: 30000 });
         await captureScreenshot(page, "01-open-publish-page");
-        await fillFirstStep(page, data);
+        const existingAd = await fillFirstStep(page, data);
         await captureScreenshot(page, "02-first-step-filled");
 
-        const remoteId = await continueToPromotion(page);
+        const remoteId = await continueToPromotion(page, existingAd);
         await captureScreenshot(page, "03-free-promotion-step");
         const freeResult = await clickPublishFree(page, remoteId);
         await captureScreenshot(page, "04-free-published");

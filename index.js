@@ -1212,20 +1212,28 @@ async function postThis(ad, group, platform) {
                 errorReason: null
             });
         } catch (bakecaActionError) {
-            pubStatus = "KO";
+            const pendingMoscarossaAction = platform.platform === "moscarossa" &&
+                bakecaActionError?.scheduleState === "ALERT";
+            pubStatus = pendingMoscarossaAction ? "ALERT" : "KO";
+            if (bakecaActionError?.remoteId) ad.remotePostID = `${bakecaActionError.remoteId}`;
+            if (bakecaActionError?.url) ad.urlBK = bakecaActionError.url;
             errorReason = formatPublishErrorReason(bakecaActionError);
             console.error(`Error in ${platform.platform} postThis state handling:`, bakecaActionError);
             logger.Write(`Publisher ERROR during ${platform.platform} operation: ${bakecaActionError.stack || bakecaActionError}`);
             try {
                 await ad.update({
-                    state: "KO",
+                    state: pubStatus,
                     remotePostID: ad.remotePostID || null,
+                    urlBK: ad.urlBK || null,
                     errorReason
                 });
-                console.log(`[${platform.platform}] Saved failed schedule ${ad.id} with state KO`);
+                console.log(
+                    `[${platform.platform}] Saved schedule ${ad.id} with state ${pubStatus}` +
+                    (ad.remotePostID ? ` and remote ID ${ad.remotePostID}` : "")
+                );
             } catch (failureStateUpdateError) {
                 console.error(
-                    `[${platform.platform}] Failed to save KO state for schedule ${ad.id}:`,
+                    `[${platform.platform}] Failed to save ${pubStatus} state for schedule ${ad.id}:`,
                     failureStateUpdateError
                 );
             }
