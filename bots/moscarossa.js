@@ -4,7 +4,12 @@ const axios = require("axios");
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const TwoCaptcha = require("@2captcha/captcha-solver");
-const { buildPublishData, publishAd } = require("../adsManage/moscarossa/publishAds");
+const {
+  buildPublishData,
+  publishAd,
+  sendPhoneVerificationCode,
+  verifyPhoneCode
+} = require("../adsManage/moscarossa/publishAds");
 
 const HOME_URL = "https://www.moscarossa.biz/";
 const LOGIN_URL = "https://www.moscarossa.biz/login-escort";
@@ -99,6 +104,15 @@ class MoscarossaBot {
     this.page.setDefaultNavigationTimeout(60000);
     await this.page.setUserAgent(USER_AGENT);
     return this.page;
+  }
+
+  async auxiliaryPage() {
+    await this.launch();
+    const page = await this.browser.newPage();
+    page.setDefaultTimeout(30000);
+    page.setDefaultNavigationTimeout(60000);
+    await page.setUserAgent(USER_AGENT);
+    return page;
   }
 
   async screenshot(name) {
@@ -479,6 +493,28 @@ class MoscarossaBot {
     const result = await publishAd(page, { ...ad, ...publishData });
     this.cookies = await page.cookies().catch(() => this.cookies);
     return result;
+  }
+
+  async sendPhoneVerification(payload) {
+    const page = await this.auxiliaryPage();
+    try {
+      const result = await sendPhoneVerificationCode(page, payload);
+      this.cookies = await page.cookies().catch(() => this.cookies);
+      return result;
+    } finally {
+      await page.close().catch(() => {});
+    }
+  }
+
+  async verifyPhone(payload) {
+    const page = await this.auxiliaryPage();
+    try {
+      const result = await verifyPhoneCode(page, payload);
+      this.cookies = await page.cookies().catch(() => this.cookies);
+      return result;
+    } finally {
+      await page.close().catch(() => {});
+    }
   }
 
   unsupported(operation) {

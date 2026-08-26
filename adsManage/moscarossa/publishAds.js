@@ -3,6 +3,7 @@ const path = require("path");
 
 const PUBLISH_URL = "https://www.moscarossa.biz/private/inserimento.php";
 const VIEW_URL = "https://www.moscarossa.biz/private/vedi_annuncio_ut.php";
+const PHONE_VERIFICATION_URL = "https://www.moscarossa.biz/private/ajax_verifica_telefono.php";
 const SCREENSHOT_DIR = path.join("./screenshots", "moscarossa-publish");
 const FREE_IMAGE_LIMIT = 20;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -726,6 +727,118 @@ async function clickPublishFree(page, remoteId) {
     };
 }
 
+async function postPhoneVerification(page, fields) {
+    const result = await page.evaluate(async (endpoint, payload) => {
+        const body = new URLSearchParams();
+        Object.entries(payload).forEach(([key, value]) => {
+            if (`${value ?? ""}` !== "") body.set(key, `${value}`);
+        });
+        const response = await fetch(endpoint, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: body.toString()
+        });
+        return { status: response.status, body: (await response.text()).trim(), url: response.url };
+    }, PHONE_VERIFICATION_URL, fields);
+
+    if (/login-escort/i.test(result.url) || result.status === 401 || result.status === 403) {
+        const error = new Error("Moscarossa session expired during phone verification.");
+        error.statusCode = 401;
+        throw error;
+    }
+    if (result.status < 200 || result.status >= 300) {
+        const error = new Error(`Moscarossa phone verification HTTP ${result.status}.`);
+        error.statusCode = result.status || 502;
+        throw error;
+    }
+    return result.body;
+}
+
+async function openPhoneVerificationAd(page, { phone, remoteId = "" } = {}) {
+    let resolvedRemoteId = /^\d{4,9}$/.test(`${remoteId || ""}`) ? `${remoteId}` : "";
+
+    if (!resolvedRemoteId) {
+        await page.goto(PUBLISH_URL, { waitUntil: "networkidle2", timeout: 60000 });
+        if (/login-escort/i.test(page.url()) || await page.$("#form_login")) {
+            const error = new Error("Moscarossa session expired before phone verification.");
+            error.statusCode = 401;
+            throw error;
+        }
+        await page.waitForSelector("#dati_annuncio", { visible: true, timeout: 30000 });
+        await typePhone(page, phone);
+        const existingAd = await reuseExistingAdForPhone(page, phone);
+        resolvedRemoteId = await extractRemoteId(page, existingAd.remoteId);
+        if (!existingAd.reusedExisting || !resolvedRemoteId) {
+            const error = new Error(
+                "Moscarossa non ha ancora un annuncio associato a questo telefono. " +
+                "Salva e avvia prima la pubblicazione; quando Moscarossa richiede l'SMS potrai verificarlo senza perdere l'annuncio."
+            );
+            error.statusCode = 409;
+            error.reasonCode = "MOSCAROSSA_REQUIRES_DRAFT";
+            throw error;
+        }
+    }
+
+    const promotionUrl = `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(resolvedRemoteId)}`;
+    await page.goto(promotionUrl, { waitUntil: "networkidle2", timeout: 60000 });
+    if (/login-escort/i.test(page.url()) || await page.$("#form_login")) {
+        const error = new Error("Moscarossa session expired before phone verification.");
+        error.statusCode = 401;
+        throw error;
+    }
+    return resolvedRemoteId;
+}
+
+async function sendPhoneVerificationCode(page, { phone, remoteId = "" } = {}) {
+    const normalizedPhone = `${phone || ""}`.replace(/\D/g, "");
+    if (!/^\d{6,15}$/.test(normalizedPhone)) {
+        const error = new Error("Numero di telefono Moscarossa non valido.");
+        error.statusCode = 400;
+        throw error;
+    }
+    const resolvedRemoteId = await openPhoneVerificationAd(page, { phone: normalizedPhone, remoteId });
+    const response = await postPhoneVerification(page, {
+        telefono: normalizedPhone,
+        inviare: "1",
+        id_accompa: resolvedRemoteId
+    });
+    if (response !== "1") {
+        const error = new Error(`Moscarossa non ha inviato il codice SMS: ${response || "risposta vuota"}`);
+        error.statusCode = 422;
+        throw error;
+    }
+    return { ok: true, status: "code_sent", remoteId: resolvedRemoteId };
+}
+
+async function verifyPhoneCode(page, { phone, code, remoteId, resume = false } = {}) {
+    const normalizedPhone = `${phone || ""}`.replace(/\D/g, "");
+    const normalizedCode = `${code || ""}`.replace(/\D/g, "");
+    if (!/^\d{6,15}$/.test(normalizedPhone) || !/^\d{4,8}$/.test(normalizedCode)) {
+        const error = new Error("Numero di telefono o codice SMS Moscarossa non valido.");
+        error.statusCode = 400;
+        throw error;
+    }
+    const resolvedRemoteId = await openPhoneVerificationAd(page, { phone: normalizedPhone, remoteId });
+    const response = await postPhoneVerification(page, {
+        telefono: normalizedPhone,
+        codice: normalizedCode
+    });
+    if (response !== "1") {
+        const error = new Error("Codice SMS Moscarossa errato o scaduto.");
+        error.statusCode = 422;
+        throw error;
+    }
+
+    if (!resume) return { ok: true, status: "verified", remoteId: resolvedRemoteId };
+    await page.reload({ waitUntil: "networkidle2", timeout: 60000 });
+    const freeResult = await clickPublishFree(page, resolvedRemoteId);
+    return { ...freeResult, status: "published" };
+}
+
 async function publishAd(page, adData = {}) {
     const data = buildPublishData(adData);
     if (!data.isFree) {
@@ -781,5 +894,7 @@ module.exports = {
     captureScreenshot,
     clickPublishFree,
     publishAd,
+    sendPhoneVerificationCode,
+    verifyPhoneCode,
     resolveImagePaths
 };

@@ -246,8 +246,9 @@ function normalizePublisherTimeSlots(timeSlots = []) {
     )];
 }
 
-function findPlatformByName(platformName, { username } = {}) {
+function findPlatformByName(platformName, { username, groupId } = {}) {
     for (const group of groups) {
+        if (groupId && `${group.id || ""}` !== `${groupId}`) continue;
         const platform = (group.platforms || []).find((candidate) => {
             if (candidate.platform !== platformName) return false;
             if (!username) return true;
@@ -348,7 +349,10 @@ async function searchMoscarossaLocationsFromPublisher(payload = {}) {
         throw error;
     }
 
-    const target = findPlatformByName("moscarossa", { username: payload.username });
+    const target = findPlatformByName("moscarossa", {
+        username: payload.username,
+        groupId: payload.groupId
+    });
     if (!target?.platform) {
         const error = new Error("No active Moscarossa platform found in publisher.");
         error.statusCode = 404;
@@ -392,6 +396,107 @@ async function searchMoscarossaLocationsFromPublisher(payload = {}) {
     }
 }
 
+async function runMoscarossaPhoneVerificationFromPublisher(payload = {}) {
+    const action = `${payload.action || ""}`.trim().toLowerCase();
+    const phone = `${payload.phone || ""}`.replace(/\D/g, "");
+    const code = `${payload.code || ""}`.replace(/\D/g, "");
+    const scheduleId = Number.parseInt(payload.scheduleId, 10) || 0;
+    let remoteId = /^\d{4,9}$/.test(`${payload.remoteId || ""}`) ? `${payload.remoteId}` : "";
+
+    if (!["send", "verify"].includes(action) || !/^\d{6,15}$/.test(phone)) {
+        const error = new Error("Invalid Moscarossa phone verification request.");
+        error.statusCode = 400;
+        throw error;
+    }
+    if (action === "verify" && !/^\d{4,8}$/.test(code)) {
+        const error = new Error("The Moscarossa SMS code must contain 4 to 8 digits.");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    let schedule = null;
+    if (scheduleId) {
+        schedule = await ctx.tblSchedulazioni.findOne({
+            where: { id: scheduleId, platform: "moscarossa", GCRecord: null }
+        });
+        if (!schedule) {
+            const error = new Error("Moscarossa schedule not found.");
+            error.statusCode = 404;
+            throw error;
+        }
+        remoteId = remoteId || `${schedule.remotePostID || ""}`;
+    }
+
+    const target = findPlatformByName("moscarossa", {
+        username: payload.username,
+        groupId: payload.groupId
+    });
+    if (!target?.platform) {
+        const error = new Error("No active Moscarossa platform found in publisher.");
+        error.statusCode = 404;
+        throw error;
+    }
+    const { platform } = target;
+    if (!platform.bot || typeof platform.bot.sendPhoneVerification !== "function") {
+        const error = new Error("Moscarossa phone verification service is not initialized.");
+        error.statusCode = 503;
+        throw error;
+    }
+
+    if (platform.cookie && (!Array.isArray(platform.bot.cookies) || !platform.bot.cookies.length)) {
+        const reused = await platform.bot.initWithCookies?.(platform.cookie);
+        if (!reused) platform.cookie = null;
+    }
+    if (!platform.cookie) {
+        platform.cookie = await ensureSession(platform.bot, platform.username);
+        platform.needRefresh = true;
+    }
+
+    const execute = async () => {
+        if (action === "send") {
+            return platform.bot.sendPhoneVerification({ phone, remoteId });
+        }
+        return platform.bot.verifyPhone({
+            phone,
+            code,
+            remoteId,
+            resume: Boolean(payload.resume && schedule)
+        });
+    };
+
+    let result;
+    try {
+        result = await execute();
+    } catch (error) {
+        if (!isMoscarossaSessionFailure(error)) throw error;
+        logger.Write(`Publisher WARNING: Moscarossa session expired for ${platform.username}; re-login before phone verification.`);
+        sessionCache.delete(getSessionKey(platform.bot, platform.username));
+        platform.cookie = null;
+        platform.needRefresh = true;
+        await platform.bot.restartBrowser?.("expired session during phone verification");
+        platform.cookie = await ensureSession(platform.bot, platform.username);
+        result = await execute();
+    }
+
+    platform.cookie = JSON.stringify(platform.bot.cookies || []);
+    platform.needRefresh = true;
+
+    if (action === "send" && schedule && !schedule.remotePostID && result.remoteId) {
+        await schedule.update({ remotePostID: result.remoteId });
+    }
+    if (action === "verify" && payload.resume && schedule && result.status === "published") {
+        await schedule.update({
+            state: "OK",
+            remotePostID: result.remoteId || remoteId,
+            urlBK: result.publicUrl || `https://www.moscarossa.biz/girl-${result.remoteId || remoteId}.php`,
+            errorReason: null,
+            payed: false
+        });
+    }
+
+    return { ...result, scheduleId: schedule?.id || null };
+}
+
 function startPublisherApiServer() {
     if (publisherApiServer) return;
 
@@ -427,6 +532,22 @@ function startPublisherApiServer() {
                 console.error("[publisher-api] Moscarossa Comune search error:", error);
                 return sendJson(res, statusCode, {
                     error: "Unable to search Moscarossa Comuni.",
+                    details: error.response?.data || getErrorDetails(error)
+                });
+            }
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/moscarossa/phone-verification") {
+            try {
+                const payload = await readJsonBody(req);
+                const data = await runMoscarossaPhoneVerificationFromPublisher(payload);
+                return sendJson(res, 200, data);
+            } catch (error) {
+                const statusCode = error.statusCode || error.response?.status || 500;
+                console.error("[publisher-api] Moscarossa phone verification error:", error);
+                return sendJson(res, statusCode, {
+                    error: error.message || "Unable to verify Moscarossa phone.",
+                    reasonCode: error.reasonCode || null,
                     details: error.response?.data || getErrorDetails(error)
                 });
             }
