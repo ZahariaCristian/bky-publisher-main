@@ -544,7 +544,10 @@ function startPublisherApiServer() {
                 return sendJson(res, 200, data);
             } catch (error) {
                 const statusCode = error.statusCode || error.response?.status || 500;
-                console.error("[publisher-api] Moscarossa phone verification error:", error);
+                const log = statusCode === 409 && error.reasonCode === "MOSCAROSSA_REQUIRES_DRAFT"
+                    ? console.warn
+                    : console.error;
+                log("[publisher-api] Moscarossa phone verification:", error.message || error);
                 return sendJson(res, statusCode, {
                     error: error.message || "Unable to verify Moscarossa phone.",
                     reasonCode: error.reasonCode || null,
