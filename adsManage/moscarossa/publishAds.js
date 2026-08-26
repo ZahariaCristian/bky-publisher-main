@@ -800,18 +800,26 @@ async function sendPhoneVerificationCode(page, { phone, remoteId = "" } = {}) {
         error.statusCode = 400;
         throw error;
     }
-    const resolvedRemoteId = await openPhoneVerificationAd(page, { phone: normalizedPhone, remoteId });
-    const response = await postPhoneVerification(page, {
-        telefono: normalizedPhone,
-        inviare: "1",
-        id_accompa: resolvedRemoteId
-    });
-    if (response !== "1") {
-        const error = new Error(`Moscarossa non ha inviato il codice SMS: ${response || "risposta vuota"}`);
-        error.statusCode = 422;
+    let resolvedRemoteId = "";
+    try {
+        resolvedRemoteId = await openPhoneVerificationAd(page, { phone: normalizedPhone, remoteId });
+        await captureScreenshot(page, `phone-verification-${resolvedRemoteId}-01-promotion-page`);
+        const response = await postPhoneVerification(page, {
+            telefono: normalizedPhone,
+            inviare: "1",
+            id_accompa: resolvedRemoteId
+        });
+        if (response !== "1") {
+            const error = new Error(`Moscarossa non ha inviato il codice SMS: ${response || "risposta vuota"}`);
+            error.statusCode = 422;
+            throw error;
+        }
+        await captureScreenshot(page, `phone-verification-${resolvedRemoteId}-02-code-requested`);
+        return { ok: true, status: "code_sent", remoteId: resolvedRemoteId };
+    } catch (error) {
+        await captureScreenshot(page, `phone-verification-${resolvedRemoteId || "unknown"}-error-send-code`);
         throw error;
     }
-    return { ok: true, status: "code_sent", remoteId: resolvedRemoteId };
 }
 
 async function verifyPhoneCode(page, { phone, code, remoteId, resume = false } = {}) {
@@ -822,21 +830,31 @@ async function verifyPhoneCode(page, { phone, code, remoteId, resume = false } =
         error.statusCode = 400;
         throw error;
     }
-    const resolvedRemoteId = await openPhoneVerificationAd(page, { phone: normalizedPhone, remoteId });
-    const response = await postPhoneVerification(page, {
-        telefono: normalizedPhone,
-        codice: normalizedCode
-    });
-    if (response !== "1") {
-        const error = new Error("Codice SMS Moscarossa errato o scaduto.");
-        error.statusCode = 422;
+    let resolvedRemoteId = "";
+    try {
+        resolvedRemoteId = await openPhoneVerificationAd(page, { phone: normalizedPhone, remoteId });
+        await captureScreenshot(page, `phone-verification-${resolvedRemoteId}-03-before-code-check`);
+        const response = await postPhoneVerification(page, {
+            telefono: normalizedPhone,
+            codice: normalizedCode
+        });
+        if (response !== "1") {
+            const error = new Error("Codice SMS Moscarossa errato o scaduto.");
+            error.statusCode = 422;
+            throw error;
+        }
+
+        await page.reload({ waitUntil: "networkidle2", timeout: 60000 });
+        await captureScreenshot(page, `phone-verification-${resolvedRemoteId}-04-phone-verified`);
+        if (!resume) return { ok: true, status: "verified", remoteId: resolvedRemoteId };
+
+        const freeResult = await clickPublishFree(page, resolvedRemoteId);
+        await captureScreenshot(page, `phone-verification-${resolvedRemoteId}-05-free-published`);
+        return { ...freeResult, status: "published" };
+    } catch (error) {
+        await captureScreenshot(page, `phone-verification-${resolvedRemoteId || "unknown"}-error-verify-or-resume`);
         throw error;
     }
-
-    if (!resume) return { ok: true, status: "verified", remoteId: resolvedRemoteId };
-    await page.reload({ waitUntil: "networkidle2", timeout: 60000 });
-    const freeResult = await clickPublishFree(page, resolvedRemoteId);
-    return { ...freeResult, status: "published" };
 }
 
 async function publishAd(page, adData = {}) {
