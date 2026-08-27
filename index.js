@@ -460,7 +460,12 @@ async function runMoscarossaPhoneVerificationFromPublisher(payload = {}) {
             phone,
             code,
             remoteId,
-            resume: Boolean(payload.resume && schedule)
+            resume: Boolean(payload.resume && schedule),
+            promotion: schedule ? {
+                plan: schedule.typeAnnuncio || "Free",
+                period: schedule.period || "",
+                availableCredit: platform.credit
+            } : {}
         });
     };
 
@@ -490,7 +495,7 @@ async function runMoscarossaPhoneVerificationFromPublisher(payload = {}) {
             remotePostID: result.remoteId || remoteId,
             urlBK: result.publicUrl || `https://www.moscarossa.biz/girl-${result.remoteId || remoteId}.php`,
             errorReason: null,
-            payed: false
+            payed: Number(result.creditsConsumed || 0) > 0
         });
     }
 
@@ -1318,6 +1323,9 @@ async function postThis(ad, group, platform) {
                     ad.remotePostID = result?.payload?.idpriv || result?.megaId || null
                     ad.urlBK = result?.url || null;
                     ad.payed = Number(result?.creditsConsumed || 0) > 0;
+                    if (platform.platform === "moscarossa" && Number.isFinite(Number(result?.remainingCredit))) {
+                        platform.credit = Number(result.remainingCredit);
+                    }
                     if (platform.platform === "trovagnocca" && result?.payload?.dateTimeTop) {
                         ad.dateTimeTop = result.payload.dateTimeTop;
                         ad.period = mergeTrovagnoccaClimbingCalendarPeriod(ad.period, result.payload);

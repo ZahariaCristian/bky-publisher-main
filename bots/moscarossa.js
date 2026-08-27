@@ -490,8 +490,11 @@ class MoscarossaBot {
   async publish(ad) {
     const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
     const publishData = this.buildPublishData(ad);
-    const result = await publishAd(page, { ...ad, ...publishData });
+    const result = await publishAd(page, { ...ad, ...publishData, availableCredit: this.credit });
     this.cookies = await page.cookies().catch(() => this.cookies);
+    if (Number(result?.creditsConsumed || 0) > 0) {
+      result.remainingCredit = await this.getCredit();
+    }
     return result;
   }
 

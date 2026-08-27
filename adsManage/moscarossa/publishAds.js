@@ -8,6 +8,14 @@ const SCREENSHOT_DIR = path.join("./screenshots", "moscarossa-publish");
 const FREE_IMAGE_LIMIT = 20;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const NATIVE_UPLOAD_INPUT_ID = "bky-moscarossa-native-images";
+const PROMOTION_PLANS = Object.freeze({
+    free: { name: "Free", id: "0", imageLimit: 5 },
+    premium: { name: "Premium", id: "1", imageLimit: 10 },
+    top: { name: "Top", id: "2", imageLimit: 10 },
+    red: { name: "Red", id: "6", imageLimit: 15 },
+    gold: { name: "Gold", id: "7", imageLimit: 20 }
+});
+const PROMOTION_DURATIONS = new Set([1, 2, 3, 4, 5, 6, 7, 10, 15, 20, 25, 30]);
 
 class MoscarossaWorkflowPendingError extends Error {
     constructor(message, { remoteId = "", reasonCode = "MOSCAROSSA_WAITING_ACTION" } = {}) {
@@ -80,6 +88,26 @@ function mapCategory(value) {
     return CATEGORY_VALUES[key] || "1";
 }
 
+function normalizePromotion(value) {
+    const key = normalizeKey(value || "Free").replace(/\s+/g, "");
+    return PROMOTION_PLANS[key] || PROMOTION_PLANS.free;
+}
+
+function parsePromotionPeriod(period, planName) {
+    let parsed = {};
+    try {
+        parsed = typeof period === "string" ? JSON.parse(period || "{}") : (period || {});
+    } catch {
+        parsed = {};
+    }
+    const details = parsed.moscarossa || parsed;
+    const requestedDays = Number.parseInt(details.days || details.duration || parsed.days || period, 10);
+    return {
+        plan: normalizePromotion(details.plan || planName),
+        days: PROMOTION_DURATIONS.has(requestedDays) ? requestedDays : 1
+    };
+}
+
 function normalizeMoscarossaDetails(input = {}) {
     const details = input && typeof input === "object" && !Array.isArray(input) ? input : {};
     const validNumeric = (value) => /^\d{1,7}$/.test(`${value ?? ""}`.trim()) ? `${value}`.trim() : "";
@@ -145,6 +173,7 @@ function buildPublishData(adData = {}) {
     const options = note.moscarossa || {};
     const images = Array.isArray(adData.images) ? adData.images : (Array.isArray(adData.pics) ? adData.pics : []);
     const typeAnnuncio = `${adData.typeAnnuncio || adData.promo?.visibility || "Free"}`.trim();
+    const promotion = parsePromotionPeriod(adData.period || adData.schedule, typeAnnuncio);
 
     return {
         title: firstNonEmpty(adData.title, adData.titolo),
@@ -168,7 +197,12 @@ function buildPublishData(adData = {}) {
         details: normalizeMoscarossaDetails(options.details),
         images,
         picsAudit: Array.isArray(adData.picsAudit) ? adData.picsAudit : [],
-        isFree: normalizeKey(typeAnnuncio) === "free"
+        promotion: promotion.plan.name,
+        promotionId: promotion.plan.id,
+        promotionDays: promotion.days,
+        imageLimit: promotion.plan.imageLimit,
+        isFree: promotion.plan.name === "Free",
+        availableCredit: Number(adData.availableCredit)
     };
 }
 
@@ -417,8 +451,8 @@ async function selectMoscarossaCity(page, city, cityId = "") {
     });
 }
 
-async function uploadImages(page, images, picsAudit) {
-    const imagePaths = resolveImagePaths(images, picsAudit);
+async function uploadImages(page, images, picsAudit, imageLimit = FREE_IMAGE_LIMIT) {
+    const imagePaths = resolveImagePaths(images, picsAudit).slice(0, imageLimit);
     if (!imagePaths.length) {
         console.log("[moscarossa:images] No images selected for free publication.");
         return [];
@@ -572,7 +606,7 @@ async function fillFirstStep(page, data) {
     if (existingAd.reusedExisting) {
         console.log("[moscarossa:images] Existing Moscarossa images preserved; new-ad upload skipped.");
     } else {
-        await uploadImages(page, data.images, data.picsAudit);
+        await uploadImages(page, data.images, data.picsAudit, data.imageLimit);
     }
     await setCheckbox(page, "#regolamento", true);
     return existingAd;
@@ -727,6 +761,162 @@ async function clickPublishFree(page, remoteId) {
     };
 }
 
+async function activatePaidPromotion(page, remoteId, data) {
+    const planId = `${data.promotionId || ""}`;
+    const days = Number.parseInt(data.promotionDays, 10);
+    if (!["1", "2", "6", "7"].includes(planId) || !PROMOTION_DURATIONS.has(days)) {
+        throw new Error(`Promozione Moscarossa non valida: ${data.promotion} / ${days} giorni.`);
+    }
+
+    const prepared = await page.evaluate((targetPlanId, targetDays) => {
+        const visible = (node) => {
+            if (!node) return false;
+            const style = getComputedStyle(node);
+            return style.display !== "none" && style.visibility !== "hidden" && node.getClientRects().length > 0;
+        };
+        const smsRequired = visible(document.querySelector("#div_richiesta_verifica_sms"));
+        const form = document.querySelector("#form_promozione");
+        const plan = document.querySelector("#select_promozione");
+        if (!form || !plan) return { ok: false, smsRequired, reason: "form-not-found" };
+
+        const option = Array.from(plan.options).find((item) => `${item.value}` === `${targetPlanId}`);
+        if (!option) return { ok: false, smsRequired, reason: "plan-not-found" };
+        plan.value = `${targetPlanId}`;
+        plan.dispatchEvent(new Event("change", { bubbles: true }));
+        if (typeof window.preselect_promo === "function") {
+            window.preselect_promo(Number(targetPlanId), Number(targetDays));
+        }
+        return { ok: true, smsRequired, plan: `${option.textContent || ""}`.trim() };
+    }, planId, days);
+
+    if (prepared.smsRequired) {
+        throw new MoscarossaWorkflowPendingError(
+            `Moscarossa richiede la verifica SMS prima di attivare ${data.promotion}.`,
+            { remoteId, reasonCode: "MOSCAROSSA_WAITING_SMS" }
+        );
+    }
+    if (!prepared.ok) {
+        throw new Error(`Modulo promozione Moscarossa non disponibile: ${prepared.reason}.`);
+    }
+
+    await page.waitForFunction((targetPlanId, targetDays) => {
+        const plan = document.querySelector("#select_promozione");
+        const duration = document.querySelector("#select_giorni");
+        const price = document.querySelector("#prezzo b");
+        return `${plan?.value || ""}` === `${targetPlanId}` &&
+            `${duration?.value || ""}` === `${targetDays}` && Boolean(price?.textContent?.trim());
+    }, { timeout: 30000 }, planId, days).catch(() => {});
+
+    const quote = await page.evaluate((targetPlanId, targetDays) => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const matchingCell = Array.from(document.querySelectorAll("[onclick*='preselect_promo']"))
+            .find((node) => {
+                const source = `${node.getAttribute("onclick") || ""}`;
+                const match = source.match(/preselect_promo\(\s*(\d+)\s*,\s*(\d+)/i);
+                return match && match[1] === `${targetPlanId}` && match[2] === `${targetDays}`;
+            });
+        const priceText = clean(document.querySelector("#prezzo b")?.textContent) || clean(matchingCell?.textContent);
+        const price = Number.parseInt(priceText.replace(/[^0-9]/g, ""), 10);
+        const duration = document.querySelector("#select_giorni");
+        if (duration && `${duration.value}` !== `${targetDays}`) {
+            let option = Array.from(duration.options).find((item) => `${item.value}` === `${targetDays}`);
+            if (!option) {
+                option = new Option(`${targetDays} giorni`, `${targetDays}`, true, true);
+                duration.appendChild(option);
+            }
+            duration.value = `${targetDays}`;
+            duration.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        const showcase = document.querySelector("#check_vetrina");
+        const diamond = document.querySelector("#check_diamond");
+        if (showcase) showcase.checked = false;
+        if (diamond) diamond.checked = false;
+        return { price: Number.isFinite(price) ? price : 0, priceText, url: location.href };
+    }, planId, days);
+
+    if (!quote.price) {
+        throw new Error(`Moscarossa non ha restituito il prezzo per ${data.promotion}, ${days} giorni.`);
+    }
+    if (Number.isFinite(data.availableCredit) && data.availableCredit < quote.price) {
+        throw new Error(
+            `Crediti Moscarossa insufficienti: servono ${quote.price}, disponibili ${data.availableCredit}.`
+        );
+    }
+
+    console.log("[moscarossa:promotion] Activating paid plan", {
+        remoteId,
+        plan: data.promotion,
+        planId,
+        days,
+        price: quote.price,
+        availableCredit: Number.isFinite(data.availableCredit) ? data.availableCredit : "unknown"
+    });
+    await captureScreenshot(page, `04-${data.promotion}-${days}-days-selected`);
+
+    const navigation = page.waitForNavigation({ waitUntil: "networkidle2", timeout: 90000 }).catch(() => null);
+    await page.evaluate(() => {
+        const form = document.querySelector("#form_promozione");
+        if (!form) throw new Error("Moscarossa promotion form disappeared before submit.");
+        if (typeof form.requestSubmit === "function") form.requestSubmit();
+        else form.submit();
+    });
+    const response = await navigation;
+    await delay(1000);
+
+    const result = await page.evaluate((expectedRemoteId, expectedPlan) => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const links = Array.from(document.querySelectorAll("a[href]"))
+            .map((link) => link.href)
+            .filter((href) => new RegExp(`/(?:girl|trans|boy|massage)-${expectedRemoteId}\\.php`, "i").test(href));
+        return {
+            body: clean(document.body?.innerText).slice(0, 3000),
+            url: location.href,
+            publicUrl: links[0] || "",
+            stillOnPromotionForm: Boolean(document.querySelector("#form_promozione")),
+            planVisible: new RegExp(expectedPlan, "i").test(clean(document.body?.innerText))
+        };
+    }, remoteId, data.promotion);
+
+    const negative = /crediti insufficienti|credito insufficiente|pagamento rifiutato|si e verificato un errore|operazione non riuscita|accesso negato/i;
+    if (/login-escort/i.test(result.url)) {
+        const error = new Error("Moscarossa session expired while activating the paid promotion.");
+        error.statusCode = 401;
+        throw error;
+    }
+    if (response && (response.status() < 200 || response.status() >= 400)) {
+        throw new Error(`Moscarossa promozione HTTP ${response.status()}: ${result.body.slice(0, 600)}`);
+    }
+    if (negative.test(result.body)) {
+        throw new Error(`Moscarossa ha rifiutato la promozione: ${result.body.slice(0, 700)}`);
+    }
+
+    const positive = /promozione.{0,80}(?:attiv|acquist|success)|annuncio.{0,80}(?:promoss|pubblicat)|operazione.{0,40}(?:complet|success)|scade il/i;
+    const accepted = Boolean(result.publicUrl) || positive.test(result.body) ||
+        (!result.stillOnPromotionForm && !/\/promuovi2?\.php/i.test(result.url));
+    if (!accepted) {
+        throw new Error(
+            `Risposta Moscarossa non riconosciuta dopo l'attivazione ${data.promotion}: ${result.body.slice(0, 700)}`
+        );
+    }
+
+    const publicUrl = result.publicUrl || `https://www.moscarossa.biz/girl-${remoteId}.php`;
+    return {
+        ok: true,
+        remoteId,
+        publicUrl,
+        plan: data.promotion,
+        days,
+        creditsConsumed: quote.price,
+        response: result.body.slice(0, 700)
+    };
+}
+
+async function activateSelectedPromotion(page, remoteId, data) {
+    return data.isFree
+        ? clickPublishFree(page, remoteId)
+        : activatePaidPromotion(page, remoteId, data);
+}
+
 async function postPhoneVerification(page, fields) {
     const result = await page.evaluate(async (endpoint, payload) => {
         const body = new URLSearchParams();
@@ -822,7 +1012,7 @@ async function sendPhoneVerificationCode(page, { phone, remoteId = "" } = {}) {
     }
 }
 
-async function verifyPhoneCode(page, { phone, code, remoteId, resume = false } = {}) {
+async function verifyPhoneCode(page, { phone, code, remoteId, resume = false, promotion = {} } = {}) {
     const normalizedPhone = `${phone || ""}`.replace(/\D/g, "");
     const normalizedCode = `${code || ""}`.replace(/\D/g, "");
     if (!/^\d{6,15}$/.test(normalizedPhone) || !/^\d{4,8}$/.test(normalizedCode)) {
@@ -848,9 +1038,17 @@ async function verifyPhoneCode(page, { phone, code, remoteId, resume = false } =
         await captureScreenshot(page, `phone-verification-${resolvedRemoteId}-04-phone-verified`);
         if (!resume) return { ok: true, status: "verified", remoteId: resolvedRemoteId };
 
-        const freeResult = await clickPublishFree(page, resolvedRemoteId);
-        await captureScreenshot(page, `phone-verification-${resolvedRemoteId}-05-free-published`);
-        return { ...freeResult, status: "published" };
+        const promotionData = buildPublishData({
+            typeAnnuncio: promotion.plan || "Free",
+            period: promotion.period || "",
+            availableCredit: promotion.availableCredit
+        });
+        const publicationResult = await activateSelectedPromotion(page, resolvedRemoteId, promotionData);
+        await captureScreenshot(
+            page,
+            `phone-verification-${resolvedRemoteId}-05-${promotionData.promotion}-published`
+        );
+        return { ...publicationResult, status: "published" };
     } catch (error) {
         await captureScreenshot(page, `phone-verification-${resolvedRemoteId || "unknown"}-error-verify-or-resume`);
         throw error;
@@ -859,15 +1057,13 @@ async function verifyPhoneCode(page, { phone, code, remoteId, resume = false } =
 
 async function publishAd(page, adData = {}) {
     const data = buildPublishData(adData);
-    if (!data.isFree) {
-        throw new Error("Il workflow Moscarossa attuale supporta solo PUBBLICA GRATIS.");
-    }
-
-    console.log("[moscarossa:publish] Publishing free ad", {
+    console.log("[moscarossa:publish] Publishing ad", {
         title: data.title,
         category: data.category,
         city: data.city,
-        images: resolveImagePaths(data.images, data.picsAudit).length
+        images: Math.min(resolveImagePaths(data.images, data.picsAudit).length, data.imageLimit),
+        promotion: data.promotion,
+        days: data.promotionDays
     });
 
     try {
@@ -881,19 +1077,30 @@ async function publishAd(page, adData = {}) {
         await captureScreenshot(page, "02-first-step-filled");
 
         const remoteId = await continueToPromotion(page, existingAd);
-        await captureScreenshot(page, "03-free-promotion-step");
-        const freeResult = await clickPublishFree(page, remoteId);
-        await captureScreenshot(page, "04-free-published");
+        await captureScreenshot(page, "03-promotion-step");
+        const promotionResult = await activateSelectedPromotion(page, remoteId, data);
+        await captureScreenshot(page, `05-${data.promotion}-published`);
 
-        const url = freeResult.publicUrl || `${VIEW_URL}?id_accompa=${encodeURIComponent(remoteId)}`;
-        console.log("[moscarossa:publish] Free publication completed", { remoteId, url });
+        const url = promotionResult.publicUrl || `${VIEW_URL}?id_accompa=${encodeURIComponent(remoteId)}`;
+        console.log("[moscarossa:publish] Publication completed", {
+            remoteId,
+            url,
+            promotion: data.promotion,
+            days: data.promotionDays,
+            creditsConsumed: promotionResult.creditsConsumed || 0
+        });
         return {
             ok: true,
-            payload: { idpriv: remoteId, id_accompa: remoteId },
+            payload: {
+                idpriv: remoteId,
+                id_accompa: remoteId,
+                promotion: data.promotion,
+                days: data.promotionDays
+            },
             url,
-            creditsConsumed: 0,
-            freePublication: true,
-            response: freeResult.response
+            creditsConsumed: promotionResult.creditsConsumed || 0,
+            freePublication: data.isFree,
+            response: promotionResult.response
         };
     } catch (error) {
         const protocolUnavailable = /ProtocolError|Runtime\.callFunctionOn timed out|DOM\.setFileInputFiles timed out|Target closed|Session closed/i
