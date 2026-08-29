@@ -153,20 +153,25 @@ function isIncontriamociAuthenticationFailure(error, bot) {
 }
 
 async function runWithIncontriamociSessionRecovery(platform, operationName, operation) {
-    if (platform?.platform !== "incontriamoci") {
+    const platformName = `${platform?.platform || ""}`.toLowerCase();
+    if (!["incontriamoci", "moscarossa"].includes(platformName)) {
         return operation();
     }
 
     try {
         return await operation();
     } catch (error) {
-        if (!isIncontriamociAuthenticationFailure(error, platform.bot)) {
+        const authenticationFailure = platformName === "moscarossa"
+            ? isMoscarossaSessionFailure(error)
+            : isIncontriamociAuthenticationFailure(error, platform.bot);
+        if (!authenticationFailure) {
             throw error;
         }
 
         const username = platform.username || platform.bot?.email;
-        logger.Write(`Publisher WARNING: Incontriamoci session expired for ${username}. Re-login before retrying ${operationName}.`);
-        console.warn(`[incontriamoci] Session expired for ${username}; retrying ${operationName} after login.`);
+        const platformLabel = platformName === "moscarossa" ? "Moscarossa" : "Incontriamoci";
+        logger.Write(`Publisher WARNING: ${platformLabel} session expired for ${username}. Re-login before retrying ${operationName}.`);
+        console.warn(`[${platformName}] Session expired for ${username}; retrying ${operationName} after login.`);
 
         sessionCache.delete(getSessionKey(platform.bot, username));
         platform.cookie = null;
@@ -175,7 +180,7 @@ async function runWithIncontriamociSessionRecovery(platform, operationName, oper
 
         const cookies = await ensureSession(platform.bot, username);
         if (!cookies) {
-            throw new Error(`Incontriamoci re-login returned no cookies before ${operationName}.`);
+            throw new Error(`${platformLabel} re-login returned no cookies before ${operationName}.`);
         }
         platform.cookie = cookies;
 
@@ -1332,6 +1337,24 @@ async function postThis(ad, group, platform) {
                     }
                     platform.needRefresh = true;
                     break;
+            }
+
+            if (
+                platform.platform === "moscarossa" &&
+                ["DELETE", "CLOSE"].includes(ad.state) &&
+                ad.remotePostID
+            ) {
+                await ctx.tblSchedulazioni.update({
+                    state: pubStatus,
+                    errorReason: null
+                }, {
+                    where: {
+                        annuncio: ad.annuncio,
+                        platform: "moscarossa",
+                        remotePostID: ad.remotePostID,
+                        GCRecord: null
+                    }
+                });
             }
 
             await ad.update({
