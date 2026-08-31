@@ -135,15 +135,16 @@ function parsePromotionPeriod(period, planName) {
         : [];
     const diamondEnabled = isEnabled(rawAddons.diamond?.enabled) && diamondDates.length > 0;
     const vetrinaDays = Number.parseInt(rawAddons.vetrina?.days || requestedDays || 1, 10);
+    const plan = normalizePromotion(details.plan || planName);
     return {
-        plan: normalizePromotion(details.plan || planName),
+        plan,
         days: PROMOTION_DURATIONS.has(requestedDays) ? requestedDays : 1,
         addons: {
             vetrina: {
-                enabled: !diamondEnabled && isEnabled(rawAddons.vetrina?.enabled),
+                enabled: plan.name !== "Free" && !diamondEnabled && isEnabled(rawAddons.vetrina?.enabled),
                 days: PROMOTION_DURATIONS.has(vetrinaDays) ? vetrinaDays : 1
             },
-            diamond: { enabled: diamondEnabled, dates: diamondDates }
+            diamond: { enabled: plan.name !== "Free" && diamondEnabled, dates: diamondDates }
         }
     };
 }
@@ -1079,8 +1080,8 @@ async function activateDiamondAddon(page, remoteId, addon) {
 async function activateSelectedAddons(page, remoteId, data, publicationResult) {
     const addons = data.addons || {};
     if (!addons.vetrina?.enabled && !addons.diamond?.enabled) return publicationResult;
-    if (addons.vetrina?.enabled && data.isFree) {
-        throw new Error("La Vetrina Moscarossa richiede una promozione a pagamento.");
+    if (data.isFree) {
+        throw new Error("Vetrina e Diamond Moscarossa richiedono una promozione a pagamento.");
     }
     const addonResult = addons.diamond?.enabled
         ? await activateDiamondAddon(page, remoteId, addons.diamond)
