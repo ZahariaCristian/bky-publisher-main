@@ -18,15 +18,23 @@ const PROMOTION_PLANS = Object.freeze({
 const PROMOTION_DURATIONS = new Set([1, 2, 3, 4, 5, 6, 7, 10, 15, 20, 25, 30]);
 
 class MoscarossaWorkflowPendingError extends Error {
-    constructor(message, { remoteId = "", reasonCode = "MOSCAROSSA_WAITING_ACTION" } = {}) {
+    constructor(message, {
+        remoteId = "",
+        reasonCode = "MOSCAROSSA_WAITING_ACTION",
+        url = "",
+        payed = false,
+        creditsConsumed = 0
+    } = {}) {
         super(message);
         this.name = "MoscarossaWorkflowPendingError";
         this.remoteId = `${remoteId || ""}`;
         this.scheduleState = "ALERT";
         this.reasonCode = reasonCode;
-        this.url = this.remoteId
+        this.url = url || (this.remoteId
             ? `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(this.remoteId)}`
-            : "";
+            : "");
+        this.payed = Boolean(payed);
+        this.creditsConsumed = Number(creditsConsumed || 0);
     }
 }
 
@@ -102,9 +110,41 @@ function parsePromotionPeriod(period, planName) {
     }
     const details = parsed.moscarossa || parsed;
     const requestedDays = Number.parseInt(details.days || details.duration || parsed.days || period, 10);
+    const compactAddons = details.a && typeof details.a === "object" ? details.a : {};
+    const epochDayToDate = (day) => {
+        const numericDay = Number(day);
+        return Number.isInteger(numericDay) && numericDay > 10000 && numericDay < 100000
+            ? new Date(numericDay * 86400000).toISOString().slice(0, 10)
+            : "";
+    };
+    const rawAddons = details.addons && typeof details.addons === "object"
+        ? details.addons
+        : {
+            vetrina: { enabled: compactAddons.v?.[0], days: compactAddons.v?.[1] },
+            diamond: {
+                enabled: compactAddons.d?.[0],
+                dates: Array.isArray(compactAddons.d?.[1])
+                    ? compactAddons.d[1].map(epochDayToDate).filter(Boolean)
+                    : []
+            }
+        };
+    const diamondDates = Array.isArray(rawAddons.diamond?.dates)
+        ? [...new Set(rawAddons.diamond.dates
+            .map((date) => `${date || ""}`.trim())
+            .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort().slice(0, 30)
+        : [];
+    const diamondEnabled = isEnabled(rawAddons.diamond?.enabled) && diamondDates.length > 0;
+    const vetrinaDays = Number.parseInt(rawAddons.vetrina?.days || requestedDays || 1, 10);
     return {
         plan: normalizePromotion(details.plan || planName),
-        days: PROMOTION_DURATIONS.has(requestedDays) ? requestedDays : 1
+        days: PROMOTION_DURATIONS.has(requestedDays) ? requestedDays : 1,
+        addons: {
+            vetrina: {
+                enabled: !diamondEnabled && isEnabled(rawAddons.vetrina?.enabled),
+                days: PROMOTION_DURATIONS.has(vetrinaDays) ? vetrinaDays : 1
+            },
+            diamond: { enabled: diamondEnabled, dates: diamondDates }
+        }
     };
 }
 
@@ -200,6 +240,7 @@ function buildPublishData(adData = {}) {
         promotion: promotion.plan.name,
         promotionId: promotion.plan.id,
         promotionDays: promotion.days,
+        addons: promotion.addons,
         imageLimit: promotion.plan.imageLimit,
         isFree: promotion.plan.name === "Free",
         availableCredit: Number(adData.availableCredit)
@@ -917,6 +958,139 @@ async function activateSelectedPromotion(page, remoteId, data) {
         : activatePaidPromotion(page, remoteId, data);
 }
 
+async function openPromotionPageForAddon(page, remoteId, addonName) {
+    await page.goto(
+        `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(remoteId)}`,
+        { waitUntil: "networkidle2", timeout: 60000 }
+    );
+    if (/login-escort/i.test(page.url()) || await page.$("#form_login")) {
+        const error = new Error(`Moscarossa session expired before activating ${addonName}.`);
+        error.statusCode = 401;
+        throw error;
+    }
+}
+
+async function activateVetrinaAddon(page, remoteId, addon) {
+    const days = Number.parseInt(addon.days, 10);
+    if (!PROMOTION_DURATIONS.has(days)) throw new Error("Durata Vetrina Moscarossa non valida.");
+    await openPromotionPageForAddon(page, remoteId, "Vetrina");
+    const prepared = await page.evaluate((targetDays) => {
+        const form = document.querySelector("#form_plus_vetrina");
+        const select = document.querySelector("#select_giorni_vetrina_post");
+        if (!form || !select) return { ok: false, reason: "form-not-found" };
+        let option = Array.from(select.options).find((item) => `${item.value}` === `${targetDays}`);
+        if (!option) {
+            option = new Option(`${targetDays} giorni`, `${targetDays}`, true, true);
+            select.appendChild(option);
+        }
+        select.value = `${targetDays}`;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        return { ok: true };
+    }, days);
+    if (!prepared.ok) throw new Error(`Modulo Vetrina Moscarossa non disponibile: ${prepared.reason}.`);
+
+    await captureScreenshot(page, `06-vetrina-${days}-days-selected`);
+    const navigation = page.waitForNavigation({ waitUntil: "networkidle2", timeout: 90000 }).catch(() => null);
+    await page.evaluate(() => {
+        const form = document.querySelector("#form_plus_vetrina");
+        if (!form) throw new Error("Moscarossa Vetrina form disappeared before submit.");
+        if (typeof form.requestSubmit === "function") form.requestSubmit();
+        else form.submit();
+    });
+    const response = await navigation;
+    await delay(750);
+    const result = await page.evaluate(() => ({
+        url: location.href,
+        body: `${document.body?.innerText || ""}`.replace(/\s+/g, " ").trim().slice(0, 2500),
+        stillOnForm: Boolean(document.querySelector("#form_plus_vetrina"))
+    }));
+    if (response && !response.ok()) throw new Error(`Moscarossa Vetrina HTTP ${response.status()}.`);
+    if (/errore|crediti insufficienti|operazione non riuscita|non autorizzat/i.test(result.body)) {
+        throw new Error(`Moscarossa ha rifiutato Vetrina: ${result.body.slice(0, 600)}`);
+    }
+    if (result.stillOnForm && !/vetrina.{0,80}(?:attiv|acquist|success)/i.test(result.body)) {
+        throw new Error(`Moscarossa non ha confermato Vetrina: ${result.body.slice(0, 600)}`);
+    }
+    return { creditsConsumed: days * 8 };
+}
+
+async function activateDiamondAddon(page, remoteId, addon) {
+    const dates = [...new Set((addon.dates || []).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(`${date}`)))].sort();
+    if (!dates.length) throw new Error("Seleziona almeno un giorno Diamond Moscarossa.");
+    await openPromotionPageForAddon(page, remoteId, "Diamond");
+    const formattedDates = dates.map((date) => date.split("-").reverse().join("-")).join(", ");
+    const prepared = await page.evaluate(async (targetRemoteId, targetDates, count) => {
+        const form = document.querySelector("#form_promozione_diamond");
+        const hidden = document.querySelector("#giorni_diamond_selezionati_singolo");
+        if (!form || !hidden) return { ok: false, reason: "form-not-found" };
+        hidden.value = targetDates;
+        const quoteBody = new URLSearchParams({
+            id_accompa: `${targetRemoteId}`,
+            elenco_giorni_diamond: targetDates,
+            giorni_diamond: `${count}`
+        });
+        const quoteResponse = await fetch("ajax_promuovi.php", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: quoteBody.toString()
+        });
+        const text = await quoteResponse.text();
+        let quote = {};
+        try { quote = JSON.parse(text); } catch { quote = {}; }
+        return {
+            ok: quoteResponse.ok,
+            status: quoteResponse.status,
+            price: Number.parseInt(quote.prezzo_diamond, 10) || 0,
+            message: `${quote.messaggio_diamond || ""}`.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+        };
+    }, remoteId, formattedDates, dates.length);
+    if (!prepared.ok) throw new Error(`Preventivo Diamond Moscarossa non disponibile (HTTP ${prepared.status || "?"}).`);
+    if (prepared.message) throw new Error(`Moscarossa Diamond: ${prepared.message}`);
+    const credits = prepared.price || dates.length * 50;
+
+    await captureScreenshot(page, `06-diamond-${dates.length}-days-selected`);
+    const navigation = page.waitForNavigation({ waitUntil: "networkidle2", timeout: 90000 }).catch(() => null);
+    await page.evaluate(() => {
+        const form = document.querySelector("#form_promozione_diamond");
+        if (!form) throw new Error("Moscarossa Diamond form disappeared before submit.");
+        if (typeof form.requestSubmit === "function") form.requestSubmit();
+        else form.submit();
+    });
+    const response = await navigation;
+    await delay(750);
+    const result = await page.evaluate(() => ({
+        body: `${document.body?.innerText || ""}`.replace(/\s+/g, " ").trim().slice(0, 2500),
+        stillOnForm: Boolean(document.querySelector("#form_promozione_diamond"))
+    }));
+    if (response && !response.ok()) throw new Error(`Moscarossa Diamond HTTP ${response.status()}.`);
+    if (/errore|crediti insufficienti|operazione non riuscita|non autorizzat/i.test(result.body)) {
+        throw new Error(`Moscarossa ha rifiutato Diamond: ${result.body.slice(0, 600)}`);
+    }
+    if (result.stillOnForm && !/diamond.{0,80}(?:attiv|acquist|success)/i.test(result.body)) {
+        throw new Error(`Moscarossa non ha confermato Diamond: ${result.body.slice(0, 600)}`);
+    }
+    return { creditsConsumed: credits };
+}
+
+async function activateSelectedAddons(page, remoteId, data, publicationResult) {
+    const addons = data.addons || {};
+    if (!addons.vetrina?.enabled && !addons.diamond?.enabled) return publicationResult;
+    if (addons.vetrina?.enabled && data.isFree) {
+        throw new Error("La Vetrina Moscarossa richiede una promozione a pagamento.");
+    }
+    const addonResult = addons.diamond?.enabled
+        ? await activateDiamondAddon(page, remoteId, addons.diamond)
+        : await activateVetrinaAddon(page, remoteId, addons.vetrina);
+    return {
+        ...publicationResult,
+        creditsConsumed: Number(publicationResult.creditsConsumed || 0) + Number(addonResult.creditsConsumed || 0)
+    };
+}
+
 async function postPhoneVerification(page, fields) {
     const result = await page.evaluate(async (endpoint, payload) => {
         const body = new URLSearchParams();
@@ -1043,7 +1217,27 @@ async function verifyPhoneCode(page, { phone, code, remoteId, resume = false, pr
             period: promotion.period || "",
             availableCredit: promotion.availableCredit
         });
-        const publicationResult = await activateSelectedPromotion(page, resolvedRemoteId, promotionData);
+        const basePublicationResult = await activateSelectedPromotion(page, resolvedRemoteId, promotionData);
+        let publicationResult;
+        try {
+            publicationResult = await activateSelectedAddons(
+                page,
+                resolvedRemoteId,
+                promotionData,
+                basePublicationResult
+            );
+        } catch (addonError) {
+            throw new MoscarossaWorkflowPendingError(
+                `Annuncio Moscarossa pubblicato, ma extra non attivato: ${addonError.message}`,
+                {
+                    remoteId: resolvedRemoteId,
+                    reasonCode: "MOSCAROSSA_ADDON_FAILED",
+                    url: basePublicationResult.publicUrl,
+                    payed: !promotionData.isFree,
+                    creditsConsumed: basePublicationResult.creditsConsumed || 0
+                }
+            );
+        }
         await captureScreenshot(
             page,
             `phone-verification-${resolvedRemoteId}-05-${promotionData.promotion}-published`
@@ -1078,7 +1272,22 @@ async function publishAd(page, adData = {}) {
 
         const remoteId = await continueToPromotion(page, existingAd);
         await captureScreenshot(page, "03-promotion-step");
-        const promotionResult = await activateSelectedPromotion(page, remoteId, data);
+        const basePromotionResult = await activateSelectedPromotion(page, remoteId, data);
+        let promotionResult;
+        try {
+            promotionResult = await activateSelectedAddons(page, remoteId, data, basePromotionResult);
+        } catch (addonError) {
+            throw new MoscarossaWorkflowPendingError(
+                `Annuncio Moscarossa pubblicato, ma extra non attivato: ${addonError.message}`,
+                {
+                    remoteId,
+                    reasonCode: "MOSCAROSSA_ADDON_FAILED",
+                    url: basePromotionResult.publicUrl,
+                    payed: !data.isFree,
+                    creditsConsumed: basePromotionResult.creditsConsumed || 0
+                }
+            );
+        }
         await captureScreenshot(page, `05-${data.promotion}-published`);
 
         const url = promotionResult.publicUrl || `${VIEW_URL}?id_accompa=${encodeURIComponent(remoteId)}`;
@@ -1114,11 +1323,61 @@ async function publishAd(page, adData = {}) {
     }
 }
 
+async function republishAd(page, remoteId, adData = {}) {
+    const resolvedRemoteId = `${remoteId || ""}`.trim();
+    if (!/^\d{4,9}$/.test(resolvedRemoteId)) {
+        throw new Error(`Moscarossa remotePostID non valido per la ripubblicazione: ${resolvedRemoteId || "vuoto"}.`);
+    }
+
+    const data = buildPublishData(adData);
+    try {
+        await page.goto(
+            `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(resolvedRemoteId)}`,
+            { waitUntil: "networkidle2", timeout: 60000 }
+        );
+        if (/login-escort/i.test(page.url()) || await page.$("#form_login")) {
+            throw new Error(`Moscarossa session expired before republishing ad ${resolvedRemoteId}.`);
+        }
+
+        await captureScreenshot(page, `republish-${resolvedRemoteId}-01-promotion-page`);
+        const basePromotionResult = await activateSelectedPromotion(page, resolvedRemoteId, data);
+        let promotionResult;
+        try {
+            promotionResult = await activateSelectedAddons(page, resolvedRemoteId, data, basePromotionResult);
+        } catch (addonError) {
+            throw new MoscarossaWorkflowPendingError(
+                `Annuncio Moscarossa ripubblicato, ma extra non attivato: ${addonError.message}`,
+                {
+                    remoteId: resolvedRemoteId,
+                    reasonCode: "MOSCAROSSA_ADDON_FAILED",
+                    url: basePromotionResult.publicUrl,
+                    payed: !data.isFree,
+                    creditsConsumed: basePromotionResult.creditsConsumed || 0
+                }
+            );
+        }
+        await captureScreenshot(page, `republish-${resolvedRemoteId}-02-${data.promotion}-published`);
+
+        return {
+            ok: true,
+            remoteId: resolvedRemoteId,
+            state: "OK",
+            url: promotionResult.publicUrl || `${VIEW_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}`,
+            creditsConsumed: promotionResult.creditsConsumed || 0,
+            response: promotionResult.response
+        };
+    } catch (error) {
+        await captureScreenshot(page, `error-republish-${resolvedRemoteId}-${error.message}`);
+        throw error;
+    }
+}
+
 module.exports = {
     buildPublishData,
     captureScreenshot,
     clickPublishFree,
     publishAd,
+    republishAd,
     sendPhoneVerificationCode,
     verifyPhoneCode,
     resolveImagePaths

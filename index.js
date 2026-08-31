@@ -1,7 +1,7 @@
 const dotenv = require('dotenv');
 const fs = require("fs");
 const http = require("http");
-const { dirname } = require('path');
+const { dirname, resolve, sep } = require('path');
 const appDir = dirname(require.main.filename);
 // const { EOF } = require("dns");
 // const { where } = require("sequelize");
@@ -19,7 +19,7 @@ const AmasensBot = require("./bots/amasens");
 const MoscarossaBot = require("./bots/moscarossa");
 const { getApiKey } = require("./adsManage/megaescort/client");
 const { raw } = require('mysql');
-const { platform } = require('os');
+const { platform, tmpdir } = require('os');
 
 const Op = ctx.model.Sequelize.Op;
 
@@ -507,6 +507,63 @@ async function runMoscarossaPhoneVerificationFromPublisher(payload = {}) {
     return { ...result, scheduleId: schedule?.id || null };
 }
 
+async function uploadMoscarossaStoryFromPublisher(payload = {}) {
+    const remoteId = /^\d{4,9}$/.test(`${payload.remoteId || ""}`) ? `${payload.remoteId}` : "";
+    const filePath = resolve(`${payload.filePath || ""}`);
+    const tempRoot = `${resolve(tmpdir())}${sep}`.toLowerCase();
+    const stats = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+    if (!remoteId || !filePath.toLowerCase().startsWith(tempRoot) || !stats?.isFile() || stats.size > 30 * 1024 * 1024) {
+        const error = new Error("Invalid Moscarossa Story request.");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const target = findPlatformByName("moscarossa", {
+        username: payload.username,
+        groupId: payload.groupId
+    });
+    if (!target?.platform) {
+        const error = new Error("No active Moscarossa platform found in publisher.");
+        error.statusCode = 404;
+        throw error;
+    }
+    const { platform: moscarossaPlatform } = target;
+    if (!moscarossaPlatform.bot || typeof moscarossaPlatform.bot.uploadStory !== "function") {
+        const error = new Error("Moscarossa Story service is not initialized.");
+        error.statusCode = 503;
+        throw error;
+    }
+    if (moscarossaPlatform.cookie &&
+        (!Array.isArray(moscarossaPlatform.bot.cookies) || !moscarossaPlatform.bot.cookies.length)) {
+        const reused = await moscarossaPlatform.bot.initWithCookies?.(moscarossaPlatform.cookie);
+        if (!reused) moscarossaPlatform.cookie = null;
+    }
+    if (!moscarossaPlatform.cookie) {
+        moscarossaPlatform.cookie = await ensureSession(moscarossaPlatform.bot, moscarossaPlatform.username);
+        moscarossaPlatform.needRefresh = true;
+    }
+    const execute = () => moscarossaPlatform.bot.uploadStory({
+        remoteId,
+        filePath,
+        originalName: payload.originalName,
+        mimeType: payload.mimeType
+    });
+    let result;
+    try {
+        result = await execute();
+    } catch (error) {
+        if (!isMoscarossaSessionFailure(error)) throw error;
+        sessionCache.delete(getSessionKey(moscarossaPlatform.bot, moscarossaPlatform.username));
+        moscarossaPlatform.cookie = null;
+        await moscarossaPlatform.bot.restartBrowser?.("expired session during Story upload");
+        moscarossaPlatform.cookie = await ensureSession(moscarossaPlatform.bot, moscarossaPlatform.username);
+        result = await execute();
+    }
+    moscarossaPlatform.cookie = JSON.stringify(moscarossaPlatform.bot.cookies || []);
+    moscarossaPlatform.needRefresh = true;
+    return result;
+}
+
 function startPublisherApiServer() {
     if (publisherApiServer) return;
 
@@ -561,6 +618,21 @@ function startPublisherApiServer() {
                 return sendJson(res, statusCode, {
                     error: error.message || "Unable to verify Moscarossa phone.",
                     reasonCode: error.reasonCode || null,
+                    details: error.response?.data || getErrorDetails(error)
+                });
+            }
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/moscarossa/story") {
+            try {
+                const payload = await readJsonBody(req);
+                const data = await uploadMoscarossaStoryFromPublisher(payload);
+                return sendJson(res, 200, data);
+            } catch (error) {
+                const statusCode = error.statusCode || error.response?.status || 500;
+                console.error("[publisher-api] Moscarossa Story error:", error);
+                return sendJson(res, statusCode, {
+                    error: error.message || "Unable to upload Moscarossa Story.",
                     details: error.response?.data || getErrorDetails(error)
                 });
             }
@@ -1372,6 +1444,7 @@ async function postThis(ad, group, platform) {
             pubStatus = pendingMoscarossaAction ? "ALERT" : "KO";
             if (bakecaActionError?.remoteId) ad.remotePostID = `${bakecaActionError.remoteId}`;
             if (bakecaActionError?.url) ad.urlBK = bakecaActionError.url;
+            if (pendingMoscarossaAction && bakecaActionError?.payed) ad.payed = true;
             errorReason = formatPublishErrorReason(bakecaActionError);
             console.error(`Error in ${platform.platform} postThis state handling:`, bakecaActionError);
             logger.Write(`Publisher ERROR during ${platform.platform} operation: ${bakecaActionError.stack || bakecaActionError}`);
@@ -1380,6 +1453,7 @@ async function postThis(ad, group, platform) {
                     state: pubStatus,
                     remotePostID: ad.remotePostID || null,
                     urlBK: ad.urlBK || null,
+                    payed: ad.payed,
                     errorReason
                 });
                 console.log(

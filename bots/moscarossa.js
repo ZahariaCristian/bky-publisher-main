@@ -7,6 +7,7 @@ const TwoCaptcha = require("@2captcha/captcha-solver");
 const {
   buildPublishData,
   publishAd,
+  republishAd,
   sendPhoneVerificationCode,
   verifyPhoneCode
 } = require("../adsManage/moscarossa/publishAds");
@@ -642,6 +643,70 @@ class MoscarossaBot {
     }
   }
 
+  async uploadStory({ remoteId, filePath, originalName, mimeType } = {}) {
+    const normalizedRemoteId = this.normalizeRemoteId(remoteId);
+    const resolvedFile = path.resolve(`${filePath || ""}`);
+    const allowedExtensions = new Set([".mp4", ".mov", ".jpg", ".jpeg", ".png", ".gif"]);
+    const allowedMimeTypes = new Set([
+      "video/mp4", "video/quicktime", "image/jpeg", "image/png", "image/gif"
+    ]);
+    const extension = path.extname(`${originalName || resolvedFile}`).toLowerCase();
+    if (!fs.existsSync(resolvedFile) || !allowedExtensions.has(extension) ||
+        !allowedMimeTypes.has(`${mimeType || ""}`.toLowerCase())) {
+      const error = new Error("File Storia Moscarossa non valido.");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const page = await this.auxiliaryPage();
+    try {
+      const before = await this.openManagedAdvertisement(page, normalizedRemoteId, "story upload");
+      if (!before.hasManagedAd) throw new Error(`Annuncio Moscarossa ${normalizedRemoteId} non trovato.`);
+      const fileInput = await page.$('#uploadStory input[name="file_storia"]');
+      const form = await page.$("#uploadStory");
+      if (!fileInput || !form) {
+        const error = new Error("Crea Storia non è disponibile: serve un annuncio attivo con promozione a pagamento.");
+        error.statusCode = 409;
+        throw error;
+      }
+
+      await fileInput.uploadFile(resolvedFile);
+      await this.managementScreenshot(page, `story-${normalizedRemoteId}-01-file-selected`);
+      const navigation = page.waitForNavigation({ waitUntil: "networkidle2", timeout: 120000 }).catch(() => null);
+      await page.evaluate(() => {
+        const storyForm = document.querySelector("#uploadStory");
+        if (!storyForm) throw new Error("Moscarossa Story form disappeared before submit.");
+        if (typeof storyForm.requestSubmit === "function") storyForm.requestSubmit();
+        else storyForm.submit();
+      });
+      const response = await navigation;
+      await delay(1000);
+      await this.assertManagementSession(page, "story upload");
+      await this.managementScreenshot(page, `story-${normalizedRemoteId}-02-uploaded`);
+      const result = await page.evaluate(() => ({
+        body: `${document.body?.innerText || ""}`.replace(/\s+/g, " ").trim().slice(0, 2500),
+        url: location.href,
+        formPresent: Boolean(document.querySelector("#uploadStory"))
+      }));
+      if (response && !response.ok()) throw new Error(`Moscarossa Story HTTP ${response.status()}.`);
+      if (/errore|formato non valido|file troppo grande|operazione non riuscita|non autorizzat/i.test(result.body)) {
+        throw new Error(`Moscarossa ha rifiutato la Storia: ${result.body.slice(0, 600)}`);
+      }
+      const confirmed = /stori(?:a|e).{0,100}(?:caricat|creat|pubblicat|success)/i.test(result.body) ||
+        !result.formPresent || /caricamento_storia\.php/i.test(result.url);
+      if (!confirmed) {
+        throw new Error(`Risposta Moscarossa non riconosciuta dopo Crea Storia: ${result.body.slice(0, 600)}`);
+      }
+      this.cookies = await page.cookies().catch(() => this.cookies);
+      return { ok: true, remoteId: normalizedRemoteId, visibleHours: 24 };
+    } catch (error) {
+      await this.managementScreenshot(page, `error-story-${normalizedRemoteId}`);
+      throw error;
+    } finally {
+      await page.close().catch(() => {});
+    }
+  }
+
   unsupported(operation) {
     throw new Error(`Moscarossa ${operation} workflow is not implemented yet.`);
   }
@@ -649,7 +714,19 @@ class MoscarossaBot {
   async update() { return this.unsupported("update"); }
   async delete(remotePostID) { return this.runManagementAction("delete", remotePostID); }
   async suspend(remotePostID) { return this.runManagementAction("suspend", remotePostID); }
-  async republish() { return this.unsupported("republish"); }
+  async republish(remotePostID, ad) {
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+    const result = await republishAd(page, remotePostID, {
+      ...ad,
+      ...this.buildPublishData(ad),
+      availableCredit: this.credit
+    });
+    this.cookies = await page.cookies().catch(() => this.cookies);
+    if (Number(result?.creditsConsumed || 0) > 0) {
+      result.remainingCredit = await this.getCredit();
+    }
+    return result;
+  }
   async resolveRemoteId(ad) { return ad?.remotePostID || ad?.dataValues?.remotePostID || null; }
 
   async restartBrowser(reason) {
