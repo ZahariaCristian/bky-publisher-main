@@ -462,20 +462,48 @@ async function selectMoscarossaCity(page, city, cityId = "") {
     const search = await page.waitForSelector(searchSelector, { visible: true, timeout: 15000 });
     await search.type(`${city}`, { delay: 80 });
 
-    await page.waitForFunction(() => Array.from(document.querySelectorAll(
-        ".select2-container--open .select2-results__option"
-    )).some((option) => !/ricerca|caricamento|nessun risultato/i.test(option.textContent || "")), { timeout: 30000 });
+    await page.waitForFunction(() => {
+        const transientText = /sto cercando|ricerca|caricamento|searching|loading|digita|inserisci almeno/i;
+        const emptyText = /nessun risultato|nessun comune|no results/i;
+        return Array.from(document.querySelectorAll(
+            ".select2-container--open .select2-results__option"
+        )).some((option) => {
+            const text = `${option.textContent || ""}`.replace(/\s+/g, " ").trim();
+            if (emptyText.test(text)) return true;
+            return Boolean(text) &&
+                !transientText.test(text) &&
+                !option.classList.contains("loading-results") &&
+                option.getAttribute("aria-disabled") !== "true";
+        });
+    }, { timeout: 30000 });
 
     const resultHandles = await page.$$(".select2-container--open .select2-results__option");
     const candidates = [];
     for (const handle of resultHandles) {
-        const text = await page.evaluate((node) => `${node.textContent || ""}`.replace(/\s+/g, " ").trim(), handle);
-        if (text && !/ricerca|caricamento|nessun risultato/i.test(text)) candidates.push({ handle, text });
+        const result = await page.evaluate((node) => ({
+            text: `${node.textContent || ""}`.replace(/\s+/g, " ").trim(),
+            loading: node.classList.contains("loading-results"),
+            disabled: node.getAttribute("aria-disabled") === "true"
+        }), handle);
+        if (
+            result.text &&
+            !result.loading &&
+            !result.disabled &&
+            !/sto cercando|ricerca|caricamento|searching|loading|digita|inserisci almeno|nessun risultato|nessun comune|no results/i.test(result.text)
+        ) {
+            candidates.push({ handle, text: result.text });
+        }
     }
     const target = normalizeKey(city);
-    const match = candidates.find((candidate) => normalizeKey(candidate.text) === target) ||
-        candidates.find((candidate) => normalizeKey(candidate.text).startsWith(`${target} `)) ||
-        candidates.find((candidate) => normalizeKey(candidate.text).includes(target));
+    const targetWithoutProvince = normalizeKey(`${city}`.replace(/\s*\([a-z]{2}\)\s*$/i, ""));
+    const matchesCity = (candidate) => {
+        const key = normalizeKey(candidate.text);
+        return key === target ||
+            key === targetWithoutProvince ||
+            key.startsWith(`${targetWithoutProvince} `) ||
+            targetWithoutProvince.startsWith(`${key} `);
+    };
+    const match = candidates.find(matchesCity);
 
     if (!match) {
         throw new Error(`Moscarossa Comune "${city}" non trovato. Opzioni: ${candidates.map((item) => item.text).slice(0, 12).join(" | ")}`);
@@ -654,6 +682,59 @@ async function fillFirstStep(page, data) {
     return existingAd;
 }
 
+async function openMoscarossaPromotionPage(page, remoteId, context = "promotion") {
+    const resolvedRemoteId = `${remoteId || ""}`.trim();
+    const promotionUrl = `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(resolvedRemoteId)}`;
+    let response = null;
+
+    try {
+        response = await page.goto(promotionUrl, {
+            waitUntil: "domcontentloaded",
+            timeout: 60000
+        });
+    } catch (error) {
+        if (!/TimeoutError|Navigation timeout/i.test(`${error?.name || ""} ${error?.message || ""}`)) {
+            throw error;
+        }
+
+        const partialPage = await page.evaluate((expectedRemoteId) => {
+            const url = location.href;
+            const currentId = new URL(url).searchParams.get("id_accompa") || "";
+            return {
+                url,
+                currentId,
+                hasBody: Boolean(document.body),
+                hasPromotionContent: Boolean(document.querySelector(
+                    "#button_pubblica_gratis, #button_pubblica_gratis_aggiorna, .button_pubblica_gratis, " +
+                    "#form_promozione, #form_plus_vetrina, #form_promozione_diamond, .div_verifica_telefono"
+                )),
+                expectedRemoteId
+            };
+        }, resolvedRemoteId).catch(() => null);
+        const usableTarget = partialPage?.hasBody &&
+            /\/private\/promuovi\.php/i.test(partialPage.url) &&
+            `${partialPage.currentId}` === resolvedRemoteId;
+        if (!usableTarget) throw error;
+
+        console.warn(`[moscarossa:promotion] ${context} navigation timed out after the target document loaded; continuing with page checks`, {
+            remoteId: resolvedRemoteId,
+            url: partialPage.url,
+            promotionContent: partialPage.hasPromotionContent
+        });
+    }
+
+    if (response && response.status() >= 400) {
+        throw new Error(`Moscarossa ${context} page HTTP ${response.status()}.`);
+    }
+    if (/login-escort/i.test(page.url()) || await page.$("#form_login")) {
+        const error = new Error(`Moscarossa session expired while opening the ${context} page.`);
+        error.statusCode = 401;
+        throw error;
+    }
+
+    return promotionUrl;
+}
+
 async function findAndOpenPromotion(page, remoteId) {
     if (await page.$("#button_pubblica_gratis, #button_pubblica_gratis_aggiorna, .button_pubblica_gratis")) {
         return true;
@@ -690,7 +771,7 @@ async function findAndOpenPromotion(page, remoteId) {
         if (!remoteId) return false;
         const promotionUrl = `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(remoteId)}`;
         console.log("[moscarossa:promotion] Promotion control not found; opening saved ad promotion URL", promotionUrl);
-        await page.goto(promotionUrl, { waitUntil: "networkidle2", timeout: 60000 });
+        await openMoscarossaPromotionPage(page, remoteId, "publication promotion");
     } else {
         console.log("[moscarossa:promotion] Opening promotion", promotionControl);
     }
@@ -960,15 +1041,7 @@ async function activateSelectedPromotion(page, remoteId, data) {
 }
 
 async function openPromotionPageForAddon(page, remoteId, addonName) {
-    await page.goto(
-        `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(remoteId)}`,
-        { waitUntil: "networkidle2", timeout: 60000 }
-    );
-    if (/login-escort/i.test(page.url()) || await page.$("#form_login")) {
-        const error = new Error(`Moscarossa session expired before activating ${addonName}.`);
-        error.statusCode = 401;
-        throw error;
-    }
+    await openMoscarossaPromotionPage(page, remoteId, `${addonName} add-on`);
 }
 
 async function activateVetrinaAddon(page, remoteId, addon) {
@@ -1148,13 +1221,7 @@ async function openPhoneVerificationAd(page, { phone, remoteId = "" } = {}) {
         }
     }
 
-    const promotionUrl = `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(resolvedRemoteId)}`;
-    await page.goto(promotionUrl, { waitUntil: "networkidle2", timeout: 60000 });
-    if (/login-escort/i.test(page.url()) || await page.$("#form_login")) {
-        const error = new Error("Moscarossa session expired before phone verification.");
-        error.statusCode = 401;
-        throw error;
-    }
+    await openMoscarossaPromotionPage(page, resolvedRemoteId, "phone verification");
     return resolvedRemoteId;
 }
 
@@ -1209,7 +1276,7 @@ async function verifyPhoneCode(page, { phone, code, remoteId, resume = false, pr
             throw error;
         }
 
-        await page.reload({ waitUntil: "networkidle2", timeout: 60000 });
+        await openMoscarossaPromotionPage(page, resolvedRemoteId, "verified phone refresh");
         await captureScreenshot(page, `phone-verification-${resolvedRemoteId}-04-phone-verified`);
         if (!resume) return { ok: true, status: "verified", remoteId: resolvedRemoteId };
 
@@ -1313,7 +1380,7 @@ async function publishAd(page, adData = {}) {
             response: promotionResult.response
         };
     } catch (error) {
-        const protocolUnavailable = /ProtocolError|Runtime\.callFunctionOn timed out|DOM\.setFileInputFiles timed out|Target closed|Session closed/i
+        const protocolUnavailable = /ProtocolError|Runtime\.callFunctionOn timed out|DOM\.setFileInputFiles timed out|Navigation timeout of \d+ ms exceeded|Target closed|Session closed/i
             .test(`${error?.name || ""} ${error?.message || error || ""}`);
         if (protocolUnavailable) {
             console.warn(`[moscarossa:screenshot] Skipped error screenshot because the browser protocol is unavailable: ${error.message}`);
@@ -1332,13 +1399,7 @@ async function republishAd(page, remoteId, adData = {}) {
 
     const data = buildPublishData(adData);
     try {
-        await page.goto(
-            `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(resolvedRemoteId)}`,
-            { waitUntil: "networkidle2", timeout: 60000 }
-        );
-        if (/login-escort/i.test(page.url()) || await page.$("#form_login")) {
-            throw new Error(`Moscarossa session expired before republishing ad ${resolvedRemoteId}.`);
-        }
+        await openMoscarossaPromotionPage(page, resolvedRemoteId, "republish promotion");
 
         await captureScreenshot(page, `republish-${resolvedRemoteId}-01-promotion-page`);
         const basePromotionResult = await activateSelectedPromotion(page, resolvedRemoteId, data);
