@@ -745,6 +745,103 @@ async function openMoscarossaPromotionPage(page, remoteId, context = "promotion"
     return promotionUrl;
 }
 
+async function inspectMoscarossaEditorPage(page, expectedRemoteId) {
+    return page.evaluate((remoteId) => {
+        const url = location.href;
+        const currentId = (() => {
+            try { return new URL(url).searchParams.get("id_accompa") || ""; } catch { return ""; }
+        })();
+        const formId = `${document.querySelector(
+            "#dati_annuncio input[name='id_accompa'], input[name='id_accompa']"
+        )?.value || ""}`.trim();
+        const resolvedId = currentId || formId;
+        return {
+            url,
+            currentId: resolvedId,
+            hasForm: Boolean(document.querySelector("#dati_annuncio")),
+            hasImageInput: Boolean(document.querySelector("input.fileuploader_upload[name='files[]']")),
+            hasLoginForm: Boolean(document.querySelector("#form_login")),
+            matchesRemoteId: Boolean(resolvedId) && `${resolvedId}` === `${remoteId}`
+        };
+    }, `${expectedRemoteId || ""}`);
+}
+
+async function openMoscarossaEditorPage(page, remoteId, context = "existing ad editor") {
+    const resolvedRemoteId = `${remoteId || ""}`.trim();
+    const editUrl = `${PUBLISH_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}#f`;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+        let response = null;
+        try {
+            response = await page.goto(editUrl, {
+                waitUntil: "domcontentloaded",
+                timeout: 60000
+            });
+        } catch (error) {
+            lastError = error;
+            if (!/TimeoutError|Navigation timeout/i.test(`${error?.name || ""} ${error?.message || ""}`)) {
+                throw error;
+            }
+
+            await page.evaluate(() => window.stop()).catch(() => {});
+            await delay(500);
+            const partial = await inspectMoscarossaEditorPage(page, resolvedRemoteId).catch(() => null);
+            if (partial?.hasForm && partial.hasImageInput && partial.matchesRemoteId && !partial.hasLoginForm) {
+                console.warn(`[moscarossa:images] ${context} navigation timed out after the editor became usable; continuing`, {
+                    remoteId: resolvedRemoteId,
+                    url: partial.url,
+                    attempt
+                });
+                return { editUrl, recoveredFromTimeout: true, state: partial };
+            }
+
+            if (attempt < 2) {
+                console.warn(`[moscarossa:images] ${context} navigation timed out before the editor was usable; retrying`, {
+                    remoteId: resolvedRemoteId,
+                    url: page.url(),
+                    attempt
+                });
+                await page.goto("about:blank", { waitUntil: "load", timeout: 10000 }).catch(() => {});
+                continue;
+            }
+            error.remoteId = resolvedRemoteId;
+            error.url = editUrl;
+            throw error;
+        }
+
+        if (response && response.status() >= 400) {
+            const error = new Error(`Moscarossa ${context} HTTP ${response.status()}.`);
+            error.remoteId = resolvedRemoteId;
+            error.url = editUrl;
+            throw error;
+        }
+
+        const state = await inspectMoscarossaEditorPage(page, resolvedRemoteId);
+        if (state.hasLoginForm || /login-escort/i.test(state.url)) {
+            const error = new Error(`Moscarossa session expired while opening the ${context}.`);
+            error.statusCode = 401;
+            error.remoteId = resolvedRemoteId;
+            error.url = editUrl;
+            throw error;
+        }
+        if (state.hasForm && state.hasImageInput && state.matchesRemoteId) {
+            return { editUrl, recoveredFromTimeout: false, state };
+        }
+
+        lastError = new Error(
+            `Moscarossa ${context} did not expose the advertisement form or image uploader. URL: ${state.url}`
+        );
+        if (attempt < 2) {
+            await page.goto("about:blank", { waitUntil: "load", timeout: 10000 }).catch(() => {});
+        }
+    }
+
+    lastError.remoteId = resolvedRemoteId;
+    lastError.url = editUrl;
+    throw lastError;
+}
+
 async function inspectPromotionState(page, expectedRemoteId = "") {
     return page.evaluate((remoteId, freeSelector) => {
         const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
@@ -964,45 +1061,50 @@ async function syncImagesForExistingAd(page, remoteId, data) {
     const imagePaths = resolveImagePaths(data.images, data.picsAudit).slice(0, data.imageLimit);
     if (!imagePaths.length) return { count: 0, skipped: true };
 
-    const editUrl = `${PUBLISH_URL}?id_accompa=${encodeURIComponent(remoteId)}#f`;
     console.log("[moscarossa:images] Existing ad has no photos; synchronizing selected website images", {
         remoteId,
         images: imagePaths.length
     });
-    await page.goto(editUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
-    if (/login-escort/i.test(page.url()) || await page.$("#form_login")) {
-        const error = new Error("Moscarossa session expired while opening the existing ad image editor.");
-        error.statusCode = 401;
-        throw error;
-    }
-    await page.waitForSelector("#dati_annuncio", { visible: true, timeout: 30000 });
-    await uploadImages(page, data.images, data.picsAudit, data.imageLimit);
-    await setCheckbox(page, "#regolamento", true);
-    await captureScreenshot(page, `republish-${remoteId}-images-ready`);
+    const editorPage = await page.browserContext().newPage();
+    editorPage.setDefaultTimeout(30000);
+    editorPage.setDefaultNavigationTimeout(60000);
+    const sourceUserAgent = await page.evaluate(() => navigator.userAgent).catch(() => "");
+    if (sourceUserAgent) await editorPage.setUserAgent(sourceUserAgent);
+    if (page.viewport()) await editorPage.setViewport(page.viewport());
 
-    const returnedRemoteId = await continueToPromotion(page, { remoteId });
-    if (`${returnedRemoteId}` !== `${remoteId}`) {
-        throw new Error(
-            `Moscarossa ha restituito l'annuncio ${returnedRemoteId} durante la modifica immagini di ${remoteId}.`
-        );
+    try {
+        await openMoscarossaEditorPage(editorPage, remoteId, "existing ad image editor");
+        await editorPage.waitForSelector("#dati_annuncio", { visible: true, timeout: 30000 });
+        await uploadImages(editorPage, data.images, data.picsAudit, data.imageLimit);
+        await setCheckbox(editorPage, "#regolamento", true);
+        await captureScreenshot(editorPage, `republish-${remoteId}-images-ready`);
+
+        const returnedRemoteId = await continueToPromotion(editorPage, { remoteId });
+        if (`${returnedRemoteId}` !== `${remoteId}`) {
+            throw new Error(
+                `Moscarossa ha restituito l'annuncio ${returnedRemoteId} durante la modifica immagini di ${remoteId}.`
+            );
+        }
+        const imageState = await waitForMoscarossaImages(editorPage, remoteId);
+        if (!Number.isFinite(imageState.count) || imageState.count <= 0) {
+            const error = new Error(
+                `Moscarossa non ha salvato le immagini sull'annuncio ${remoteId}. ` +
+                `Stato remoto: ${imageState.countText || "conteggio immagini non disponibile"}.`
+            );
+            error.remoteId = `${remoteId}`;
+            error.url = imageState.publicUrl ||
+                `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(remoteId)}`;
+            throw error;
+        }
+        console.log("[moscarossa:images] Existing ad images synchronized", {
+            remoteId,
+            remoteImages: imageState.count,
+            status: imageState.countText
+        });
+        return imageState;
+    } finally {
+        await editorPage.close().catch(() => {});
     }
-    const imageState = await waitForMoscarossaImages(page, remoteId);
-    if (!Number.isFinite(imageState.count) || imageState.count <= 0) {
-        const error = new Error(
-            `Moscarossa non ha salvato le immagini sull'annuncio ${remoteId}. ` +
-            `Stato remoto: ${imageState.countText || "conteggio immagini non disponibile"}.`
-        );
-        error.remoteId = `${remoteId}`;
-        error.url = imageState.publicUrl ||
-            `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(remoteId)}`;
-        throw error;
-    }
-    console.log("[moscarossa:images] Existing ad images synchronized", {
-        remoteId,
-        remoteImages: imageState.count,
-        status: imageState.countText
-    });
-    return imageState;
 }
 
 async function clickPublishFree(page, remoteId) {
@@ -1683,7 +1785,15 @@ async function republishAd(page, remoteId, adData = {}) {
             response: promotionResult.response
         };
     } catch (error) {
-        await captureScreenshot(page, `error-republish-${resolvedRemoteId}-${error.message}`);
+        const protocolUnavailable = /ProtocolError|Runtime\.callFunctionOn timed out|DOM\.setFileInputFiles timed out|Navigation timeout of \d+ ms exceeded|Page\.captureScreenshot timed out|Target closed|Session closed/i
+            .test(`${error?.name || ""} ${error?.message || error || ""}`);
+        if (protocolUnavailable) {
+            console.warn(
+                `[moscarossa:screenshot] Skipped republish error screenshot because the browser protocol is unavailable: ${error.message}`
+            );
+        } else {
+            await captureScreenshot(page, `error-republish-${resolvedRemoteId}-${error.message}`);
+        }
         throw error;
     }
 }
