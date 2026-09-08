@@ -1107,9 +1107,10 @@ async function syncImagesForExistingAd(page, remoteId, data) {
     }
 }
 
-async function clickPublishFree(page, remoteId) {
+async function clickPublishFree(page, remoteId, { allowExistingRefresh = false } = {}) {
     const state = await waitForPromotionState(page, remoteId, 15000, true);
-    const refreshExistingFree = !state.freeButtonVisible && state.alreadyPublished && state.freeUpdateCallable;
+    const refreshExistingFree = !state.freeButtonVisible && state.freeUpdateCallable &&
+        (state.alreadyPublished || allowExistingRefresh);
     if (state.smsRequired) {
         throw new MoscarossaWorkflowPendingError(
             "Moscarossa richiede la verifica SMS del telefono. Verifica il numero e riprendi lo stesso annuncio.",
@@ -1134,7 +1135,12 @@ async function clickPublishFree(page, remoteId) {
         { timeout: 60000 }
     );
     if (refreshExistingFree) {
-        console.log("[moscarossa:promotion] Refreshing already-published Free ad", { remoteId });
+        console.log(
+            state.alreadyPublished
+                ? "[moscarossa:promotion] Refreshing already-published Free ad"
+                : "[moscarossa:promotion] Requesting Free reactivation for existing remote ad",
+            { remoteId }
+        );
         await page.evaluate(() => window.pubblica_free(1));
     } else {
         const button = await page.waitForSelector(FREE_PUBLISH_SELECTOR, { visible: true, timeout: 10000 });
@@ -1164,6 +1170,8 @@ async function clickPublishFree(page, remoteId) {
     }, remoteId);
 
     const combined = `${responseBody} ${result.content}`.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const normalizedCombined = combined.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const freeLimitResponse = /un solo annuncio (?:gratuito|free).{0,100}(?:10 giorni|per utente)|ogni utente puo inserire un solo annuncio ogni 10 giorni/i;
     const negative = /errore|non (?:puoi|possibile|consentito)|impossibile|verifica(?:re|zione).*telefon|codice sms|annuncio non visible|accesso negato/i;
     const positive = /pubblicat|annuncio (?:online|attiv|visibile)|complimenti|aggiorna annuncio gratis/i;
 
@@ -1180,6 +1188,12 @@ async function clickPublishFree(page, remoteId) {
         throw new MoscarossaWorkflowPendingError(
             "Moscarossa non consente ancora un nuovo aggiornamento dell'annuncio Free.",
             { remoteId, reasonCode: "MOSCAROSSA_FREE_REFRESH_WAIT" }
+        );
+    }
+    if (freeLimitResponse.test(normalizedCombined)) {
+        throw new MoscarossaWorkflowPendingError(
+            "Moscarossa ha rifiutato la riattivazione Free dello stesso annuncio per il limite di 10 giorni.",
+            { remoteId, reasonCode: "MOSCAROSSA_FREE_LIMIT" }
         );
     }
     if (negative.test(combined)) {
@@ -1353,9 +1367,9 @@ async function activatePaidPromotion(page, remoteId, data) {
     };
 }
 
-async function activateSelectedPromotion(page, remoteId, data) {
+async function activateSelectedPromotion(page, remoteId, data, options = {}) {
     return data.isFree
-        ? clickPublishFree(page, remoteId)
+        ? clickPublishFree(page, remoteId, options)
         : activatePaidPromotion(page, remoteId, data);
 }
 
@@ -1758,7 +1772,9 @@ async function republishAd(page, remoteId, adData = {}) {
         }
 
         await captureScreenshot(page, `republish-${resolvedRemoteId}-01-promotion-page`);
-        const basePromotionResult = await activateSelectedPromotion(page, resolvedRemoteId, data);
+        const basePromotionResult = await activateSelectedPromotion(page, resolvedRemoteId, data, {
+            allowExistingRefresh: true
+        });
         let promotionResult;
         try {
             promotionResult = await activateSelectedAddons(page, resolvedRemoteId, data, basePromotionResult);
