@@ -7,7 +7,6 @@ const PHONE_VERIFICATION_URL = "https://www.moscarossa.biz/private/ajax_verifica
 const SCREENSHOT_DIR = path.join("./screenshots", "moscarossa-publish");
 const FREE_IMAGE_LIMIT = 20;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const NATIVE_UPLOAD_INPUT_ID = "bky-moscarossa-native-images";
 const FREE_PUBLISH_SELECTOR = [
     "#button_pubblica_gratis",
     "#button_pubblica_gratis_aggiorna",
@@ -554,48 +553,53 @@ async function uploadImages(page, images, picsAudit, imageLimit = FREE_IMAGE_LIM
         throw new Error(`Moscarossa immagini vuote: ${empty.map((file) => path.basename(file.path)).join(", ")}`);
     }
 
-    // Moscarossa enhances its visible file input with a thumbnail plugin. Sending
-    // files to that element fires expensive synchronous handlers and can leave the
-    // renderer unable to answer DOM.setFileInputFiles. Use a listener-free native
-    // input in the same form: FormData still receives files[] normally, without
-    // running the client-side preview plugin.
-    const prepared = await page.evaluate((nativeInputId) => {
-        const pluginInput = document.querySelector("input.fileuploader_upload[name='files[]']");
-        const form = pluginInput?.closest("form") || document.querySelector("#dati_annuncio");
-        if (!pluginInput || !form) return false;
+    // Moscarossa's FileUploader owns the image list sent by the wizard. A separate
+    // native input can contain File objects but is ignored by the site's submit
+    // handler, which produces a published ad with zero photos.
+    const input = await page.waitForSelector("input.fileuploader_upload[name='files[]']", {
+        timeout: 30000
+    });
+    await page.evaluate(() => {
+        const pluginInput = document.querySelector("input.fileuploader_upload");
+        if (!pluginInput) return;
+        pluginInput.disabled = false;
+        pluginInput.name = "files[]";
+    });
 
-        document.getElementById(nativeInputId)?.remove();
-        pluginInput.removeAttribute("name");
-        pluginInput.disabled = true;
-
-        const nativeInput = document.createElement("input");
-        nativeInput.type = "file";
-        nativeInput.id = nativeInputId;
-        nativeInput.name = "files[]";
-        nativeInput.multiple = true;
-        nativeInput.hidden = true;
-        form.enctype = "multipart/form-data";
-        form.appendChild(nativeInput);
-        return true;
-    }, NATIVE_UPLOAD_INPUT_ID);
-
-    if (!prepared) throw new Error("Moscarossa input immagini non trovato nel modulo di pubblicazione.");
-
-    const input = await page.waitForSelector(`#${NATIVE_UPLOAD_INPUT_ID}`, { timeout: 30000 });
-    console.log(`[moscarossa:images] Assigning ${imagePaths.length} image(s) to native form input.`);
+    console.log(`[moscarossa:images] Sending ${imagePaths.length} image(s) through Moscarossa FileUploader.`);
     await input.uploadFile(...imagePaths);
 
-    const assignedFiles = await page.evaluate((nativeInputId) => {
-        const files = Array.from(document.getElementById(nativeInputId)?.files || []);
-        return files.map((file) => ({ name: file.name, size: file.size }));
-    }, NATIVE_UPLOAD_INPUT_ID);
-    if (assignedFiles.length !== imagePaths.length) {
+    await page.waitForFunction((expected) => {
+        const pluginInput = document.querySelector("input.fileuploader_upload[name='files[]']");
+        const inputCount = pluginInput?.files?.length || 0;
+        const itemCount = document.querySelectorAll(
+            ".fileuploader-items-list .fileuploader-item, .fileuploader-items-list > li"
+        ).length;
+        return inputCount >= expected || itemCount >= expected;
+    }, { timeout: 90000 }, imagePaths.length).catch(() => {});
+
+    const uploaderState = await page.evaluate(() => ({
+        inputFiles: Array.from(
+            document.querySelector("input.fileuploader_upload[name='files[]']")?.files || []
+        ).map((file) => ({ name: file.name, size: file.size })),
+        renderedItems: document.querySelectorAll(
+            ".fileuploader-items-list .fileuploader-item, .fileuploader-items-list > li"
+        ).length,
+        serializedList: `${document.querySelector("input[name='fileuploader-list-files']")?.value || ""}`.slice(0, 500)
+    }));
+    if (uploaderState.inputFiles.length < imagePaths.length && uploaderState.renderedItems < imagePaths.length) {
         throw new Error(
-            `Moscarossa ha ricevuto ${assignedFiles.length} immagini su ${imagePaths.length} nel modulo.`
+            `Moscarossa FileUploader non ha registrato tutte le immagini: ` +
+            `${uploaderState.inputFiles.length} file nel campo, ${uploaderState.renderedItems} anteprime, ` +
+            `${imagePaths.length} richieste.`
         );
     }
 
-    console.log(`[moscarossa:images] Prepared ${imagePaths.length} free-ad image(s).`);
+    console.log("[moscarossa:images] Moscarossa FileUploader ready", {
+        requested: imagePaths.length,
+        inputFiles: uploaderState.inputFiles.length,
+        renderedItems: uploaderState.renderedItems
+    });
     return imagePaths;
 }
 
@@ -828,6 +832,42 @@ async function waitForPromotionState(page, remoteId, timeout = 30000, requireFre
     return inspectPromotionState(page, remoteId);
 }
 
+async function readMoscarossaImageState(page, remoteId = "") {
+    return page.evaluate((expectedRemoteId) => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const candidates = Array.from(document.querySelectorAll("span, p, div"))
+            .map((node) => clean(node.textContent))
+            .filter((text) => text.length > 0 && text.length <= 100);
+        let count = null;
+        let countText = "";
+        for (const text of candidates) {
+            const match = text.match(/(?:^|\s)(\d+)\s*(?:foto|photos?)\s*,?\s*(\d+)\s*videos?(?:\s|$)/i);
+            if (!match) continue;
+            count = Number.parseInt(match[1], 10);
+            countText = text;
+            break;
+        }
+        const publicUrl = Array.from(document.querySelectorAll("a[href]"))
+            .map((link) => link.href)
+            .find((href) => new RegExp(`/(?:girl|trans|boy|massage)-${expectedRemoteId}\\.php`, "i").test(href)) || "";
+        return { count, countText, publicUrl, url: location.href };
+    }, `${remoteId || ""}`);
+}
+
+async function waitForMoscarossaImages(page, remoteId, timeout = 45000) {
+    await page.waitForFunction(() => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        return Array.from(document.querySelectorAll("span, p, div"))
+            .map((node) => clean(node.textContent))
+            .filter((text) => text.length > 0 && text.length <= 100)
+            .some((text) => {
+                const match = text.match(/(?:^|\s)(\d+)\s*(?:foto|photos?)\s*,?\s*(\d+)\s*videos?(?:\s|$)/i);
+                return match && Number.parseInt(match[1], 10) > 0;
+            });
+    }, { timeout }).catch(() => {});
+    return readMoscarossaImageState(page, remoteId);
+}
+
 async function findAndOpenPromotion(page, remoteId) {
     let state = await inspectPromotionState(page, remoteId).catch(() => null);
     if (state?.isPromotionUrl &&
@@ -918,6 +958,51 @@ async function continueToPromotion(page, existingAd = {}) {
         throw new Error(`Pagina promozione Moscarossa non disponibile: ${JSON.stringify(validation)}`);
     }
     return remoteId;
+}
+
+async function syncImagesForExistingAd(page, remoteId, data) {
+    const imagePaths = resolveImagePaths(data.images, data.picsAudit).slice(0, data.imageLimit);
+    if (!imagePaths.length) return { count: 0, skipped: true };
+
+    const editUrl = `${PUBLISH_URL}?id_accompa=${encodeURIComponent(remoteId)}#f`;
+    console.log("[moscarossa:images] Existing ad has no photos; synchronizing selected website images", {
+        remoteId,
+        images: imagePaths.length
+    });
+    await page.goto(editUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+    if (/login-escort/i.test(page.url()) || await page.$("#form_login")) {
+        const error = new Error("Moscarossa session expired while opening the existing ad image editor.");
+        error.statusCode = 401;
+        throw error;
+    }
+    await page.waitForSelector("#dati_annuncio", { visible: true, timeout: 30000 });
+    await uploadImages(page, data.images, data.picsAudit, data.imageLimit);
+    await setCheckbox(page, "#regolamento", true);
+    await captureScreenshot(page, `republish-${remoteId}-images-ready`);
+
+    const returnedRemoteId = await continueToPromotion(page, { remoteId });
+    if (`${returnedRemoteId}` !== `${remoteId}`) {
+        throw new Error(
+            `Moscarossa ha restituito l'annuncio ${returnedRemoteId} durante la modifica immagini di ${remoteId}.`
+        );
+    }
+    const imageState = await waitForMoscarossaImages(page, remoteId);
+    if (!Number.isFinite(imageState.count) || imageState.count <= 0) {
+        const error = new Error(
+            `Moscarossa non ha salvato le immagini sull'annuncio ${remoteId}. ` +
+            `Stato remoto: ${imageState.countText || "conteggio immagini non disponibile"}.`
+        );
+        error.remoteId = `${remoteId}`;
+        error.url = imageState.publicUrl ||
+            `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(remoteId)}`;
+        throw error;
+    }
+    console.log("[moscarossa:images] Existing ad images synchronized", {
+        remoteId,
+        remoteImages: imageState.count,
+        status: imageState.countText
+    });
+    return imageState;
 }
 
 async function clickPublishFree(page, remoteId) {
@@ -1471,6 +1556,28 @@ async function publishAd(page, adData = {}) {
         await captureScreenshot(page, "02-first-step-filled");
 
         const remoteId = await continueToPromotion(page, existingAd);
+        const selectedImageCount = Math.min(
+            resolveImagePaths(data.images, data.picsAudit).length,
+            data.imageLimit
+        );
+        if (selectedImageCount > 0) {
+            let imageState = await readMoscarossaImageState(page, remoteId);
+            if (imageState.count === 0 && existingAd.reusedExisting) {
+                imageState = await syncImagesForExistingAd(page, remoteId, data);
+            } else if (imageState.count === 0) {
+                imageState = await waitForMoscarossaImages(page, remoteId);
+            }
+            if (imageState.count === 0) {
+                const error = new Error(
+                    `Moscarossa ha creato l'annuncio ${remoteId}, ma non ha salvato le ` +
+                    `${selectedImageCount} immagini selezionate.`
+                );
+                error.remoteId = remoteId;
+                error.url = imageState.publicUrl ||
+                    `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(remoteId)}`;
+                throw error;
+            }
+        }
         await captureScreenshot(page, "03-promotion-step");
         const basePromotionResult = await activateSelectedPromotion(page, remoteId, data);
         let promotionResult;
@@ -1532,6 +1639,21 @@ async function republishAd(page, remoteId, adData = {}) {
     const data = buildPublishData(adData);
     try {
         await openMoscarossaPromotionPage(page, resolvedRemoteId, "republish promotion");
+
+        const selectedImageCount = Math.min(
+            resolveImagePaths(data.images, data.picsAudit).length,
+            data.imageLimit
+        );
+        const remoteImageState = await readMoscarossaImageState(page, resolvedRemoteId);
+        if (selectedImageCount > 0 && remoteImageState.count === 0) {
+            await syncImagesForExistingAd(page, resolvedRemoteId, data);
+        } else if (Number.isFinite(remoteImageState.count) && remoteImageState.count > 0) {
+            console.log("[moscarossa:images] Preserving existing Moscarossa gallery", {
+                remoteId: resolvedRemoteId,
+                remoteImages: remoteImageState.count,
+                selectedWebsiteImages: selectedImageCount
+            });
+        }
 
         await captureScreenshot(page, `republish-${resolvedRemoteId}-01-promotion-page`);
         const basePromotionResult = await activateSelectedPromotion(page, resolvedRemoteId, data);
