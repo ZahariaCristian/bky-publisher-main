@@ -8,6 +8,12 @@ const SCREENSHOT_DIR = path.join("./screenshots", "moscarossa-publish");
 const FREE_IMAGE_LIMIT = 20;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const NATIVE_UPLOAD_INPUT_ID = "bky-moscarossa-native-images";
+const FREE_PUBLISH_SELECTOR = [
+    "#button_pubblica_gratis",
+    "#button_pubblica_gratis_aggiorna",
+    ".button_pubblica_gratis",
+    "[onclick*='pubblica_free']"
+].join(", ");
 const PROMOTION_PLANS = Object.freeze({
     free: { name: "Free", id: "0", imageLimit: 5 },
     premium: { name: "Premium", id: "1", imageLimit: 10 },
@@ -735,9 +741,94 @@ async function openMoscarossaPromotionPage(page, remoteId, context = "promotion"
     return promotionUrl;
 }
 
+async function inspectPromotionState(page, expectedRemoteId = "") {
+    return page.evaluate((remoteId, freeSelector) => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const visible = (node) => {
+            if (!node) return false;
+            const style = getComputedStyle(node);
+            return style.display !== "none" && style.visibility !== "hidden" &&
+                style.opacity !== "0" && !node.classList.contains("d-none") &&
+                node.getClientRects().length > 0;
+        };
+        const url = location.href;
+        const body = clean(document.body?.innerText);
+        const freeButtons = Array.from(document.querySelectorAll(freeSelector));
+        const visibleSmsNodes = Array.from(document.querySelectorAll([
+            ".div_verifica_telefono",
+            ".avviso_verifica_telefono",
+            "#div_richiesta_verifica_sms",
+            ".pulsante_invia_codice",
+            ".form_controllo_numero",
+            "#codice"
+        ].join(", "))).filter(visible);
+        const smsText = /verifica(?:re|zione)? (?:del |il )?telefono(?: tramite)? sms|codice di verifica|codice ricevuto via sms|invia il codice/i.test(body);
+        const freeLimit = /un solo annuncio (?:gratuito|free).{0,80}(?:10 giorni|per utente)|ogni utente puo inserire un solo annuncio ogni 10 giorni/i.test(
+            body.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        );
+        const currentId = (() => {
+            try { return new URL(url).searchParams.get("id_accompa") || ""; } catch { return ""; }
+        })();
+        const isPromotionUrl = /\/private\/promuovi\.php/i.test(url) &&
+            (!remoteId || !currentId || `${currentId}` === `${remoteId}`);
+
+        return {
+            url,
+            currentId,
+            isPromotionUrl,
+            freeButtonPresent: freeButtons.length > 0,
+            freeButtonVisible: freeButtons.some(visible),
+            paidFormPresent: Boolean(document.querySelector("#form_promozione, #select_promozione")),
+            smsRequired: visibleSmsNodes.length > 0 || smsText,
+            freeLimit,
+            bodyExcerpt: body.slice(0, 900)
+        };
+    }, `${expectedRemoteId || ""}`, FREE_PUBLISH_SELECTOR);
+}
+
+async function waitForPromotionState(page, remoteId, timeout = 30000, requireFreeAction = false) {
+    await page.waitForFunction((expectedRemoteId, freeSelector, waitForFreeAction) => {
+        const visible = (node) => {
+            if (!node) return false;
+            const style = getComputedStyle(node);
+            return style.display !== "none" && style.visibility !== "hidden" &&
+                style.opacity !== "0" && !node.classList.contains("d-none") &&
+                node.getClientRects().length > 0;
+        };
+        const body = `${document.body?.innerText || ""}`.replace(/\s+/g, " ");
+        const normalizedBody = body.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const url = location.href;
+        const currentId = (() => {
+            try { return new URL(url).searchParams.get("id_accompa") || ""; } catch { return ""; }
+        })();
+        const correctPromotionUrl = /\/private\/promuovi\.php/i.test(url) &&
+            (!expectedRemoteId || !currentId || `${currentId}` === `${expectedRemoteId}`);
+        if (!correctPromotionUrl) return false;
+
+        const freeReady = Array.from(document.querySelectorAll(freeSelector)).some(visible);
+        const paidReady = Boolean(document.querySelector("#form_promozione, #select_promozione"));
+        const smsReady = Array.from(document.querySelectorAll([
+            ".div_verifica_telefono",
+            ".avviso_verifica_telefono",
+            "#div_richiesta_verifica_sms",
+            ".pulsante_invia_codice",
+            ".form_controllo_numero",
+            "#codice"
+        ].join(", "))).some(visible) ||
+            /verifica(?:re|zione)? (?:del |il )?telefono(?: tramite)? sms|codice di verifica|codice ricevuto via sms|invia il codice/i.test(body);
+        const limited = /un solo annuncio (?:gratuito|free).{0,80}(?:10 giorni|per utente)|ogni utente puo inserire un solo annuncio ogni 10 giorni/i.test(normalizedBody);
+        return freeReady || smsReady || limited || (!waitForFreeAction && paidReady);
+    }, { timeout }, `${remoteId || ""}`, FREE_PUBLISH_SELECTOR, requireFreeAction).catch(() => {});
+
+    return inspectPromotionState(page, remoteId);
+}
+
 async function findAndOpenPromotion(page, remoteId) {
-    if (await page.$("#button_pubblica_gratis, #button_pubblica_gratis_aggiorna, .button_pubblica_gratis")) {
-        return true;
+    let state = await inspectPromotionState(page, remoteId).catch(() => null);
+    if (state?.isPromotionUrl &&
+        (state.freeButtonVisible || state.paidFormPresent || state.smsRequired || state.freeLimit)) {
+        console.log("[moscarossa:promotion] Promotion page state", state);
+        return state;
     }
 
     const promotionControl = await page.evaluate(() => {
@@ -776,10 +867,9 @@ async function findAndOpenPromotion(page, remoteId) {
         console.log("[moscarossa:promotion] Opening promotion", promotionControl);
     }
 
-    return page.waitForSelector(
-        "#button_pubblica_gratis, #button_pubblica_gratis_aggiorna, .button_pubblica_gratis",
-        { visible: true, timeout: 60000 }
-    ).then(() => true).catch(() => false);
+    state = await waitForPromotionState(page, remoteId, 30000);
+    console.log("[moscarossa:promotion] Promotion page state", state);
+    return state;
 }
 
 async function continueToPromotion(page, existingAd = {}) {
@@ -802,8 +892,16 @@ async function continueToPromotion(page, existingAd = {}) {
     const remoteId = await extractRemoteId(page, existingAd.remoteId);
     if (!remoteId) throw new Error("Moscarossa non ha restituito id_accompa dopo Continua.");
 
-    const promotionOpened = await findAndOpenPromotion(page, remoteId);
-    if (!promotionOpened) {
+    let promotionState;
+    try {
+        promotionState = await findAndOpenPromotion(page, remoteId);
+    } catch (error) {
+        error.remoteId = error.remoteId || remoteId;
+        error.url = error.url ||
+            `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(remoteId)}`;
+        throw error;
+    }
+    if (!promotionState?.isPromotionUrl) {
         const validation = await collectValidation(page);
         const bodyText = await page.evaluate(() => `${document.body?.innerText || ""}`.replace(/\s+/g, " ").trim());
         if (/un solo annuncio ogni 10 giorni|only one free ad/i.test(bodyText)) {
@@ -818,10 +916,27 @@ async function continueToPromotion(page, existingAd = {}) {
 }
 
 async function clickPublishFree(page, remoteId) {
-    const button = await page.waitForSelector(
-        "#button_pubblica_gratis, #button_pubblica_gratis_aggiorna, .button_pubblica_gratis",
-        { visible: true, timeout: 30000 }
-    );
+    const state = await waitForPromotionState(page, remoteId, 15000, true);
+    if (state.smsRequired) {
+        throw new MoscarossaWorkflowPendingError(
+            "Moscarossa richiede la verifica SMS del telefono. Verifica il numero e riprendi lo stesso annuncio.",
+            { remoteId, reasonCode: "MOSCAROSSA_WAITING_SMS" }
+        );
+    }
+    if (state.freeLimit && !state.freeButtonVisible) {
+        throw new MoscarossaWorkflowPendingError(
+            "Moscarossa Free non disponibile: il limite dell'annuncio gratuito non consente una nuova attivazione.",
+            { remoteId, reasonCode: "MOSCAROSSA_FREE_LIMIT" }
+        );
+    }
+    if (!state.freeButtonVisible) {
+        throw new Error(
+            `Moscarossa ha aperto la pagina promozione ma PUBBLICA GRATIS non è disponibile. ` +
+            `URL: ${state.url}. Contenuto: ${state.bodyExcerpt}`
+        );
+    }
+
+    const button = await page.waitForSelector(FREE_PUBLISH_SELECTOR, { visible: true, timeout: 10000 });
     const responsePromise = page.waitForResponse(
         (response) => /\/private\/promuovi_free\.php(?:\?|$)/i.test(response.url()),
         { timeout: 60000 }
@@ -854,7 +969,7 @@ async function clickPublishFree(page, remoteId) {
     const negative = /errore|non (?:puoi|possibile|consentito)|impossibile|verifica(?:re|zione).*telefon|codice sms|annuncio non visible|accesso negato/i;
     const positive = /pubblicat|annuncio (?:online|attiv|visibile)|complimenti|aggiorna annuncio gratis/i;
 
-    if (result.phoneVerificationVisible || /verifica(?:re|zione).*telefon|codice sms/i.test(combined)) {
+    if (result.phoneVerificationVisible || /verifica(?:re|zione)?.*telefon|codice sms/i.test(combined)) {
         throw new MoscarossaWorkflowPendingError(
             "Moscarossa richiede la verifica SMS del telefono. Verifica il numero e riprendi lo stesso annuncio.",
             { remoteId, reasonCode: "MOSCAROSSA_WAITING_SMS" }
