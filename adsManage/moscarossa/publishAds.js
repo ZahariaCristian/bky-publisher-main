@@ -766,6 +766,7 @@ async function inspectPromotionState(page, expectedRemoteId = "") {
         const freeLimit = /un solo annuncio (?:gratuito|free).{0,80}(?:10 giorni|per utente)|ogni utente puo inserire un solo annuncio ogni 10 giorni/i.test(
             body.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         );
+        const alreadyPublished = /annuncio pubblicato|ad published|online fino al|online until/i.test(body);
         const currentId = (() => {
             try { return new URL(url).searchParams.get("id_accompa") || ""; } catch { return ""; }
         })();
@@ -779,6 +780,8 @@ async function inspectPromotionState(page, expectedRemoteId = "") {
             freeButtonPresent: freeButtons.length > 0,
             freeButtonVisible: freeButtons.some(visible),
             paidFormPresent: Boolean(document.querySelector("#form_promozione, #select_promozione")),
+            alreadyPublished,
+            freeUpdateCallable: typeof window.pubblica_free === "function",
             smsRequired: visibleSmsNodes.length > 0 || smsText,
             freeLimit,
             bodyExcerpt: body.slice(0, 900)
@@ -817,7 +820,9 @@ async function waitForPromotionState(page, remoteId, timeout = 30000, requireFre
         ].join(", "))).some(visible) ||
             /verifica(?:re|zione)? (?:del |il )?telefono(?: tramite)? sms|codice di verifica|codice ricevuto via sms|invia il codice/i.test(body);
         const limited = /un solo annuncio (?:gratuito|free).{0,80}(?:10 giorni|per utente)|ogni utente puo inserire un solo annuncio ogni 10 giorni/i.test(normalizedBody);
-        return freeReady || smsReady || limited || (!waitForFreeAction && paidReady);
+        const existingFreeReady = /annuncio pubblicato|ad published|online fino al|online until/i.test(body) &&
+            typeof window.pubblica_free === "function";
+        return freeReady || existingFreeReady || smsReady || limited || (!waitForFreeAction && paidReady);
     }, { timeout }, `${remoteId || ""}`, FREE_PUBLISH_SELECTOR, requireFreeAction).catch(() => {});
 
     return inspectPromotionState(page, remoteId);
@@ -917,31 +922,37 @@ async function continueToPromotion(page, existingAd = {}) {
 
 async function clickPublishFree(page, remoteId) {
     const state = await waitForPromotionState(page, remoteId, 15000, true);
+    const refreshExistingFree = !state.freeButtonVisible && state.alreadyPublished && state.freeUpdateCallable;
     if (state.smsRequired) {
         throw new MoscarossaWorkflowPendingError(
             "Moscarossa richiede la verifica SMS del telefono. Verifica il numero e riprendi lo stesso annuncio.",
             { remoteId, reasonCode: "MOSCAROSSA_WAITING_SMS" }
         );
     }
-    if (state.freeLimit && !state.freeButtonVisible) {
+    if (state.freeLimit && !state.freeButtonVisible && !refreshExistingFree) {
         throw new MoscarossaWorkflowPendingError(
             "Moscarossa Free non disponibile: il limite dell'annuncio gratuito non consente una nuova attivazione.",
             { remoteId, reasonCode: "MOSCAROSSA_FREE_LIMIT" }
         );
     }
-    if (!state.freeButtonVisible) {
+    if (!state.freeButtonVisible && !refreshExistingFree) {
         throw new Error(
             `Moscarossa ha aperto la pagina promozione ma PUBBLICA GRATIS non è disponibile. ` +
             `URL: ${state.url}. Contenuto: ${state.bodyExcerpt}`
         );
     }
 
-    const button = await page.waitForSelector(FREE_PUBLISH_SELECTOR, { visible: true, timeout: 10000 });
     const responsePromise = page.waitForResponse(
         (response) => /\/private\/promuovi_free\.php(?:\?|$)/i.test(response.url()),
         { timeout: 60000 }
     );
-    await button.click();
+    if (refreshExistingFree) {
+        console.log("[moscarossa:promotion] Refreshing already-published Free ad", { remoteId });
+        await page.evaluate(() => window.pubblica_free(1));
+    } else {
+        const button = await page.waitForSelector(FREE_PUBLISH_SELECTOR, { visible: true, timeout: 10000 });
+        await button.click();
+    }
     const response = await responsePromise;
     const responseBody = await response.text().catch(() => "");
     await delay(750);
@@ -953,9 +964,9 @@ async function clickPublishFree(page, remoteId) {
             return style.display !== "none" && style.visibility !== "hidden" && !node.classList.contains("d-none");
         };
         const phoneLayers = Array.from(document.querySelectorAll(".div_verifica_telefono"));
-        const publicLink = Array.from(document.querySelectorAll("a[href*='/girl-']"))
+        const publicLink = Array.from(document.querySelectorAll("a[href]"))
             .map((link) => link.href)
-            .find((href) => href.includes(`/girl-${expectedRemoteId}.php`)) || "";
+            .find((href) => new RegExp(`/(?:girl|trans|boy|massage)-${expectedRemoteId}\\.php`, "i").test(href)) || "";
         return {
             content: `${document.querySelector("#div_dopo_free")?.innerText || ""}`.replace(/\s+/g, " ").trim(),
             phoneVerificationVisible: phoneLayers.some(visible),
@@ -977,6 +988,12 @@ async function clickPublishFree(page, remoteId) {
     }
     if (response.status() < 200 || response.status() >= 300) {
         throw new Error(`Moscarossa pubblicazione gratuita HTTP ${response.status()}: ${combined.slice(0, 500)}`);
+    }
+    if (/prossimo aggiornamento|puoi aggiornare (?:di nuovo )?tra|attendi.{0,80}aggiorn|aggiornamento.{0,80}non (?:disponibile|consentito)/i.test(combined)) {
+        throw new MoscarossaWorkflowPendingError(
+            "Moscarossa non consente ancora un nuovo aggiornamento dell'annuncio Free.",
+            { remoteId, reasonCode: "MOSCAROSSA_FREE_REFRESH_WAIT" }
+        );
     }
     if (negative.test(combined)) {
         throw new Error(`Moscarossa ha rifiutato la pubblicazione gratuita: ${combined.slice(0, 700)}`);
