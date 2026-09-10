@@ -890,6 +890,88 @@ async function inspectPromotionState(page, expectedRemoteId = "") {
     }, `${expectedRemoteId || ""}`, FREE_PUBLISH_SELECTOR);
 }
 
+async function reactivateSuspendedAdvertisement(page, remoteId) {
+    const resolvedRemoteId = `${remoteId || ""}`.trim();
+    const suspension = await page.evaluate(() => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const normalize = (value) => clean(value)
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase();
+        const visible = (node) => {
+            if (!node) return false;
+            const style = getComputedStyle(node);
+            return style.display !== "none" && style.visibility !== "hidden" &&
+                style.opacity !== "0" && node.getClientRects().length > 0;
+        };
+        const body = normalize(document.body?.innerText);
+        const suspended = /(?:il tuo )?annuncio e sospeso|(?:your )?ad(?:vertisement)? is suspended/.test(body);
+        if (!suspended) return { suspended: false, url: location.href };
+
+        const candidates = Array.from(document.querySelectorAll(
+            "a[href], button, input[type='button'], input[type='submit'], [role='button']"
+        )).filter(visible);
+        const control = candidates.find((node) => {
+            const label = normalize(node.textContent || node.value || node.title || node.getAttribute("aria-label"));
+            return /riattiva (?:il )?tuo annuncio|reactivate your ad/.test(label);
+        });
+        if (!control) return { suspended: true, controlFound: false, url: location.href };
+
+        control.setAttribute("data-bky-moscarossa-reactivate", "1");
+        return {
+            suspended: true,
+            controlFound: true,
+            text: clean(control.textContent || control.value || control.title),
+            href: control instanceof HTMLAnchorElement && /^https?:/i.test(control.href)
+                ? control.href
+                : "",
+            url: location.href
+        };
+    });
+
+    if (!suspension.suspended) return { reactivated: false };
+    if (!suspension.controlFound) {
+        throw new Error(
+            `Moscarossa annuncio ${resolvedRemoteId} sospeso, ma il pulsante Riattiva il tuo annuncio non è disponibile.`
+        );
+    }
+
+    console.log("[moscarossa:promotion] Reactivating suspended remote ad", {
+        remoteId: resolvedRemoteId,
+        control: suspension.text,
+        url: suspension.url
+    });
+    await captureScreenshot(page, `reactivate-${resolvedRemoteId}-01-suspended`);
+
+    const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 })
+        .catch(() => null);
+    await page.click("[data-bky-moscarossa-reactivate='1']");
+    await Promise.race([navigation, delay(10000)]);
+
+    await openMoscarossaPromotionPage(page, resolvedRemoteId, "reactivated ad promotion");
+    const after = await page.evaluate(() => {
+        const body = `${document.body?.innerText || ""}`
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/\s+/g, " ").toLowerCase();
+        return {
+            suspended: /(?:il tuo )?annuncio e sospeso|(?:your )?ad(?:vertisement)? is suspended/.test(body),
+            url: location.href,
+            excerpt: body.slice(0, 500)
+        };
+    });
+    if (after.suspended) {
+        throw new Error(
+            `Moscarossa non ha confermato la riattivazione dell'annuncio ${resolvedRemoteId}: ${after.excerpt}`
+        );
+    }
+
+    await captureScreenshot(page, `reactivate-${resolvedRemoteId}-02-promotion-page`);
+    console.log("[moscarossa:promotion] Suspended remote ad reactivated", {
+        remoteId: resolvedRemoteId,
+        url: after.url
+    });
+    return { reactivated: true, url: after.url };
+}
+
 async function waitForPromotionState(page, remoteId, timeout = 30000, requireFreeAction = false) {
     await page.waitForFunction((expectedRemoteId, freeSelector, waitForFreeAction) => {
         const visible = (node) => {
@@ -1368,6 +1450,7 @@ async function activatePaidPromotion(page, remoteId, data) {
 }
 
 async function activateSelectedPromotion(page, remoteId, data, options = {}) {
+    await reactivateSuspendedAdvertisement(page, remoteId);
     return data.isFree
         ? clickPublishFree(page, remoteId, options)
         : activatePaidPromotion(page, remoteId, data);
