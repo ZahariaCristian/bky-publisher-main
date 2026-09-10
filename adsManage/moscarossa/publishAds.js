@@ -3,6 +3,7 @@ const path = require("path");
 
 const PUBLISH_URL = "https://www.moscarossa.biz/private/inserimento.php";
 const VIEW_URL = "https://www.moscarossa.biz/private/vedi_annuncio_ut.php";
+const CREDIT_URL = "https://www.moscarossa.biz/private/crediti.php";
 const PHONE_VERIFICATION_URL = "https://www.moscarossa.biz/private/ajax_verifica_telefono.php";
 const SCREENSHOT_DIR = path.join("./screenshots", "moscarossa-publish");
 const FREE_IMAGE_LIMIT = 20;
@@ -65,6 +66,32 @@ const MOSCAROSSA_MULTI_OPTIONS = Object.freeze({
 });
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function readAvailableCredit(page) {
+    return page.evaluate(async (creditUrl) => {
+        const separator = creditUrl.includes("?") ? "&" : "?";
+        const response = await fetch(`${creditUrl}${separator}_bky=${Date.now()}`, {
+            method: "GET",
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+        const html = await response.text();
+        const documentCopy = new DOMParser().parseFromString(html, "text/html");
+        const text = `${documentCopy.body?.innerText || documentCopy.body?.textContent || ""}`
+            .replace(/\s+/g, " ")
+            .trim();
+        const match = text.match(/crediti\s+a\s+disposizione\s*:?\s*([0-9][0-9.,]*)/i);
+        const credit = match ? Number(match[1].replace(/[^0-9]/g, "")) : null;
+        return {
+            ok: response.ok,
+            status: response.status,
+            url: response.url,
+            login: /login-escort|id=["']form_login/i.test(`${response.url} ${html}`),
+            credit: Number.isFinite(credit) ? credit : null
+        };
+    }, CREDIT_URL);
+}
 
 function normalizeKey(value) {
     return `${value || ""}`
@@ -220,6 +247,12 @@ function buildPublishData(adData = {}) {
     const images = Array.isArray(adData.images) ? adData.images : (Array.isArray(adData.pics) ? adData.pics : []);
     const typeAnnuncio = `${adData.typeAnnuncio || adData.promo?.visibility || "Free"}`.trim();
     const promotion = parsePromotionPeriod(adData.period || adData.schedule, typeAnnuncio);
+    if (isEnabled(adData.hasPremium) && promotion.plan.name === "Free") {
+        throw new Error(
+            "La schedulazione Moscarossa e marcata come pagata ma non contiene un piano " +
+            "Premium, Top, Red o Gold valido. Pubblicazione Free annullata."
+        );
+    }
 
     return {
         title: firstNonEmpty(adData.title, adData.titolo),
@@ -1319,12 +1352,20 @@ async function activatePaidPromotion(page, remoteId, data) {
 
         const option = Array.from(plan.options).find((item) => `${item.value}` === `${targetPlanId}`);
         if (!option) return { ok: false, smsRequired, reason: "plan-not-found" };
-        plan.value = `${targetPlanId}`;
-        plan.dispatchEvent(new Event("change", { bubbles: true }));
-        if (typeof window.preselect_promo === "function") {
-            window.preselect_promo(Number(targetPlanId), Number(targetDays));
-        }
-        return { ok: true, smsRequired, plan: `${option.textContent || ""}`.trim() };
+        const priceControl = Array.from(document.querySelectorAll("[onclick*='preselect_promo']"))
+            .find((node) => {
+                const source = `${node.getAttribute("onclick") || ""}`;
+                const match = source.match(/preselect_promo\(\s*(\d+)\s*,\s*(\d+)/i);
+                return match && match[1] === `${targetPlanId}` && match[2] === `${targetDays}`;
+            });
+        if (!priceControl) return { ok: false, smsRequired, reason: "price-control-not-found" };
+        priceControl.setAttribute("data-bky-paid-promotion", "1");
+        return {
+            ok: true,
+            smsRequired,
+            plan: `${option.textContent || ""}`.trim(),
+            displayedPrice: `${priceControl.textContent || ""}`.replace(/\s+/g, " ").trim()
+        };
     }, planId, days);
 
     if (prepared.smsRequired) {
@@ -1337,47 +1378,84 @@ async function activatePaidPromotion(page, remoteId, data) {
         throw new Error(`Modulo promozione Moscarossa non disponibile: ${prepared.reason}.`);
     }
 
-    await page.waitForFunction((targetPlanId, targetDays) => {
+    let creditBefore = null;
+    const liveCredit = await readAvailableCredit(page).catch(() => null);
+    if (liveCredit?.login) {
+        const error = new Error("Moscarossa session expired before activating the paid promotion.");
+        error.statusCode = 401;
+        throw error;
+    }
+    if (Number.isFinite(liveCredit?.credit)) creditBefore = liveCredit.credit;
+    else if (Number.isFinite(data.availableCredit)) creditBefore = data.availableCredit;
+
+    const [quoteResponse] = await Promise.all([
+        page.waitForResponse((response) =>
+            /\/private\/ajax_promuovi\.php(?:\?|$)/i.test(response.url()) &&
+            response.request().method() === "POST",
+        { timeout: 30000 }),
+        page.click("[data-bky-paid-promotion='1']")
+    ]);
+    if (!quoteResponse.ok()) {
+        throw new Error(`Preventivo promozione Moscarossa HTTP ${quoteResponse.status()}.`);
+    }
+    const quotePayload = await quoteResponse.json().catch(() => null);
+    const quotedPrice = Number.parseInt(quotePayload?.prezzo, 10);
+    if (!Number.isFinite(quotedPrice) || quotedPrice <= 0) {
+        throw new Error(`Moscarossa non ha restituito un preventivo valido per ${data.promotion}, ${days} giorni.`);
+    }
+
+    try {
+        await page.waitForFunction((targetPlanId, targetDays, targetPrice) => {
+            const visible = (node) => {
+                if (!node) return false;
+                const style = getComputedStyle(node);
+                return style.display !== "none" && style.visibility !== "hidden" &&
+                    style.opacity !== "0" && node.getClientRects().length > 0;
+            };
+            const plan = document.querySelector("#select_promozione");
+            const duration = document.querySelector("#select_giorni");
+            const price = Number.parseInt(`${document.querySelector("#prezzo b")?.textContent || ""}`.replace(/[^0-9]/g, ""), 10);
+            const submit = document.querySelector("#form_promozione button[type='submit'], #form_promozione input[type='submit']");
+            return `${plan?.value || ""}` === `${targetPlanId}` &&
+                `${duration?.value || ""}` === `${targetDays}` && price === targetPrice && visible(submit);
+        }, { timeout: 30000 }, planId, days, quotedPrice);
+    } catch {
+        const state = await page.evaluate(() => ({
+            plan: document.querySelector("#select_promozione")?.value || "",
+            days: document.querySelector("#select_giorni")?.value || "",
+            price: document.querySelector("#prezzo")?.textContent?.replace(/\s+/g, " ").trim() || ""
+        }));
+        throw new Error(
+            `Selezione ${data.promotion} non completata da Moscarossa: ` +
+            `piano=${state.plan || "?"}, giorni=${state.days || "?"}, prezzo=${state.price || "?"}.`
+        );
+    }
+
+    const quote = await page.evaluate((targetPlanId, targetDays, targetPrice) => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const priceText = clean(document.querySelector("#prezzo b")?.textContent);
+        const price = Number.parseInt(priceText.replace(/[^0-9]/g, ""), 10);
         const plan = document.querySelector("#select_promozione");
         const duration = document.querySelector("#select_giorni");
-        const price = document.querySelector("#prezzo b");
-        return `${plan?.value || ""}` === `${targetPlanId}` &&
-            `${duration?.value || ""}` === `${targetDays}` && Boolean(price?.textContent?.trim());
-    }, { timeout: 30000 }, planId, days).catch(() => {});
-
-    const quote = await page.evaluate((targetPlanId, targetDays) => {
-        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
-        const matchingCell = Array.from(document.querySelectorAll("[onclick*='preselect_promo']"))
-            .find((node) => {
-                const source = `${node.getAttribute("onclick") || ""}`;
-                const match = source.match(/preselect_promo\(\s*(\d+)\s*,\s*(\d+)/i);
-                return match && match[1] === `${targetPlanId}` && match[2] === `${targetDays}`;
-            });
-        const priceText = clean(document.querySelector("#prezzo b")?.textContent) || clean(matchingCell?.textContent);
-        const price = Number.parseInt(priceText.replace(/[^0-9]/g, ""), 10);
-        const duration = document.querySelector("#select_giorni");
-        if (duration && `${duration.value}` !== `${targetDays}`) {
-            let option = Array.from(duration.options).find((item) => `${item.value}` === `${targetDays}`);
-            if (!option) {
-                option = new Option(`${targetDays} giorni`, `${targetDays}`, true, true);
-                duration.appendChild(option);
-            }
-            duration.value = `${targetDays}`;
-            duration.dispatchEvent(new Event("change", { bubbles: true }));
-        }
         const showcase = document.querySelector("#check_vetrina");
         const diamond = document.querySelector("#check_diamond");
         if (showcase) showcase.checked = false;
         if (diamond) diamond.checked = false;
-        return { price: Number.isFinite(price) ? price : 0, priceText, url: location.href };
-    }, planId, days);
+        return {
+            ready: `${plan?.value || ""}` === `${targetPlanId}` &&
+                `${duration?.value || ""}` === `${targetDays}` && price === targetPrice,
+            price: Number.isFinite(price) ? price : 0,
+            priceText,
+            url: location.href
+        };
+    }, planId, days, quotedPrice);
 
-    if (!quote.price) {
+    if (!quote.ready || !quote.price) {
         throw new Error(`Moscarossa non ha restituito il prezzo per ${data.promotion}, ${days} giorni.`);
     }
-    if (Number.isFinite(data.availableCredit) && data.availableCredit < quote.price) {
+    if (Number.isFinite(creditBefore) && creditBefore < quote.price) {
         throw new Error(
-            `Crediti Moscarossa insufficienti: servono ${quote.price}, disponibili ${data.availableCredit}.`
+            `Crediti Moscarossa insufficienti: servono ${quote.price}, disponibili ${creditBefore}.`
         );
     }
 
@@ -1387,18 +1465,19 @@ async function activatePaidPromotion(page, remoteId, data) {
         planId,
         days,
         price: quote.price,
-        availableCredit: Number.isFinite(data.availableCredit) ? data.availableCredit : "unknown"
+        availableCredit: Number.isFinite(creditBefore) ? creditBefore : "unknown"
     });
     await captureScreenshot(page, `04-${data.promotion}-${days}-days-selected`);
 
-    const navigation = page.waitForNavigation({ waitUntil: "networkidle2", timeout: 90000 }).catch(() => null);
-    await page.evaluate(() => {
-        const form = document.querySelector("#form_promozione");
-        if (!form) throw new Error("Moscarossa promotion form disappeared before submit.");
-        if (typeof form.requestSubmit === "function") form.requestSubmit();
-        else form.submit();
-    });
-    const response = await navigation;
+    const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 90000 }).catch(() => null);
+    const [response] = await Promise.all([
+        page.waitForResponse((response) =>
+            /\/private\/promuovi2\.php(?:\?|$)/i.test(response.url()) &&
+            response.request().method() === "POST",
+        { timeout: 90000 }),
+        page.click("#form_promozione button[type='submit'], #form_promozione input[type='submit']")
+    ]);
+    await navigation;
     await delay(1000);
 
     const result = await page.evaluate((expectedRemoteId, expectedPlan) => {
@@ -1428,14 +1507,41 @@ async function activatePaidPromotion(page, remoteId, data) {
         throw new Error(`Moscarossa ha rifiutato la promozione: ${result.body.slice(0, 700)}`);
     }
 
-    const positive = /promozione.{0,80}(?:attiv|acquist|success)|annuncio.{0,80}(?:promoss|pubblicat)|operazione.{0,40}(?:complet|success)|scade il/i;
-    const accepted = Boolean(result.publicUrl) || positive.test(result.body) ||
-        (!result.stillOnPromotionForm && !/\/promuovi2?\.php/i.test(result.url));
-    if (!accepted) {
+    let creditAfter = null;
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+        if (attempt > 1) await delay(attempt * 1000);
+        const creditState = await readAvailableCredit(page).catch(() => null);
+        if (creditState?.login) {
+            const error = new Error("Moscarossa session expired while verifying the paid promotion.");
+            error.statusCode = 401;
+            throw error;
+        }
+        if (Number.isFinite(creditState?.credit)) creditAfter = creditState.credit;
+        if (Number.isFinite(creditBefore) && Number.isFinite(creditAfter) &&
+            creditBefore - creditAfter >= quote.price) break;
+    }
+
+    const chargedCredits = Number.isFinite(creditBefore) && Number.isFinite(creditAfter)
+        ? creditBefore - creditAfter
+        : 0;
+    if (!Number.isFinite(creditBefore) || !Number.isFinite(creditAfter) || chargedCredits < quote.price) {
+        await captureScreenshot(page, `error-${data.promotion}-${days}-payment-not-confirmed`);
         throw new Error(
-            `Risposta Moscarossa non riconosciuta dopo l'attivazione ${data.promotion}: ${result.body.slice(0, 700)}`
+            `Moscarossa non ha confermato l'addebito per ${data.promotion}: ` +
+            `attesi ${quote.price} crediti, prima=${Number.isFinite(creditBefore) ? creditBefore : "?"}, ` +
+            `dopo=${Number.isFinite(creditAfter) ? creditAfter : "?"}. ${result.body.slice(0, 500)}`
         );
     }
+
+    console.log("[moscarossa:promotion] Paid promotion confirmed", {
+        remoteId,
+        plan: data.promotion,
+        days,
+        expectedCharge: quote.price,
+        actualCharge: chargedCredits,
+        creditBefore,
+        creditAfter
+    });
 
     const publicUrl = result.publicUrl || `https://www.moscarossa.biz/girl-${remoteId}.php`;
     return {
@@ -1445,6 +1551,7 @@ async function activatePaidPromotion(page, remoteId, data) {
         plan: data.promotion,
         days,
         creditsConsumed: quote.price,
+        remainingCredit: creditAfter,
         response: result.body.slice(0, 700)
     };
 }

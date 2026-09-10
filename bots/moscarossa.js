@@ -18,8 +18,6 @@ const PRIVATE_NEW_AD_URL = "https://www.moscarossa.biz/private/inserimento.php";
 const CREDIT_URL = "https://www.moscarossa.biz/private/crediti.php";
 const LOCATION_SEARCH_URL = "https://www.moscarossa.biz/private/ajax_sel_comune.php";
 const MANAGEMENT_URL = "https://www.moscarossa.biz/private/vedi_annuncio_ut.php";
-const SUSPEND_URL = "https://www.moscarossa.biz/private/sospendi_annuncio.php";
-const DELETE_URL = "https://www.moscarossa.biz/private/delete_annuncio.php";
 const RECAPTCHA_SITEKEY = "6LeQvfcUAAAAABV9eiDsuqJOKT15Aba_cuBl7IFQ";
 const SCREENSHOT_DIR = path.join(__dirname, "screenshots", "moscarossa-login");
 const MANAGEMENT_SCREENSHOT_DIR = path.join(__dirname, "screenshots", "moscarossa-management");
@@ -158,19 +156,34 @@ class MoscarossaBot {
     }
   }
 
-  async readManagementState(page) {
-    return page.evaluate(() => {
+  async readManagementState(page, remoteId = null) {
+    return page.evaluate((expectedRemoteId) => {
       const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
       const body = clean(document.body?.innerText);
+      const targetId = clean(expectedRemoteId);
+      const hasTargetInput = targetId && Array.from(document.querySelectorAll('[name="id_accompa"]'))
+        .some((input) => clean(input.value) === targetId);
+      const hasTargetLink = targetId && Array.from(document.querySelectorAll('a[href], form[action]'))
+        .some((element) => {
+          const href = element.getAttribute("href") || element.getAttribute("action") || "";
+          try {
+            return new URL(href, window.location.href).searchParams.get("id_accompa") === targetId;
+          } catch (_) {
+            return false;
+          }
+        });
       return {
         body,
         hasSuspend: Boolean(document.querySelector(
           'form[action*="sospendi_annuncio.php"], a[href*="sospendi_annuncio.php"]'
         )),
         hasDelete: Boolean(document.querySelector('a[href*="delete_annuncio.php"]')),
-        hasManagedAd: /\b(?:ID\s*(?:ad|annuncio)|id\s*accompa)\s*:?\s*\d+/i.test(body)
+        hasManagedAd: /\b(?:ID\s*(?:ad|annuncio)|id\s*accompa)\s*:?\s*\d+/i.test(body),
+        hasTargetAd: targetId
+          ? Boolean(hasTargetInput || hasTargetLink || body.includes(targetId))
+          : null
       };
-    });
+    }, remoteId);
   }
 
   async openManagedAdvertisement(page, remoteId, operation) {
@@ -180,20 +193,23 @@ class MoscarossaBot {
     });
     await this.acceptAdultConsentIfPresent(page);
     await this.assertManagementSession(page, operation);
-    return this.readManagementState(page);
+    return this.readManagementState(page, remoteId);
   }
 
   async runManagementAction(operation, remotePostID) {
     const remoteId = this.normalizeRemoteId(remotePostID);
     const page = await this.auxiliaryPage();
     const isSuspend = operation === "suspend";
-    const actionUrl = isSuspend ? SUSPEND_URL : DELETE_URL;
+    const actionSelector = isSuspend
+      ? 'form[action*="sospendi_annuncio.php"] button, a[href*="sospendi_annuncio.php"]'
+      : 'a[href*="delete_annuncio.php"]';
 
     try {
+      await page.setCacheEnabled(false);
       const before = await this.openManagedAdvertisement(page, remoteId, operation);
       await this.managementScreenshot(page, `01-${operation}-${remoteId}-before`);
 
-      if (!before.hasManagedAd) {
+      if (!before.hasManagedAd || before.hasTargetAd === false) {
         throw new Error(`Moscarossa annuncio ${remoteId} non trovato prima di ${operation}.`);
       }
       if (isSuspend && !before.hasSuspend && /\b(?:sospes|suspended)\b/i.test(before.body)) {
@@ -206,10 +222,23 @@ class MoscarossaBot {
         throw new Error(`Il comando Elimina non è disponibile per l'annuncio Moscarossa ${remoteId}.`);
       }
 
-      const response = await page.goto(`${actionUrl}?id_accompa=${encodeURIComponent(remoteId)}`, {
-        waitUntil: "networkidle2",
-        timeout: 60000
-      });
+      const acceptConfirmation = async (dialog) => {
+        console.log(`[moscarossa:management] Accepting ${operation} confirmation`, { remoteId });
+        await dialog.accept().catch(() => {});
+      };
+      page.on("dialog", acceptConfirmation);
+
+      let response = null;
+      try {
+        const navigation = page.waitForNavigation({
+          waitUntil: "domcontentloaded",
+          timeout: 60000
+        });
+        await page.click(actionSelector);
+        response = await navigation;
+      } finally {
+        page.off("dialog", acceptConfirmation);
+      }
       await this.acceptAdultConsentIfPresent(page);
       await this.assertManagementSession(page, operation);
       await this.managementScreenshot(page, `02-${operation}-${remoteId}-response`);
@@ -223,24 +252,34 @@ class MoscarossaBot {
           url: page.url()
         });
       }
-      const actionResponse = await this.readManagementState(page);
+      const actionResponse = await this.readManagementState(page, remoteId);
       if (/\b(?:errore|error|impossibile|non autorizzat|unauthori[sz]ed)\b/i.test(actionResponse.body)) {
         throw new Error(`Moscarossa ha rifiutato ${operation}: ${actionResponse.body.slice(0, 500)}`);
       }
 
-      const after = await this.openManagedAdvertisement(page, remoteId, `${operation} verification`);
+      let after = null;
+      const maximumChecks = isSuspend ? 3 : 5;
+      for (let attempt = 1; attempt <= maximumChecks; attempt += 1) {
+        if (attempt > 1) await delay(1000 * attempt);
+        after = await this.openManagedAdvertisement(page, remoteId, `${operation} verification`);
+
+        if (!isSuspend && (after.hasTargetAd === false ||
+          /\b(?:eliminat|deleted|non trov|not found|inesistente)\b/i.test(after.body))) break;
+        if (isSuspend && after.hasTargetAd !== false &&
+          (/\b(?:sospes|suspended)\b/i.test(after.body) || !after.hasSuspend)) break;
+      }
       await this.managementScreenshot(page, `03-${operation}-${remoteId}-verified`);
 
       if (isSuspend) {
         const suspended = /\b(?:sospes|suspended)\b/i.test(after.body) || !after.hasSuspend;
-        if (!after.hasManagedAd || !suspended) {
+        if (after.hasTargetAd === false || !suspended) {
           throw new Error(`Moscarossa non ha confermato la sospensione dell'annuncio ${remoteId}.`);
         }
         this.cookies = await page.cookies().catch(() => this.cookies);
         return { ok: true, remoteId, state: "CLOSED" };
       }
 
-      const deleted = !after.hasManagedAd || (!after.hasDelete && !after.hasSuspend) ||
+      const deleted = after.hasTargetAd === false || (!after.hasManagedAd && !after.hasDelete && !after.hasSuspend) ||
         /\b(?:eliminat|deleted|non trov|not found|inesistente)\b/i.test(after.body);
       if (!deleted) {
         throw new Error(`Moscarossa non ha confermato l'eliminazione dell'annuncio ${remoteId}.`);
