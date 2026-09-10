@@ -1484,6 +1484,81 @@ async function activatePaidPromotion(page, remoteId, data) {
     await navigation;
     await delay(1000);
 
+    const checkout = await page.evaluate(() => {
+        const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const paymentButton = document.querySelector("#pulsante_pagamento");
+        const creditRadio = document.querySelector("#input_crediti");
+        const creditForm = document.querySelector("#form_1");
+        const terms = document.querySelector("#termini");
+        const body = clean(document.body?.innerText);
+        const totalMatch = body.match(/Totale\s*:\s*€?\s*([0-9][0-9.,]*)/i);
+        const total = totalMatch ? Number.parseInt(totalMatch[1].replace(/[^0-9]/g, ""), 10) : null;
+        return {
+            present: Boolean(paymentButton || /\bCHECKOUT\b/i.test(body)),
+            hasPaymentButton: Boolean(paymentButton),
+            hasCreditRadio: Boolean(creditRadio),
+            creditSelected: Boolean(creditRadio?.checked),
+            hasCreditForm: Boolean(creditForm),
+            creditFormAction: creditForm?.getAttribute("action") || "",
+            hasTerms: Boolean(terms),
+            total: Number.isFinite(total) ? total : null
+        };
+    });
+
+    let paymentResponse = null;
+    if (checkout.present) {
+        if (!checkout.hasPaymentButton || !checkout.hasCreditRadio || !checkout.hasCreditForm || !checkout.hasTerms ||
+            !/promuovi_crediti\.php/i.test(checkout.creditFormAction)) {
+            throw new Error(
+                `Checkout crediti Moscarossa non riconosciuto per ${data.promotion}: ` +
+                `button=${checkout.hasPaymentButton}, radio=${checkout.hasCreditRadio}, ` +
+                `form=${checkout.creditFormAction || "?"}, termini=${checkout.hasTerms}.`
+            );
+        }
+        if (Number.isFinite(checkout.total) && checkout.total !== quote.price) {
+            throw new Error(
+                `Totale checkout Moscarossa inatteso per ${data.promotion}: ` +
+                `preventivo=${quote.price}, checkout=${checkout.total}.`
+            );
+        }
+
+        const checkoutReady = await page.evaluate(() => {
+            const creditRadio = document.querySelector("#input_crediti");
+            const terms = document.querySelector("#termini");
+            if (!creditRadio.checked) creditRadio.click();
+            if (!terms.checked) terms.click();
+            return {
+                creditSelected: Boolean(creditRadio.checked),
+                termsAccepted: Boolean(terms.checked)
+            };
+        });
+        if (!checkoutReady.creditSelected || !checkoutReady.termsAccepted) {
+            throw new Error("Moscarossa non ha accettato il metodo crediti o i termini del checkout.");
+        }
+
+        console.log("[moscarossa:promotion] Confirming checkout with account credits", {
+            remoteId,
+            plan: data.promotion,
+            days,
+            price: quote.price
+        });
+        await captureScreenshot(page, `05-${data.promotion}-${days}-credit-checkout-ready`);
+
+        const checkoutNavigation = page.waitForNavigation({
+            waitUntil: "domcontentloaded",
+            timeout: 90000
+        }).catch(() => null);
+        [paymentResponse] = await Promise.all([
+            page.waitForResponse((checkoutResponse) =>
+                /\/private\/promuovi_crediti\.php(?:\?|$)/i.test(checkoutResponse.url()) &&
+                checkoutResponse.request().method() === "POST",
+            { timeout: 90000 }).catch(() => null),
+            page.click("#pulsante_pagamento")
+        ]);
+        await checkoutNavigation;
+        await delay(1000);
+    }
+
     const result = await page.evaluate((expectedRemoteId, expectedPlan) => {
         const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
         const links = Array.from(document.querySelectorAll("a[href]"))
@@ -1506,6 +1581,9 @@ async function activatePaidPromotion(page, remoteId, data) {
     }
     if (response && (response.status() < 200 || response.status() >= 400)) {
         throw new Error(`Moscarossa promozione HTTP ${response.status()}: ${result.body.slice(0, 600)}`);
+    }
+    if (paymentResponse && (paymentResponse.status() < 200 || paymentResponse.status() >= 400)) {
+        throw new Error(`Moscarossa pagamento crediti HTTP ${paymentResponse.status()}: ${result.body.slice(0, 600)}`);
     }
     if (negative.test(result.body)) {
         throw new Error(`Moscarossa ha rifiutato la promozione: ${result.body.slice(0, 700)}`);
