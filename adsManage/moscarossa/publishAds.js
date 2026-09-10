@@ -1618,7 +1618,17 @@ async function verifyPhoneCode(page, { phone, code, remoteId, resume = false, pr
             period: promotion.period || "",
             availableCredit: promotion.availableCredit
         });
-        const basePublicationResult = await activateSelectedPromotion(page, resolvedRemoteId, promotionData);
+        console.log("[moscarossa:phone] SMS verified; resuming scheduled promotion", {
+            remoteId: resolvedRemoteId,
+            promotion: promotionData.promotion,
+            days: promotionData.promotionDays
+        });
+        const basePublicationResult = await activateSelectedPromotion(
+            page,
+            resolvedRemoteId,
+            promotionData,
+            { allowExistingRefresh: true }
+        );
         let publicationResult;
         try {
             publicationResult = await activateSelectedAddons(
