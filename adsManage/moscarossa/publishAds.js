@@ -167,7 +167,11 @@ function parsePromotionPeriod(period, planName) {
         : [];
     const diamondEnabled = isEnabled(rawAddons.diamond?.enabled) && diamondDates.length > 0;
     const vetrinaDays = Number.parseInt(rawAddons.vetrina?.days || requestedDays || 1, 10);
-    const plan = normalizePromotion(details.plan || planName);
+    const storedPlan = normalizePromotion(planName);
+    const legacyPlan = normalizePromotion(details.plan);
+    // New schedules store the selected Moscarossa plan in typeAnnuncio. Legacy
+    // rows used Free there and stored the actual paid plan only in period.
+    const plan = storedPlan.name !== "Free" ? storedPlan : legacyPlan;
     return {
         plan,
         days: PROMOTION_DURATIONS.has(requestedDays) ? requestedDays : 1,

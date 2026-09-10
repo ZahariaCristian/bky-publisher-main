@@ -748,6 +748,20 @@ var tblSchedulazioni = model.define("tblSchedulazioni",{
         type: Sequelize.VIRTUAL,
         get: function (){
             var dead = new Date(this.data);
+            if (`${this.platform || ""}`.toLowerCase() === "moscarossa") {
+                let details = {};
+                try { details = JSON.parse(this.period || "{}").moscarossa || {}; } catch { details = {}; }
+                const paidPlans = new Set(["premium", "top", "red", "gold"]);
+                const storedPlan = `${this.typeAnnuncio || "Free"}`.trim().toLowerCase();
+                const legacyPlan = `${details.plan || "Free"}`.trim().toLowerCase();
+                const plan = storedPlan !== "free" ? storedPlan : legacyPlan;
+                const requestedDays = Number.parseInt(details.days, 10);
+                const days = paidPlans.has(plan) && Number.isInteger(requestedDays) && requestedDays > 0
+                    ? requestedDays
+                    : 1;
+                dead.setDate(dead.getDate() + days);
+                return dead;
+            }
             switch(this.typeAnnuncio){
                 case "Free":
                     dead.setDate(dead.getDate() + 1);
@@ -779,7 +793,7 @@ var tblSchedulazioni = model.define("tblSchedulazioni",{
         allowNull: true
     },
     typeAnnuncio:{
-        type: Sequelize.ENUM("Free", "1x1", "1x3", "1x7", "1x14", "1x28", "3x1", "3x3", "3x7", "3x14", "3x28", "10x1", "10x3", "10x7", "Turbo", "TopList", "Vetrina"),
+        type: Sequelize.ENUM("Free", "1x1", "1x3", "1x7", "1x14", "1x28", "3x1", "3x3", "3x7", "3x14", "3x28", "10x1", "10x3", "10x7", "Turbo", "TopList", "Vetrina", "Premium", "Top", "Red", "Gold"),
         allowNull: true
     },
     state:{
