@@ -214,8 +214,14 @@ class MoscarossaBot {
       await this.assertManagementSession(page, operation);
       await this.managementScreenshot(page, `02-${operation}-${remoteId}-response`);
 
-      if (response && !response.ok()) {
+      if (response && response.status() >= 400) {
         throw new Error(`Moscarossa ${operation} HTTP ${response.status()} per l'annuncio ${remoteId}.`);
+      }
+      if (response && response.status() >= 300) {
+        console.log(`[moscarossa:management] ${operation} returned redirect HTTP ${response.status()}; verifying remote state`, {
+          remoteId,
+          url: page.url()
+        });
       }
       const actionResponse = await this.readManagementState(page);
       if (/\b(?:errore|error|impossibile|non autorizzat|unauthori[sz]ed)\b/i.test(actionResponse.body)) {
