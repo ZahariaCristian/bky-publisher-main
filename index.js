@@ -500,7 +500,10 @@ async function runMoscarossaPhoneVerificationFromPublisher(payload = {}) {
             remotePostID: result.remoteId || remoteId,
             urlBK: result.publicUrl || `https://www.moscarossa.biz/girl-${result.remoteId || remoteId}.php`,
             errorReason: null,
-            payed: Number(result.creditsConsumed || 0) > 0
+            payed: Number(result.creditsConsumed || 0) > 0,
+            remoteExpiresAt: Number.isFinite(Number(result.remoteExpiresAt))
+                ? `${Math.trunc(Number(result.remoteExpiresAt))}`
+                : (schedule.remoteExpiresAt || null)
         });
     }
 
@@ -1187,10 +1190,14 @@ async function resolveMoscarossaRemoteTarget(ad) {
     if (!remotePostID) return null;
     ad.remotePostID = remotePostID;
     if (!ad.urlBK && reusable.urlBK) ad.urlBK = reusable.urlBK;
+    if (!ad.remoteExpiresAt && reusable.remoteExpiresAt) {
+        ad.remoteExpiresAt = reusable.remoteExpiresAt;
+    }
 
     await ad.update({
         remotePostID,
-        urlBK: ad.urlBK || null
+        urlBK: ad.urlBK || null,
+        remoteExpiresAt: ad.remoteExpiresAt || null
     });
     console.log("[moscarossa:schedule] Reusing existing remote ad", {
         scheduleId: ad.id,
@@ -1224,7 +1231,8 @@ async function propagateMoscarossaRemoteTarget(ad) {
 
     const [updated] = await ctx.tblSchedulazioni.update({
         remotePostID,
-        urlBK: ad.urlBK || null
+        urlBK: ad.urlBK || null,
+        remoteExpiresAt: ad.remoteExpiresAt || null
     }, { where });
     if (updated > 0) {
         console.log("[moscarossa:schedule] Propagated remote ad to pending schedules", {
@@ -1486,6 +1494,9 @@ async function postThis(ad, group, platform) {
                         ad.remotePostID || null;
                     ad.urlBK = result?.url || result?.publicUrl || ad.urlBK || null;
                     ad.payed = Number(result?.creditsConsumed || 0) > 0;
+                    if (platform.platform === "moscarossa" && Number.isFinite(Number(result?.remoteExpiresAt))) {
+                        ad.remoteExpiresAt = `${Math.trunc(Number(result.remoteExpiresAt))}`;
+                    }
                     if (platform.platform === "moscarossa" && Number.isFinite(Number(result?.remainingCredit))) {
                         platform.credit = Number(result.remainingCredit);
                     }
@@ -1524,6 +1535,7 @@ async function postThis(ad, group, platform) {
                 urlBK: ad.urlBK,
                 payed: ad.payed,
                 dateTimeTop: ad.dateTimeTop,
+                remoteExpiresAt: ad.remoteExpiresAt || null,
                 period: ad.period,
                 errorReason: null
             });
@@ -1550,6 +1562,7 @@ async function postThis(ad, group, platform) {
                     remotePostID: ad.remotePostID || null,
                     urlBK: ad.urlBK || null,
                     payed: ad.payed,
+                    remoteExpiresAt: ad.remoteExpiresAt || null,
                     errorReason
                 });
                 console.log(

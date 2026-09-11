@@ -782,6 +782,102 @@ async function openMoscarossaPromotionPage(page, remoteId, context = "promotion"
     return promotionUrl;
 }
 
+async function readMoscarossaExpiration(page, remoteId, promotionName) {
+    const resolvedRemoteId = `${remoteId || ""}`.trim();
+    const plan = `${promotionName || ""}`.trim().toLowerCase();
+    if (!/^\d{4,9}$/.test(resolvedRemoteId)) return null;
+
+    const viewUrl = `${VIEW_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}`;
+    try {
+        await page.goto(viewUrl, {
+            waitUntil: "domcontentloaded",
+            timeout: 60000
+        });
+    } catch (error) {
+        const usablePage = await page.evaluate((expectedRemoteId) => {
+            try {
+                const url = new URL(location.href);
+                return /\/private\/vedi_annuncio_ut\.php$/i.test(url.pathname) &&
+                    url.searchParams.get("id_accompa") === expectedRemoteId &&
+                    Boolean(document.body);
+            } catch (_) {
+                return false;
+            }
+        }, resolvedRemoteId).catch(() => false);
+        if (!usablePage) throw error;
+    }
+
+    if (/login-escort/i.test(page.url()) || await page.$("#form_login")) {
+        const error = new Error("Moscarossa session expired while reading promotion expiration.");
+        error.statusCode = 401;
+        throw error;
+    }
+
+    const expiration = await page.evaluate((expectedPlan) => {
+        const normalize = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const expected = expectedPlan.replace(/[^a-z0-9_-]/g, "");
+        const preferred = expected ? document.querySelector(`#scadenza_${expected}`) : null;
+        const candidates = Array.from(document.querySelectorAll('[id^="scadenza_"]'))
+            .filter((node) => node.querySelector("table.countdown"));
+        const container = preferred?.querySelector("table.countdown")
+            ? preferred
+            : (candidates.length === 1 ? candidates[0] : null);
+        if (!container) return null;
+
+        const values = Array.from(container.querySelectorAll("table.countdown tr:first-child th"))
+            .slice(0, 4)
+            .map((node) => Number.parseInt(normalize(node.textContent), 10));
+        if (values.length !== 4 || values.some((value) => !Number.isFinite(value) || value < 0)) {
+            return null;
+        }
+
+        const [days, hours, minutes, seconds] = values;
+        const remainingSeconds = (((days * 24) + hours) * 60 + minutes) * 60 + seconds;
+        if (remainingSeconds <= 0) return null;
+
+        const outerRow = container.parentElement?.closest("tr");
+        const cells = outerRow ? Array.from(outerRow.children) : [];
+        return {
+            remoteExpiresAt: Date.now() + (remainingSeconds * 1000),
+            remainingSeconds,
+            expirationText: normalize(cells[2]?.textContent),
+            countdownId: container.id || ""
+        };
+    }, plan);
+
+    if (expiration?.remoteExpiresAt) {
+        console.log("[moscarossa:expiration] Remote promotion expiration resolved", {
+            remoteId: resolvedRemoteId,
+            plan: promotionName,
+            remoteExpiresAt: expiration.remoteExpiresAt,
+            remainingSeconds: expiration.remainingSeconds,
+            expirationText: expiration.expirationText,
+            countdownId: expiration.countdownId
+        });
+    } else {
+        console.warn("[moscarossa:expiration] Promotion countdown not available", {
+            remoteId: resolvedRemoteId,
+            plan: promotionName,
+            url: page.url()
+        });
+    }
+
+    return expiration;
+}
+
+async function safelyReadMoscarossaExpiration(page, remoteId, promotionName) {
+    try {
+        return await readMoscarossaExpiration(page, remoteId, promotionName);
+    } catch (error) {
+        console.warn("[moscarossa:expiration] Could not synchronize remote expiration", {
+            remoteId: `${remoteId || ""}`,
+            plan: promotionName,
+            error: error?.message || `${error}`
+        });
+        return null;
+    }
+}
+
 async function inspectMoscarossaEditorPage(page, expectedRemoteId) {
     return page.evaluate((remoteId) => {
         const url = location.href;
@@ -1925,7 +2021,16 @@ async function verifyPhoneCode(page, { phone, code, remoteId, resume = false, pr
             page,
             `phone-verification-${resolvedRemoteId}-05-${promotionData.promotion}-published`
         );
-        return { ...publicationResult, status: "published" };
+        const expiration = await safelyReadMoscarossaExpiration(
+            page,
+            resolvedRemoteId,
+            promotionData.promotion
+        );
+        return {
+            ...publicationResult,
+            remoteExpiresAt: expiration?.remoteExpiresAt || null,
+            status: "published"
+        };
     } catch (error) {
         await captureScreenshot(page, `phone-verification-${resolvedRemoteId || "unknown"}-error-verify-or-resume`);
         throw error;
@@ -1995,6 +2100,8 @@ async function publishAd(page, adData = {}) {
         }
         await captureScreenshot(page, `05-${data.promotion}-published`);
 
+        const expiration = await safelyReadMoscarossaExpiration(page, remoteId, data.promotion);
+
         const url = promotionResult.publicUrl || `${VIEW_URL}?id_accompa=${encodeURIComponent(remoteId)}`;
         console.log("[moscarossa:publish] Publication completed", {
             remoteId,
@@ -2012,6 +2119,7 @@ async function publishAd(page, adData = {}) {
                 days: data.promotionDays
             },
             url,
+            remoteExpiresAt: expiration?.remoteExpiresAt || null,
             creditsConsumed: promotionResult.creditsConsumed || 0,
             freePublication: data.isFree,
             response: promotionResult.response
@@ -2074,11 +2182,18 @@ async function republishAd(page, remoteId, adData = {}) {
         }
         await captureScreenshot(page, `republish-${resolvedRemoteId}-02-${data.promotion}-published`);
 
+        const expiration = await safelyReadMoscarossaExpiration(
+            page,
+            resolvedRemoteId,
+            data.promotion
+        );
+
         return {
             ok: true,
             remoteId: resolvedRemoteId,
             state: "OK",
             url: promotionResult.publicUrl || `${VIEW_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}`,
+            remoteExpiresAt: expiration?.remoteExpiresAt || null,
             creditsConsumed: promotionResult.creditsConsumed || 0,
             response: promotionResult.response
         };
@@ -2101,6 +2216,7 @@ module.exports = {
     captureScreenshot,
     clickPublishFree,
     publishAd,
+    readMoscarossaExpiration,
     republishAd,
     sendPhoneVerificationCode,
     verifyPhoneCode,

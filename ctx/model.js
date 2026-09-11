@@ -846,6 +846,10 @@ var tblSchedulazioni = model.define("tblSchedulazioni",{
         type: Sequelize.STRING,
         allowNull: true
     },
+    remoteExpiresAt:{
+        type: Sequelize.BIGINT,
+        allowNull: true
+    },
     platform: {
         type: Sequelize.ENUM(
             'incontriamoci',
