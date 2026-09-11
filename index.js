@@ -1815,12 +1815,32 @@ async function startAllGroupLoops(groups) {
     }
 }
 
+async function ensurePublisherSchema() {
+    const queryInterface = ctx.model.getQueryInterface();
+    const scheduleColumns = await queryInterface.describeTable("tblSchedulazioni");
+
+    if (!scheduleColumns.remoteExpiresAt) {
+        console.log("[publisher:schema] Adding tblSchedulazioni.remoteExpiresAt...");
+        try {
+            await queryInterface.addColumn("tblSchedulazioni", "remoteExpiresAt", {
+                type: ctx.model.Sequelize.BIGINT,
+                allowNull: true
+            });
+        } catch (error) {
+            if (error?.original?.code !== "ER_DUP_FIELDNAME" && error?.parent?.code !== "ER_DUP_FIELDNAME") {
+                throw error;
+            }
+        }
+        console.log("[publisher:schema] tblSchedulazioni.remoteExpiresAt added.");
+    }
+}
+
 // The website uses this API for Moscarossa Comune resolution. Start it before
 // database/bot initialization so a slow or failed bot startup does not leave
 // the local service unavailable.
 startPublisherApiServer();
 
-CreateGroupsBot().then(async (groups) => {
+ensurePublisherSchema().then(() => CreateGroupsBot()).then(async (groups) => {
     if (groups) {
         await startCheckPhoneBot();
         await startAllGroupLoops(groups);
@@ -1838,4 +1858,7 @@ CreateGroupsBot().then(async (groups) => {
             }
         }, (1000 * 60 * 120));
     }
+}).catch((error) => {
+    console.error("[publisher:schema] Publisher startup stopped:", error);
+    logger.Write(`Publisher ERROR SCHEMA: ${error}`);
 });
