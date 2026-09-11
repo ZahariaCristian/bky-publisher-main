@@ -1484,7 +1484,7 @@ async function postThis(ad, group, platform) {
                     pubStatus = "OK";
                     ad.remotePostID = result?.payload?.idpriv || result?.remoteId || result?.megaId ||
                         ad.remotePostID || null;
-                    ad.urlBK = result?.url || null;
+                    ad.urlBK = result?.url || result?.publicUrl || ad.urlBK || null;
                     ad.payed = Number(result?.creditsConsumed || 0) > 0;
                     if (platform.platform === "moscarossa" && Number.isFinite(Number(result?.remainingCredit))) {
                         platform.credit = Number(result.remainingCredit);

@@ -15,6 +15,8 @@ puppeteer.use(StealthPlugin());
 
 const { USER_AGENT, INSERT_API, COMUNE_LOOKUP_API, TOPLIST_API, PUBLISH_INCONTRII_URL, PUBLISH_MASSAGGI_URL, TOPLIST_GIORINI, TOPLIST_ORARIO, TOPLIST_TLPRODOTTO } = require('./const')
 
+const ANNOUNCEMENTS_URL = "https://www.bakeca.it/miabakeca/annuncio/elencoutente/";
+
 function log(step, message, data) {
     const prefix = `[publishAds:${step}]`;
     if (typeof data === "undefined") {
@@ -113,6 +115,109 @@ function resolveToplistSelection(typeAnnuncio, period) {
 }
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function resolvePublishedUrl(page, idpriv) {
+    const remoteId = firstNonEmpty(`${idpriv || ""}`);
+    if (!remoteId) {
+        return "";
+    }
+
+    const findPublicUrl = async (requireRemoteMatch) => page.evaluate(({ targetId, exactMatch }) => {
+        const toPublicUrl = (href) => {
+            try {
+                const url = new URL(href, window.location.href);
+                const isBakecaHost = url.hostname === "bakeca.it" || url.hostname.endsWith(".bakeca.it");
+                return isBakecaHost && /\/dettaglio\//i.test(url.pathname) ? url.href : "";
+            } catch (_) {
+                return "";
+            }
+        };
+        const publicLinks = (root) => Array.from(root.querySelectorAll("a[href]"))
+            .map((link) => ({
+                url: toPublicUrl(link.getAttribute("href") || link.href),
+                text: (link.textContent || "").replace(/\s+/g, " ").trim()
+            }))
+            .filter((link) => link.url);
+        const chooseLink = (links) => {
+            const preferred = links.find((link) => /vedi|visualizza|annuncio|online/i.test(link.text));
+            return preferred?.url || links[0]?.url || "";
+        };
+
+        if (!exactMatch) {
+            const links = publicLinks(document);
+            return links.length === 1 ? links[0].url : "";
+        }
+
+        const roots = [];
+        const addRoot = (node) => {
+            if (!node) {
+                return;
+            }
+            const root = node.closest?.(".b-rw.b-ann-mb-item, .b-ann-mb-item, article, tr") || node;
+            if (!roots.includes(root)) {
+                roots.push(root);
+            }
+        };
+
+        addRoot(document.getElementById(`annuncio_${targetId}`));
+        document.querySelectorAll("[data-idpriv]").forEach((node) => {
+            if (`${node.getAttribute("data-idpriv") || ""}` === targetId) {
+                addRoot(node);
+            }
+        });
+        document.querySelectorAll("a[href], form[action]").forEach((node) => {
+            const target = node.getAttribute("href") || node.getAttribute("action") || "";
+            if (target.includes(targetId)) {
+                addRoot(node);
+            }
+        });
+
+        for (const root of roots) {
+            const selected = chooseLink(publicLinks(root));
+            if (selected) {
+                return selected;
+            }
+        }
+
+        return "";
+    }, { targetId: remoteId, exactMatch: requireRemoteMatch });
+
+    try {
+        const currentPageUrl = await findPublicUrl(false);
+        if (currentPageUrl) {
+            log("url", "Public URL resolved from publication page", {
+                idpriv: remoteId,
+                url: currentPageUrl
+            });
+            return currentPageUrl;
+        }
+
+        await page.goto(ANNOUNCEMENTS_URL, {
+            waitUntil: "domcontentloaded",
+            timeout: 30000
+        });
+        await delay(500);
+
+        const managementUrl = await findPublicUrl(true);
+        if (managementUrl) {
+            log("url", "Public URL resolved from Bakeca ad management", {
+                idpriv: remoteId,
+                url: managementUrl
+            });
+            return managementUrl;
+        }
+
+        log("url", "Public URL is not available yet", { idpriv: remoteId });
+    } catch (error) {
+        log("url", "Could not resolve the public URL without affecting publication", {
+            idpriv: remoteId,
+            error: error?.message || `${error}`
+        });
+    }
+
+    return "";
+}
+
 async function readPublishContext(page) {
     return page.evaluate(() => {
         const readValue = (selector) => {
@@ -1221,8 +1326,15 @@ async function publishAd(page, adData) {
         }
     }
 
+    const publicUrl = publishOk
+        ? await resolvePublishedUrl(page, payload.idpriv)
+        : "";
+
     return {
         ok: publishOk,
+        remoteId: payload.idpriv || "",
+        url: publicUrl,
+        publicUrl,
         // uploadResults,
         // imageIds,
         payload,
@@ -1239,5 +1351,6 @@ module.exports = {
     publishAd,
     readPublishContext,
     resolveLocationData,
+    resolvePublishedUrl,
     submitPublishRequest,
 }
