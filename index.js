@@ -55,6 +55,12 @@ const PUBLISHER_API_PORT = Number.isFinite(rawPublisherApiPort) && rawPublisherA
 const PUBLISHER_API_HOST = `${process.env.PUBLISHER_API_HOST || "127.0.0.1"}`.trim() || "127.0.0.1";
 const PUBLISH_IMAGE_LIMITS = Object.freeze({ amasens: 9, incontriamoci: 9, trovagnocca: 6, moscarossa: 20 });
 const getPublishImageLimit = (platformName) => PUBLISH_IMAGE_LIMITS[platformName] || 5;
+const rawOverdueGraceHours = Number.parseInt(process.env.PUBLISH_OVERDUE_GRACE_HOURS || "48", 10);
+const PUBLISH_OVERDUE_GRACE_HOURS = Number.isFinite(rawOverdueGraceHours)
+    ? Math.min(Math.max(rawOverdueGraceHours, 1), 168)
+    : 48;
+const PUBLISH_SCHEDULE_LOOKAHEAD_MS = 60 * 1000;
+const MISSED_SCHEDULE_REASON = `Pubblicazione non eseguita entro la finestra di recupero di ${PUBLISH_OVERDUE_GRACE_HOURS} ore. Riprogrammare l'annuncio.`;
 let publisherApiServer = null;
 
 const getLastNumber = (str) => {
@@ -762,6 +768,75 @@ async function CreateGroupsBot() {
     return groups;
 }
 
+async function blockSchedulesOutsideRecoveryWindow(group, platformName, recoveryStart) {
+    const staleAdvertisements = await group.getTblAnnuncis({
+        attributes: ["id"],
+        where: { GCRecord: null },
+        include: [{
+            model: ctx.tblSchedulazioni,
+            attributes: ["id"],
+            required: true,
+            where: {
+                GCRecord: null,
+                platform: platformName,
+                data: { [Op.lt]: recoveryStart },
+                [Op.or]: [
+                    { state: null },
+                    { state: "ALERT", errorReason: null }
+                ]
+            }
+        }]
+    });
+    const staleScheduleIds = staleAdvertisements.flatMap((advertisement) =>
+        (advertisement.tblSchedulazionis || []).map((schedule) => schedule.id)
+    );
+    if (!staleScheduleIds.length) return 0;
+
+    const [blockedCount] = await ctx.tblSchedulazioni.update({
+        state: "BLOCKED",
+        errorReason: MISSED_SCHEDULE_REASON
+    }, {
+        where: {
+            id: { [Op.in]: staleScheduleIds },
+            GCRecord: null,
+            [Op.or]: [
+                { state: null },
+                { state: "ALERT", errorReason: null }
+            ]
+        }
+    });
+    if (blockedCount > 0) {
+        console.warn("[publisher:schedule] Blocked stale schedules", {
+            groupId: group.id,
+            platform: platformName,
+            blockedCount,
+            recoveryHours: PUBLISH_OVERDUE_GRACE_HOURS
+        });
+    }
+    return blockedCount;
+}
+
+async function claimPendingSchedule(schedule) {
+    if (schedule.state !== null) return true;
+    const [claimedCount] = await ctx.tblSchedulazioni.update({
+        state: "ALERT",
+        errorReason: null
+    }, {
+        where: {
+            id: schedule.id,
+            state: null,
+            GCRecord: null
+        }
+    });
+    if (claimedCount === 1) return true;
+
+    console.warn("[publisher:schedule] Schedule already claimed; skipping duplicate attempt", {
+        scheduleId: schedule.id,
+        platform: schedule.platform
+    });
+    return false;
+}
+
 async function mainLoop(group, platform) {
     console.log(group.name, platform.platform, "group in mainLoop");
     if (group._mainLoopRunning) {
@@ -852,11 +927,12 @@ async function mainLoop(group, platform) {
 
         group.overBusyBot = 0;
         var adss = [];
-        var date_string = new Date().toUTCString();
-        const day = new Date(date_string);
-        var today = new Date(date_string);
-        today.setHours(0, 0, 0, 0);
+        const loopNow = new Date();
+        const recoveryStart = new Date(loopNow.getTime() - (PUBLISH_OVERDUE_GRACE_HOURS * 60 * 60 * 1000));
+        const scheduleLookAhead = new Date(loopNow.getTime() + PUBLISH_SCHEDULE_LOOKAHEAD_MS);
         console.log(`[i] Get Annunci ${new Date}`);
+
+        await blockSchedulesOutsideRecoveryWindow(group, platform.platform, recoveryStart);
 
         // Add platformUsername by Zaharia
         var platformUsername = group.bkUserName;
@@ -869,9 +945,16 @@ async function mainLoop(group, platform) {
                     GCRecord: null,
                     platform: platform.platform,
                     [Op.or]: [
-                        { state: null, data: { [Op.gt]: today } },      // New Ads
+                        {
+                            state: null,
+                            data: { [Op.between]: [recoveryStart, scheduleLookAhead] }
+                        },                                             // New and recently overdue Ads
+                        {
+                            state: "ALERT",
+                            errorReason: null,
+                            data: { [Op.between]: [recoveryStart, scheduleLookAhead] }
+                        },                                             // Interrupted attempts
                         { state: "EDIT" },                              //Update Ads
-                        //{state: "ALERT", data: {[Op.gt]: today}},
                         { state: "CLOSE" },                             //Close Ads
                         { state: "REPUBLISH" },                         //Republish Ads by Zaharia
                         { state: "DELETE" }                             //Delete Ads
@@ -898,21 +981,33 @@ async function mainLoop(group, platform) {
 
                 var pics = [];
                 var picsAudit = []
-                var t = s.data;
-                t.setMinutes(t.getMinutes() + t.getTimezoneOffset());
+                const scheduleTime = new Date(s.data);
+                if (Number.isNaN(scheduleTime.getTime())) {
+                    await s.update({
+                        state: "BLOCKED",
+                        errorReason: "Data di pubblicazione non valida. Riprogrammare l'annuncio."
+                    });
+                    console.warn("[publisher:schedule] Invalid schedule timestamp", {
+                        scheduleId: s.id,
+                        data: s.data
+                    });
+                    continue;
+                }
+                const comparisonNow = new Date();
 
                 if (platform.platform != "bakecaincontrii") {//Add this section by Zaharia
-                    var beforePlan = new Date(t);
+                    var beforePlan = new Date(scheduleTime);
                     // subtract 1 minutes
                     beforePlan.setMinutes(beforePlan.getMinutes() - 1);
 
-                    if (Math.round(day.getTime() / 1000) > Math.round(beforePlan.getTime() / 1000) && Math.round(day.getTime() / 1000) < Math.round(t.getTime() / 1000)) {
+                    if (comparisonNow > beforePlan && comparisonNow < scheduleTime) {
                         platform.needRefresh = true; // refresh2 again for 1 min
                     }
                 }
 
                 //If Ads need to Publish or Update 
-                if (Math.round(day.getTime() / 1000) > Math.round(t.getTime() / 1000) || s.state == "EDIT") {
+                if (comparisonNow >= scheduleTime || s.state == "EDIT") {
+                    if (!await claimPendingSchedule(s)) continue;
                     var galleriaSchedulazione = await s.getTblGalleriaAnnuncios({
                         where: {
                             schedulazione: s.id,
@@ -1018,7 +1113,7 @@ async function mainLoop(group, platform) {
 
                     s.sono = annuncio.sono; //add by zaharia
 
-                    s.time = t.toISOString().split("T")[1].split(":00.")[0];
+                    s.time = scheduleTime.toISOString().split("T")[1].split(":00.")[0];
                     s.promo = {
                         active: s.typeAnnuncio !== "Free",
                         visibility: s.typeAnnuncio,
