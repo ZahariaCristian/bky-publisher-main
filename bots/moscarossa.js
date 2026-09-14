@@ -8,6 +8,7 @@ const {
   buildPublishData,
   publishAd,
   republishAd,
+  updateAd,
   sendPhoneVerificationCode,
   verifyPhoneCode
 } = require("../adsManage/moscarossa/publishAds");
@@ -756,7 +757,13 @@ class MoscarossaBot {
     throw new Error(`Moscarossa ${operation} workflow is not implemented yet.`);
   }
 
-  async update() { return this.unsupported("update"); }
+  async update(ad) {
+    const remoteId = this.normalizeRemoteId(ad?.remotePostID || ad?.dataValues?.remotePostID);
+    const page = this.page && !this.page.isClosed() ? this.page : await this.newPage();
+    const result = await updateAd(page, remoteId, ad);
+    this.cookies = await page.cookies().catch(() => this.cookies);
+    return result;
+  }
   async delete(remotePostID) { return this.runManagementAction("delete", remotePostID); }
   async suspend(remotePostID) { return this.runManagementAction("suspend", remotePostID); }
   async republish(remotePostID, ad) {

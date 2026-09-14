@@ -329,6 +329,21 @@ async function setInput(page, selector, value) {
     return true;
 }
 
+async function setEditorInput(page, selector, value) {
+    if (!(await page.$(selector))) return false;
+    await page.evaluate((fieldSelector, inputValue) => {
+        const input = document.querySelector(fieldSelector);
+        if (!input) return;
+        input.removeAttribute("readonly");
+        input.removeAttribute("disabled");
+        input.value = inputValue;
+        input.setAttribute("value", inputValue);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+    }, selector, `${value ?? ""}`);
+    return true;
+}
+
 async function typePhone(page, value) {
     const phone = `${value || ""}`.trim();
     const input = await page.waitForSelector("#presenza_telefono", { visible: true, timeout: 30000 });
@@ -727,6 +742,56 @@ async function fillFirstStep(page, data) {
     }
     await setCheckbox(page, "#regolamento", true);
     return existingAd;
+}
+
+async function fillExistingAdStep(page, data) {
+    const required = {
+        category: data.category,
+        contactName: data.contactName,
+        description: data.description,
+        phone: data.phone,
+        city: data.city
+    };
+    const missing = Object.entries(required)
+        .filter(([, value]) => !`${value || ""}`.trim())
+        .map(([key]) => key);
+    if (missing.length) {
+        throw new Error(`Moscarossa dati obbligatori mancanti per la modifica: ${missing.join(", ")}`);
+    }
+
+    const category = await selectNativeOption(page, "#id_categoria", data.category);
+    if (!category) throw new Error(`Moscarossa categoria non trovata: ${data.category}`);
+
+    await setEditorInput(page, "input[name='nome']", data.contactName);
+    await setEditorInput(page, "textarea[name='titolo']", data.title);
+    await setEditorInput(page, "#descrizione", data.description);
+    await setEditorInput(page, "#presenza_telefono", data.phone);
+    await setCheckbox(page, "input[name='wa']", data.whatsapp);
+    await setCheckbox(page, "input[name='tg']", data.telegram);
+
+    const selectedCity = await selectMoscarossaCity(page, data.city, data.cityId);
+    if (!selectedCity || (data.cityId && `${selectedCity.value || ""}` !== `${data.cityId}`)) {
+        throw new Error(`Moscarossa Comune non selezionato durante la modifica: ${data.city}`);
+    }
+    console.log("[moscarossa:update] Comune selected", selectedCity);
+    await delay(1200);
+
+    if (data.zoneId || data.zone) {
+        const zone = await selectNativeOption(page, "#id_zona", data.zoneId || data.zone);
+        console.log("[moscarossa:update] Zone selection", zone || "not available; optional field skipped");
+    }
+
+    await setEditorInput(page, "#indirizzo", data.address);
+    await setEditorInput(page, "#dettaglio_zona", data.zoneDetail || data.zone);
+    await setEditorInput(page, "#latitudine", data.latitude);
+    await setEditorInput(page, "#longitudine", data.longitude);
+    await setEditorInput(page, "input[name='eta']", data.age);
+    await setEditorInput(page, "input[name='link_sito']", data.website);
+    await setCheckbox(page, "#specifiche_25", data.airConditioned);
+    await fillMoscarossaDetails(page, data.details);
+    await setCheckbox(page, "#regolamento", true);
+
+    return selectedCity;
 }
 
 async function openMoscarossaPromotionPage(page, remoteId, context = "promotion") {
@@ -2136,6 +2201,90 @@ async function publishAd(page, adData = {}) {
     }
 }
 
+async function updateAd(page, remoteId, adData = {}) {
+    const resolvedRemoteId = `${remoteId || ""}`.trim();
+    if (!/^\d{4,9}$/.test(resolvedRemoteId)) {
+        throw new Error(`Moscarossa remotePostID non valido per la modifica: ${resolvedRemoteId || "vuoto"}.`);
+    }
+
+    const data = buildPublishData(adData);
+    console.log("[moscarossa:update] Updating existing ad", {
+        remoteId: resolvedRemoteId,
+        title: data.title,
+        category: data.category,
+        city: data.city,
+        cityId: data.cityId
+    });
+
+    try {
+        await openMoscarossaEditorPage(page, resolvedRemoteId, "advertisement update");
+        await page.waitForSelector("#dati_annuncio", { visible: true, timeout: 30000 });
+        await captureScreenshot(page, `update-${resolvedRemoteId}-01-editor-open`);
+
+        const editorRemoteId = await extractRemoteId(page, resolvedRemoteId);
+        if (`${editorRemoteId}` !== resolvedRemoteId) {
+            throw new Error(
+                `Moscarossa ha aperto l'annuncio ${editorRemoteId || "sconosciuto"} invece di ${resolvedRemoteId}.`
+            );
+        }
+
+        const selectedCity = await fillExistingAdStep(page, data);
+        await captureScreenshot(page, `update-${resolvedRemoteId}-02-form-filled`);
+
+        const returnedRemoteId = await continueToPromotion(page, { remoteId: resolvedRemoteId });
+        if (`${returnedRemoteId}` !== resolvedRemoteId) {
+            throw new Error(
+                `Moscarossa ha restituito l'annuncio ${returnedRemoteId || "sconosciuto"} durante la modifica di ${resolvedRemoteId}.`
+            );
+        }
+
+        // Reopen the editor only to verify persistence. Do not click Free or any
+        // paid promotion control: an ordinary edit must retain the current plan.
+        await openMoscarossaEditorPage(page, resolvedRemoteId, "updated advertisement verification");
+        const persisted = await page.evaluate(() => {
+            const city = document.querySelector("#id_comune");
+            return {
+                remoteId: `${document.querySelector("input[name='id_accompa']")?.value || ""}`.trim(),
+                cityId: `${city?.value || ""}`.trim(),
+                city: `${city?.selectedOptions?.[0]?.textContent || ""}`.replace(/\s+/g, " ").trim()
+            };
+        });
+
+        if (persisted.remoteId && persisted.remoteId !== resolvedRemoteId) {
+            throw new Error(`Moscarossa ha verificato un annuncio diverso: ${persisted.remoteId}.`);
+        }
+        if (persisted.cityId !== `${selectedCity.value || ""}`) {
+            throw new Error(
+                `Moscarossa non ha salvato il Comune richiesto per ${resolvedRemoteId}: ` +
+                `atteso ${selectedCity.text || data.city} (${selectedCity.value || "?"}), ` +
+                `trovato ${persisted.city || "?"} (${persisted.cityId || "?"}).`
+            );
+        }
+
+        await captureScreenshot(page, `update-${resolvedRemoteId}-03-verified`);
+        console.log("[moscarossa:update] Existing ad updated", {
+            remoteId: resolvedRemoteId,
+            city: persisted.city,
+            cityId: persisted.cityId,
+            promotionChanged: false
+        });
+
+        return {
+            ok: true,
+            remoteId: resolvedRemoteId,
+            state: "OK",
+            city: persisted.city,
+            cityId: persisted.cityId,
+            promotionChanged: false
+        };
+    } catch (error) {
+        error.remoteId = error.remoteId || resolvedRemoteId;
+        error.url = error.url || `${VIEW_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}`;
+        await captureScreenshot(page, `error-update-${resolvedRemoteId}-${error.message}`);
+        throw error;
+    }
+}
+
 async function republishAd(page, remoteId, adData = {}) {
     const resolvedRemoteId = `${remoteId || ""}`.trim();
     if (!/^\d{4,9}$/.test(resolvedRemoteId)) {
@@ -2218,6 +2367,7 @@ module.exports = {
     publishAd,
     readMoscarossaExpiration,
     republishAd,
+    updateAd,
     sendPhoneVerificationCode,
     verifyPhoneCode,
     resolveImagePaths

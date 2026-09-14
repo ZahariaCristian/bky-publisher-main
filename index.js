@@ -1499,7 +1499,7 @@ async function postThis(ad, group, platform) {
             await ensurePlatformBot(platform);
             switch (ad.state) {
                 case 'EDIT':
-                    logger.Write(`Publisher: Updating Bakeca ad n. ${ad.annuncio}, schedule n. ${ad.id}, group ${group.id}`);
+                    logger.Write(`Publisher: Updating ${platform.platform} ad n. ${ad.annuncio}, schedule n. ${ad.id}, group ${group.id}`);
                     if (!ad.remotePostID) {
                         ad.remotePostID = await platform.bot.resolveRemoteId(ad);
                     }
@@ -1512,7 +1512,12 @@ async function postThis(ad, group, platform) {
                         "update",
                         () => platform.bot.update(ad, group, platform)
                     ), `${platform.platform} update`);
-                    console.log(`${new Date()} Bakeca update result for schedule ${ad.id}:`, updateResult);
+                    ad.remotePostID = updateResult?.remoteId || ad.remotePostID;
+                    ad.urlBK = updateResult?.url || ad.urlBK;
+                    if (Number.isFinite(Number(updateResult?.remoteExpiresAt))) {
+                        ad.remoteExpiresAt = `${Math.trunc(Number(updateResult.remoteExpiresAt))}`;
+                    }
+                    console.log(`${new Date()} ${platform.platform} update result for schedule ${ad.id}:`, updateResult);
                     pubStatus = "OK";
                     platform.needRefresh = true;
                     break;
