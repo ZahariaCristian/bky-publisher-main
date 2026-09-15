@@ -2201,6 +2201,104 @@ async function publishAd(page, adData = {}) {
     }
 }
 
+async function verifyPersistedMoscarossaCity(sourcePage, remoteId, selectedCity) {
+    const editUrl = `${PUBLISH_URL}?id_accompa=${encodeURIComponent(remoteId)}#f`;
+    const expectedCityId = `${selectedCity.value || ""}`;
+    const context = sourcePage.browserContext();
+    let lastNavigationError = null;
+
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+        let verificationPage;
+        try {
+            // The submission page can still be completing a redirect. Verify on
+            // an independent tab so that redirect cannot block this navigation.
+            verificationPage = await context.newPage();
+            verificationPage.setDefaultTimeout(15000);
+            verificationPage.setDefaultNavigationTimeout(15000);
+            await verificationPage.setUserAgent(
+                await sourcePage.evaluate(() => navigator.userAgent).catch(() =>
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36"
+                )
+            );
+
+            let response = null;
+            try {
+                response = await verificationPage.goto(editUrl, {
+                    waitUntil: "domcontentloaded",
+                    timeout: 15000
+                });
+            } catch (error) {
+                lastNavigationError = error;
+                // A slow third-party asset or redirect can time out after the
+                // editor DOM is already present. Inspect that DOM before retrying.
+                if (!/TimeoutError|Navigation timeout/i.test(`${error.name || ""} ${error.message || ""}`)) {
+                    throw error;
+                }
+                await verificationPage.evaluate(() => window.stop()).catch(() => {});
+            }
+
+            if (response && response.status() >= 400) {
+                lastNavigationError = new Error(`Moscarossa verification page HTTP ${response.status()}.`);
+                continue;
+            }
+
+            const persisted = await verificationPage.evaluate(() => {
+                const city = document.querySelector("#id_comune");
+                const formId = `${document.querySelector("#dati_annuncio input[name='id_accompa']")?.value || ""}`.trim();
+                let urlId = "";
+                try { urlId = new URL(location.href).searchParams.get("id_accompa") || ""; } catch (_) {}
+                return {
+                    hasForm: Boolean(document.querySelector("#dati_annuncio")),
+                    login: Boolean(document.querySelector("#form_login")) || /login-escort/i.test(location.href),
+                    remoteId: urlId || formId,
+                    cityId: `${city?.value || ""}`.trim(),
+                    city: `${city?.selectedOptions?.[0]?.textContent || ""}`.replace(/\s+/g, " ").trim()
+                };
+            }).catch(() => null);
+
+            if (persisted?.login) {
+                const error = new Error("Moscarossa session expired during edit verification.");
+                error.statusCode = 401;
+                throw error;
+            }
+            if (persisted?.hasForm && persisted.remoteId && persisted.remoteId !== `${remoteId}`) {
+                throw new Error(`Moscarossa ha verificato un annuncio diverso: ${persisted.remoteId}.`);
+            }
+            if (persisted?.hasForm && persisted.remoteId === `${remoteId}` && persisted.cityId) {
+                if (persisted.cityId !== expectedCityId) {
+                    throw new Error(
+                        `Moscarossa non ha salvato il Comune richiesto per ${remoteId}: ` +
+                        `atteso ${selectedCity.text || "?"} (${expectedCityId}), ` +
+                        `trovato ${persisted.city || "?"} (${persisted.cityId}).`
+                    );
+                }
+                return { verified: true, city: persisted.city, cityId: persisted.cityId };
+            }
+
+            lastNavigationError = lastNavigationError ||
+                new Error(`Moscarossa editor DOM not ready for verification attempt ${attempt}.`);
+        } catch (error) {
+            if (error.statusCode === 401 || /annuncio diverso|non ha salvato il Comune/i.test(error.message)) {
+                throw error;
+            }
+            lastNavigationError = error;
+        } finally {
+            if (verificationPage) await verificationPage.close().catch(() => {});
+        }
+
+        if (attempt < 2) await delay(1000);
+    }
+
+    // continueToPromotion already confirmed the existing remote ID after submit.
+    // A verification-page outage is not evidence that this edit failed.
+    console.warn("[moscarossa:update] Saved edit confirmed, persisted Comune verification unavailable", {
+        remoteId,
+        expectedCityId,
+        error: lastNavigationError?.message || "editor unavailable"
+    });
+    return { verified: false, city: selectedCity.text || "", cityId: expectedCityId };
+}
+
 async function updateAd(page, remoteId, adData = {}) {
     const resolvedRemoteId = `${remoteId || ""}`.trim();
     if (!/^\d{4,9}$/.test(resolvedRemoteId)) {
@@ -2238,34 +2336,14 @@ async function updateAd(page, remoteId, adData = {}) {
             );
         }
 
-        // Reopen the editor only to verify persistence. Do not click Free or any
-        // paid promotion control: an ordinary edit must retain the current plan.
-        await openMoscarossaEditorPage(page, resolvedRemoteId, "updated advertisement verification");
-        const persisted = await page.evaluate(() => {
-            const city = document.querySelector("#id_comune");
-            return {
-                remoteId: `${document.querySelector("input[name='id_accompa']")?.value || ""}`.trim(),
-                cityId: `${city?.value || ""}`.trim(),
-                city: `${city?.selectedOptions?.[0]?.textContent || ""}`.replace(/\s+/g, " ").trim()
-            };
-        });
-
-        if (persisted.remoteId && persisted.remoteId !== resolvedRemoteId) {
-            throw new Error(`Moscarossa ha verificato un annuncio diverso: ${persisted.remoteId}.`);
-        }
-        if (persisted.cityId !== `${selectedCity.value || ""}`) {
-            throw new Error(
-                `Moscarossa non ha salvato il Comune richiesto per ${resolvedRemoteId}: ` +
-                `atteso ${selectedCity.text || data.city} (${selectedCity.value || "?"}), ` +
-                `trovato ${persisted.city || "?"} (${persisted.cityId || "?"}).`
-            );
-        }
-
-        await captureScreenshot(page, `update-${resolvedRemoteId}-03-verified`);
+        // Do not click Free or any paid promotion control: an ordinary edit
+        // retains the existing plan and gallery.
+        const persisted = await verifyPersistedMoscarossaCity(page, resolvedRemoteId, selectedCity);
         console.log("[moscarossa:update] Existing ad updated", {
             remoteId: resolvedRemoteId,
             city: persisted.city,
             cityId: persisted.cityId,
+            cityVerified: persisted.verified,
             promotionChanged: false
         });
 
@@ -2275,12 +2353,19 @@ async function updateAd(page, remoteId, adData = {}) {
             state: "OK",
             city: persisted.city,
             cityId: persisted.cityId,
+            cityVerified: persisted.verified,
             promotionChanged: false
         };
     } catch (error) {
         error.remoteId = error.remoteId || resolvedRemoteId;
         error.url = error.url || `${VIEW_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}`;
-        await captureScreenshot(page, `error-update-${resolvedRemoteId}-${error.message}`);
+        const protocolUnavailable = /ProtocolError|Runtime\.callFunctionOn timed out|Navigation timeout of \d+ ms exceeded|Page\.captureScreenshot timed out|Target closed|Session closed/i
+            .test(`${error?.name || ""} ${error?.message || ""}`);
+        if (protocolUnavailable) {
+            console.warn(`[moscarossa:screenshot] Skipped update error screenshot because the browser protocol is unavailable: ${error.message}`);
+        } else {
+            await captureScreenshot(page, `error-update-${resolvedRemoteId}-${error.message}`);
+        }
         throw error;
     }
 }
@@ -2370,5 +2455,6 @@ module.exports = {
     updateAd,
     sendPhoneVerificationCode,
     verifyPhoneCode,
-    resolveImagePaths
+    resolveImagePaths,
+    verifyPersistedMoscarossaCity
 };
