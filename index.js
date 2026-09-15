@@ -17,6 +17,7 @@ const TrovagnoccaBot = require("./bots/trovagnocca");
 const IncontriamociBot = require("./bots/incontriamoci");
 const AmasensBot = require("./bots/amasens");
 const MoscarossaBot = require("./bots/moscarossa");
+const { normalizeMoscarossaPublicUrl, pickMoscarossaPublicUrl } = require("./adsManage/moscarossa/publicUrl");
 const { getApiKey } = require("./adsManage/megaescort/client");
 const { raw } = require('mysql');
 const { platform, tmpdir } = require('os');
@@ -504,7 +505,7 @@ async function runMoscarossaPhoneVerificationFromPublisher(payload = {}) {
         await schedule.update({
             state: "OK",
             remotePostID: result.remoteId || remoteId,
-            urlBK: result.publicUrl || `https://www.moscarossa.biz/girl-${result.remoteId || remoteId}.php`,
+            urlBK: pickMoscarossaPublicUrl(result.remoteId || remoteId, result.publicUrl, schedule.urlBK),
             errorReason: null,
             payed: Number(result.creditsConsumed || 0) > 0,
             remoteExpiresAt: Number.isFinite(Number(result.remoteExpiresAt))
@@ -1259,6 +1260,7 @@ function requireSuccessfulOperation(result, operationName) {
 async function resolveMoscarossaRemoteTarget(ad) {
     const currentRemoteId = `${ad?.remotePostID || ""}`.trim();
     if (currentRemoteId) {
+        ad.urlBK = normalizeMoscarossaPublicUrl(ad.urlBK, currentRemoteId);
         return { remotePostID: currentRemoteId, urlBK: ad.urlBK || "", sourceScheduleId: ad.id };
     }
 
@@ -1284,14 +1286,14 @@ async function resolveMoscarossaRemoteTarget(ad) {
     const remotePostID = `${reusable.remotePostID || ""}`.trim();
     if (!remotePostID) return null;
     ad.remotePostID = remotePostID;
-    if (!ad.urlBK && reusable.urlBK) ad.urlBK = reusable.urlBK;
+    ad.urlBK = pickMoscarossaPublicUrl(remotePostID, ad.urlBK, reusable.urlBK);
     if (!ad.remoteExpiresAt && reusable.remoteExpiresAt) {
         ad.remoteExpiresAt = reusable.remoteExpiresAt;
     }
 
     await ad.update({
         remotePostID,
-        urlBK: ad.urlBK || null,
+        urlBK: normalizeMoscarossaPublicUrl(ad.urlBK, remotePostID),
         remoteExpiresAt: ad.remoteExpiresAt || null
     });
     console.log("[moscarossa:schedule] Reusing existing remote ad", {
@@ -1326,7 +1328,7 @@ async function propagateMoscarossaRemoteTarget(ad) {
 
     const [updated] = await ctx.tblSchedulazioni.update({
         remotePostID,
-        urlBK: ad.urlBK || null,
+        urlBK: normalizeMoscarossaPublicUrl(ad.urlBK, remotePostID),
         remoteExpiresAt: ad.remoteExpiresAt || null
     }, { where });
     if (updated > 0) {
@@ -1513,7 +1515,24 @@ async function postThis(ad, group, platform) {
                         () => platform.bot.update(ad, group, platform)
                     ), `${platform.platform} update`);
                     ad.remotePostID = updateResult?.remoteId || ad.remotePostID;
-                    ad.urlBK = updateResult?.url || ad.urlBK;
+                    ad.urlBK = platform.platform === "moscarossa"
+                        ? pickMoscarossaPublicUrl(ad.remotePostID, updateResult?.url, ad.urlBK)
+                        : (updateResult?.url || ad.urlBK);
+                    if (platform.platform === "moscarossa" && ad.urlBK) {
+                        try {
+                            await ctx.tblSchedulazioni.update({ urlBK: ad.urlBK }, {
+                                where: {
+                                    annuncio: ad.annuncio,
+                                    platform: "moscarossa",
+                                    remotePostID: ad.remotePostID,
+                                    GCRecord: null,
+                                    id: { [Op.ne]: ad.id }
+                                }
+                            });
+                        } catch (linkPropagationError) {
+                            console.warn("[moscarossa:update] Could not repair links on related schedules", linkPropagationError);
+                        }
+                    }
                     if (Number.isFinite(Number(updateResult?.remoteExpiresAt))) {
                         ad.remoteExpiresAt = `${Math.trunc(Number(updateResult.remoteExpiresAt))}`;
                     }
@@ -1592,7 +1611,9 @@ async function postThis(ad, group, platform) {
                     pubStatus = "OK";
                     ad.remotePostID = result?.payload?.idpriv || result?.remoteId || result?.megaId ||
                         ad.remotePostID || null;
-                    ad.urlBK = result?.url || result?.publicUrl || ad.urlBK || null;
+                    ad.urlBK = platform.platform === "moscarossa"
+                        ? pickMoscarossaPublicUrl(ad.remotePostID, result?.url, result?.publicUrl, ad.urlBK)
+                        : (result?.url || result?.publicUrl || ad.urlBK || null);
                     ad.payed = Number(result?.creditsConsumed || 0) > 0;
                     if (platform.platform === "moscarossa" && Number.isFinite(Number(result?.remoteExpiresAt))) {
                         ad.remoteExpiresAt = `${Math.trunc(Number(result.remoteExpiresAt))}`;
@@ -1644,7 +1665,11 @@ async function postThis(ad, group, platform) {
                 bakecaActionError?.scheduleState === "ALERT";
             pubStatus = pendingMoscarossaAction ? "ALERT" : "KO";
             if (bakecaActionError?.remoteId) ad.remotePostID = `${bakecaActionError.remoteId}`;
-            if (bakecaActionError?.url) ad.urlBK = bakecaActionError.url;
+            if (platform.platform === "moscarossa") {
+                ad.urlBK = pickMoscarossaPublicUrl(ad.remotePostID, bakecaActionError?.url, ad.urlBK);
+            } else if (bakecaActionError?.url) {
+                ad.urlBK = bakecaActionError.url;
+            }
             if (pendingMoscarossaAction && bakecaActionError?.payed) ad.payed = true;
             errorReason = formatPublishErrorReason(bakecaActionError);
             console.error(`Error in ${platform.platform} postThis state handling:`, bakecaActionError);

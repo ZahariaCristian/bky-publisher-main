@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { normalizeMoscarossaPublicUrl } = require("./publicUrl");
 
 const PUBLISH_URL = "https://www.moscarossa.biz/private/inserimento.php";
 const VIEW_URL = "https://www.moscarossa.biz/private/vedi_annuncio_ut.php";
@@ -2299,6 +2300,57 @@ async function verifyPersistedMoscarossaCity(sourcePage, remoteId, selectedCity)
     return { verified: false, city: selectedCity.text || "", cityId: expectedCityId };
 }
 
+async function readMoscarossaPublicUrl(sourcePage, remoteId) {
+    const resolvedRemoteId = `${remoteId || ""}`.trim();
+    if (!/^\d{4,9}$/.test(resolvedRemoteId)) return null;
+
+    const viewUrl = `${VIEW_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}`;
+    let viewPage;
+    try {
+        viewPage = await sourcePage.browserContext().newPage();
+        viewPage.setDefaultTimeout(15000);
+        viewPage.setDefaultNavigationTimeout(15000);
+        await viewPage.setUserAgent(await sourcePage.evaluate(() => navigator.userAgent).catch(() =>
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36"
+        ));
+
+        let response = null;
+        try {
+            response = await viewPage.goto(viewUrl, { waitUntil: "domcontentloaded", timeout: 15000 });
+        } catch (error) {
+            if (!/TimeoutError|Navigation timeout/i.test(`${error?.name || ""} ${error?.message || ""}`)) throw error;
+            await viewPage.evaluate(() => window.stop()).catch(() => {});
+        }
+        if (response && response.status() >= 400) return null;
+
+        const result = await viewPage.evaluate(() => {
+            const locationUrl = new URL(location.href);
+            const anchors = Array.from(document.querySelectorAll("a[href]"))
+                .map((link) => ({ href: link.href, text: `${link.textContent || ""}`.replace(/\s+/g, " ").trim() }));
+            const publicationLink = anchors.find((link) => /clicca qui per vedere il tuo annuncio|click here to see your ad/i.test(link.text)) ||
+                anchors.find((link) => /\/(?:girl|trans|boy|massage)-\d+\.php(?:[?#]|$)/i.test(link.href));
+            return {
+                url: locationUrl.href,
+                login: Boolean(document.querySelector("#form_login")) || /login-escort/i.test(locationUrl.pathname),
+                href: publicationLink?.href || ""
+            };
+        });
+        const pageUrl = new URL(result.url);
+        if (result.login || !/\/(?:en\/)?private\/vedi_annuncio_ut\.php$/i.test(pageUrl.pathname) ||
+            pageUrl.searchParams.get("id_accompa") !== resolvedRemoteId) return null;
+
+        return normalizeMoscarossaPublicUrl(result.href, resolvedRemoteId);
+    } catch (error) {
+        console.warn("[moscarossa:update] Public link lookup unavailable", {
+            remoteId: resolvedRemoteId,
+            error: error?.message || `${error}`
+        });
+        return null;
+    } finally {
+        if (viewPage) await viewPage.close().catch(() => {});
+    }
+}
+
 async function updateAd(page, remoteId, adData = {}) {
     const resolvedRemoteId = `${remoteId || ""}`.trim();
     if (!/^\d{4,9}$/.test(resolvedRemoteId)) {
@@ -2339,6 +2391,7 @@ async function updateAd(page, remoteId, adData = {}) {
         // Do not click Free or any paid promotion control: an ordinary edit
         // retains the existing plan and gallery.
         const persisted = await verifyPersistedMoscarossaCity(page, resolvedRemoteId, selectedCity);
+        const publicUrl = await readMoscarossaPublicUrl(page, resolvedRemoteId);
         console.log("[moscarossa:update] Existing ad updated", {
             remoteId: resolvedRemoteId,
             city: persisted.city,
@@ -2354,7 +2407,8 @@ async function updateAd(page, remoteId, adData = {}) {
             city: persisted.city,
             cityId: persisted.cityId,
             cityVerified: persisted.verified,
-            promotionChanged: false
+            promotionChanged: false,
+            url: publicUrl
         };
     } catch (error) {
         error.remoteId = error.remoteId || resolvedRemoteId;
@@ -2456,5 +2510,6 @@ module.exports = {
     sendPhoneVerificationCode,
     verifyPhoneCode,
     resolveImagePaths,
-    verifyPersistedMoscarossaCity
+    verifyPersistedMoscarossaCity,
+    readMoscarossaPublicUrl
 };
