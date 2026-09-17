@@ -4,6 +4,7 @@ const { normalizeMoscarossaPublicUrl } = require("./publicUrl");
 
 const PUBLISH_URL = "https://www.moscarossa.biz/private/inserimento.php";
 const VIEW_URL = "https://www.moscarossa.biz/private/vedi_annuncio_ut.php";
+const PREVIEW_URL = "https://www.moscarossa.biz/private/intro_sel_anteprima.php";
 const CREDIT_URL = "https://www.moscarossa.biz/private/crediti.php";
 const PHONE_VERIFICATION_URL = "https://www.moscarossa.biz/private/ajax_verifica_telefono.php";
 const SCREENSHOT_DIR = path.join("./screenshots", "moscarossa-publish");
@@ -2351,6 +2352,90 @@ async function readMoscarossaPublicUrl(sourcePage, remoteId) {
     }
 }
 
+async function updatePublishedPreview(page, remoteId, data) {
+    const previewPath = resolveImagePaths(data.images, data.picsAudit)[0];
+    if (!previewPath) {
+        throw new Error(`Nessuna foto locale disponibile per l'anteprima Moscarossa dell'annuncio ${remoteId}.`);
+    }
+
+    const previewUrl = `${PREVIEW_URL}?id_accompa=${encodeURIComponent(remoteId)}`;
+    const previewPage = await page.browserContext().newPage();
+    previewPage.setDefaultTimeout(30000);
+    previewPage.setDefaultNavigationTimeout(60000);
+    try {
+        const response = await previewPage.goto(previewUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+        const before = await previewPage.evaluate(() => ({
+            url: location.href,
+            login: Boolean(document.querySelector("#form_login")) || /login-escort/i.test(location.pathname),
+            hasUpload: Boolean(document.querySelector("input[type='file']:not([name*='video'])"))
+        }));
+        if (response?.status() >= 400 || before.login ||
+            !/\/(?:en\/)?private\/intro_sel_anteprima\.php$/i.test(new URL(before.url).pathname)) {
+            throw new Error(`Pagina Imposta anteprima Moscarossa non disponibile: ${before.url}`);
+        }
+        if (!before.hasUpload) {
+            throw new Error("La pagina Imposta anteprima Moscarossa non espone un campo foto riconoscibile.");
+        }
+
+        const input = await previewPage.$("input[type='file']:not([name*='video'])");
+        await input.uploadFile(previewPath);
+        await previewPage.waitForFunction(() => {
+            const fileInput = document.querySelector("input[type='file']:not([name*='video'])");
+            return !fileInput || fileInput.files?.length > 0 ||
+                document.querySelectorAll(".fileuploader-items-list .fileuploader-item").length > 0;
+        }, { timeout: 15000 }).catch(() => {});
+        await captureScreenshot(previewPage, `update-${remoteId}-preview-ready`);
+
+        const navigation = previewPage.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => null);
+        const submitted = await previewPage.evaluate(() => {
+            const input = document.querySelector("input[type='file']:not([name*='video'])");
+            const form = input?.closest("form");
+            if (!form) return false;
+            const visible = (node) => node && getComputedStyle(node).display !== "none" &&
+                getComputedStyle(node).visibility !== "hidden" && node.getClientRects().length > 0;
+            const controls = Array.from(form.querySelectorAll("button, input[type='submit']"))
+                .filter(visible)
+                .filter((node) => !/annulla|cancel|elimina|delete|acquista|purchase/i.test(
+                    `${node.textContent || ""} ${node.value || ""}`
+                ));
+            const submit = controls.find((node) => /salva|imposta|conferma|save|set|confirm|continua/i.test(
+                `${node.textContent || ""} ${node.value || ""}`
+            )) || (controls.length === 1 ? controls[0] : null);
+            if (!submit) return false;
+            submit.click();
+            return true;
+        });
+        if (!submitted) {
+            throw new Error("La pagina Imposta anteprima Moscarossa non espone un pulsante di salvataggio univoco.");
+        }
+        await Promise.race([navigation, delay(7000)]);
+        const after = await previewPage.evaluate(() => ({
+            url: location.href,
+            body: `${document.body?.innerText || ""}`.replace(/\s+/g, " ").slice(0, 1500),
+            login: Boolean(document.querySelector("#form_login")) || /login-escort/i.test(location.pathname)
+        }));
+        if (after.login || /(?:errore|error).{0,100}(?:anteprima|preview)|(?:anteprima|preview).{0,100}(?:errore|error)/i.test(after.body)) {
+            throw new Error(`Moscarossa ha rifiutato l'anteprima: ${after.body.slice(0, 500)}`);
+        }
+        const confirmedByMessage = /(?:anteprima|preview).{0,100}(?:salvat|impost|aggiornat|caricat|saved|set|updated|uploaded)/i.test(after.body);
+        const returnedToAd = /\/(?:en\/)?private\/vedi_annuncio_ut\.php$/i.test(new URL(after.url).pathname) &&
+            new URL(after.url).searchParams.get("id_accompa") === `${remoteId}`;
+        if (!confirmedByMessage && !returnedToAd) {
+            throw new Error(`Moscarossa non ha confermato la nuova anteprima. Pagina: ${after.url}. ${after.body.slice(0, 500)}`);
+        }
+        await captureScreenshot(previewPage, `update-${remoteId}-preview-confirmed`);
+        console.log("[moscarossa:preview] Published preview updated", { remoteId, file: path.basename(previewPath) });
+        return { ok: true, file: previewPath };
+    } catch (error) {
+        error.remoteId = `${remoteId}`;
+        error.url = previewUrl;
+        await captureScreenshot(previewPage, `error-update-${remoteId}-preview`);
+        throw error;
+    } finally {
+        await previewPage.close().catch(() => {});
+    }
+}
+
 async function updateAd(page, remoteId, adData = {}) {
     const resolvedRemoteId = `${remoteId || ""}`.trim();
     if (!/^\d{4,9}$/.test(resolvedRemoteId)) {
@@ -2391,13 +2476,17 @@ async function updateAd(page, remoteId, adData = {}) {
         // Do not click Free or any paid promotion control: an ordinary edit
         // retains the existing plan and gallery.
         const persisted = await verifyPersistedMoscarossaCity(page, resolvedRemoteId, selectedCity);
+        const previewUpdated = `${adData.errorReason || ""}` === "MOSCAROSSA_PREVIEW_PENDING"
+            ? await updatePublishedPreview(page, resolvedRemoteId, data)
+            : null;
         const publicUrl = await readMoscarossaPublicUrl(page, resolvedRemoteId);
         console.log("[moscarossa:update] Existing ad updated", {
             remoteId: resolvedRemoteId,
             city: persisted.city,
             cityId: persisted.cityId,
             cityVerified: persisted.verified,
-            promotionChanged: false
+            promotionChanged: false,
+            previewUpdated: Boolean(previewUpdated)
         });
 
         return {
@@ -2408,6 +2497,7 @@ async function updateAd(page, remoteId, adData = {}) {
             cityId: persisted.cityId,
             cityVerified: persisted.verified,
             promotionChanged: false,
+            previewUpdated: Boolean(previewUpdated),
             url: publicUrl
         };
     } catch (error) {
@@ -2507,6 +2597,7 @@ module.exports = {
     readMoscarossaExpiration,
     republishAd,
     updateAd,
+    updatePublishedPreview,
     sendPhoneVerificationCode,
     verifyPhoneCode,
     resolveImagePaths,
