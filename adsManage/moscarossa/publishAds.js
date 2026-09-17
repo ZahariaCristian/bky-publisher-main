@@ -1,5 +1,7 @@
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
+const axios = require("axios");
 const { normalizeMoscarossaPublicUrl } = require("./publicUrl");
 
 const PUBLISH_URL = "https://www.moscarossa.biz/private/inserimento.php";
@@ -185,6 +187,18 @@ function parsePromotionPeriod(period, planName) {
             diamond: { enabled: plan.name !== "Free" && diamondEnabled, dates: diamondDates }
         }
     };
+}
+
+function moscarossaExpirationTimestamp(adData = {}) {
+    const remoteTimestamp = Number(adData.remoteExpiresAt);
+    if (Number.isFinite(remoteTimestamp) && remoteTimestamp > 0) return remoteTimestamp;
+
+    const scheduledAt = new Date(adData.data).getTime();
+    if (!Number.isFinite(scheduledAt)) return null;
+    const planName = `${adData.typeAnnuncio || adData.promo?.visibility || "Free"}`.trim();
+    const promotion = parsePromotionPeriod(adData.period || adData.schedule, planName);
+    const days = promotion.plan.name === "Free" ? 1 : promotion.days;
+    return scheduledAt + days * 86400000;
 }
 
 function normalizeMoscarossaDetails(input = {}) {
@@ -2353,11 +2367,92 @@ async function readMoscarossaPublicUrl(sourcePage, remoteId) {
 }
 
 async function updatePublishedPreview(page, remoteId, data) {
-    const previewPath = resolveImagePaths(data.images, data.picsAudit)[0];
-    if (!previewPath) {
-        throw new Error(`Nessuna foto locale disponibile per l'anteprima Moscarossa dell'annuncio ${remoteId}.`);
+    const preview = await preparePreviewImage(data, remoteId);
+    try {
+        return await uploadPublishedPreview(page, remoteId, preview.path);
+    } finally {
+        await preview.cleanup().catch((error) => {
+            console.warn("[moscarossa:preview] Temporary image cleanup failed", error.message);
+        });
+    }
+}
+
+async function preparePreviewImage(data, remoteId, { websiteBaseUrl, httpGet = axios.get } = {}) {
+    const audit = Array.isArray(data.picsAudit) ? data.picsAudit : [];
+    const selected = audit.find((image) => Boolean(image?.isAnteprima)) || audit[0];
+    const selectedPath = selected?.path || (Array.isArray(data.images) ? data.images[0] : "");
+    const localPath = selectedPath ? resolveImagePaths([selectedPath])[0] : null;
+    if (localPath) {
+        const bytes = fs.statSync(localPath).size;
+        if (!bytes || bytes > MAX_IMAGE_BYTES) {
+            throw new Error(
+                `Anteprima Moscarossa ${remoteId}: foto locale non valida ` +
+                `(${path.basename(localPath)}, ${bytes} byte; massimo ${MAX_IMAGE_BYTES}).`
+            );
+        }
+        return { path: localPath, cleanup: async () => {} };
     }
 
+    const galleryId = `${selected?.galleryId || ""}`.trim();
+    const phone = `${selected?.phone || ""}`.trim();
+    if (!/^\d+$/.test(galleryId) || !/^\d+$/.test(phone)) {
+        throw new Error(
+            `Anteprima Moscarossa ${remoteId}: la foto selezionata non esiste sul disco del publisher ` +
+            `(${selectedPath || "percorso assente"}) e mancano galleryId/phone per recuperarla dal sito. ` +
+            `Verificare APP_PATH_PRODUCTION e la galleria della schedulazione.`
+        );
+    }
+
+    const websiteBase = `${websiteBaseUrl || process.env.BKY_WEBSITE_INTERNAL_URL || "http://127.0.0.1:3001"}`.trim();
+    const imageUrl = new URL("/images/get", websiteBase);
+    imageUrl.searchParams.set("phone", phone);
+    imageUrl.searchParams.set("index", "0");
+    imageUrl.searchParams.set("id", galleryId);
+    let response;
+    try {
+        response = await httpGet(imageUrl.href, {
+            responseType: "arraybuffer",
+            timeout: 15000,
+            maxContentLength: MAX_IMAGE_BYTES,
+            maxBodyLength: MAX_IMAGE_BYTES,
+            proxy: false
+        });
+    } catch (error) {
+        throw new Error(
+            `Anteprima Moscarossa ${remoteId}: foto locale assente (${selectedPath || "percorso assente"}); ` +
+            `recupero galleria ${galleryId} dal sito non riuscito ` +
+            `(${error.response?.status || error.code || error.message}). ` +
+            `Verificare APP_PATH_PRODUCTION, BKY_WEBSITE_INTERNAL_URL e il file della galleria.`
+        );
+    }
+    const contentType = `${response.headers?.["content-type"] || ""}`.toLowerCase();
+    const bytes = Buffer.from(response.data || []);
+    if (!contentType.startsWith("image/") || !bytes.length || bytes.length > MAX_IMAGE_BYTES) {
+        throw new Error(
+            `Anteprima Moscarossa ${remoteId}: il sito non ha restituito una foto valida ` +
+            `per la galleria ${galleryId} (${contentType || "tipo assente"}, ${bytes.length} byte).`
+        );
+    }
+    const extension = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" }[contentType.split(";")[0]];
+    if (!extension) {
+        throw new Error(`Anteprima Moscarossa ${remoteId}: formato immagine non supportato (${contentType}).`);
+    }
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "moscarossa-preview-"));
+    const tempPath = path.join(tempDir, `gallery-${galleryId}${extension}`);
+    try {
+        await fs.promises.writeFile(tempPath, bytes);
+    } catch (error) {
+        await fs.promises.rm(tempDir, { recursive: true, force: true });
+        throw error;
+    }
+    console.log("[moscarossa:preview] Selected image fetched from website", { remoteId, galleryId });
+    return {
+        path: tempPath,
+        cleanup: () => fs.promises.rm(tempDir, { recursive: true, force: true })
+    };
+}
+
+async function uploadPublishedPreview(page, remoteId, previewPath) {
     const previewUrl = `${PREVIEW_URL}?id_accompa=${encodeURIComponent(remoteId)}`;
     const previewPage = await page.browserContext().newPage();
     previewPage.setDefaultTimeout(30000);
@@ -2442,7 +2537,29 @@ async function updateAd(page, remoteId, adData = {}) {
         throw new Error(`Moscarossa remotePostID non valido per la modifica: ${resolvedRemoteId || "vuoto"}.`);
     }
 
+    const expiresAt = moscarossaExpirationTimestamp(adData);
+    if (expiresAt !== null && expiresAt <= Date.now()) {
+        console.log("[moscarossa:update] Skipping EDIT for expired publication", {
+            remoteId: resolvedRemoteId,
+            scheduleId: adData.id || null,
+            expiresAt
+        });
+        return {
+            ok: true,
+            remoteId: resolvedRemoteId,
+            state: "OK",
+            skipped: true,
+            reasonCode: "MOSCAROSSA_EXPIRED",
+            remoteExpiresAt: expiresAt,
+            url: normalizeMoscarossaPublicUrl(adData.urlBK, resolvedRemoteId)
+        };
+    }
+
     const data = buildPublishData(adData);
+    const previewPending = `${adData.errorReason || ""}` === "MOSCAROSSA_PREVIEW_PENDING";
+    // Verify the selected photo before modifying the remote ad. The website may
+    // hold the file even when the publisher does not share its image directory.
+    const preparedPreview = previewPending ? await preparePreviewImage(data, resolvedRemoteId) : null;
     console.log("[moscarossa:update] Updating existing ad", {
         remoteId: resolvedRemoteId,
         title: data.title,
@@ -2476,8 +2593,8 @@ async function updateAd(page, remoteId, adData = {}) {
         // Do not click Free or any paid promotion control: an ordinary edit
         // retains the existing plan and gallery.
         const persisted = await verifyPersistedMoscarossaCity(page, resolvedRemoteId, selectedCity);
-        const previewUpdated = `${adData.errorReason || ""}` === "MOSCAROSSA_PREVIEW_PENDING"
-            ? await updatePublishedPreview(page, resolvedRemoteId, data)
+        const previewUpdated = previewPending
+            ? await uploadPublishedPreview(page, resolvedRemoteId, preparedPreview.path)
             : null;
         const publicUrl = await readMoscarossaPublicUrl(page, resolvedRemoteId);
         console.log("[moscarossa:update] Existing ad updated", {
@@ -2511,6 +2628,12 @@ async function updateAd(page, remoteId, adData = {}) {
             await captureScreenshot(page, `error-update-${resolvedRemoteId}-${error.message}`);
         }
         throw error;
+    } finally {
+        if (preparedPreview) {
+            await preparedPreview.cleanup().catch((error) => {
+                console.warn("[moscarossa:preview] Temporary image cleanup failed", error.message);
+            });
+        }
     }
 }
 
@@ -2598,9 +2721,11 @@ module.exports = {
     republishAd,
     updateAd,
     updatePublishedPreview,
+    preparePreviewImage,
     sendPhoneVerificationCode,
     verifyPhoneCode,
     resolveImagePaths,
     verifyPersistedMoscarossaCity,
-    readMoscarossaPublicUrl
+    readMoscarossaPublicUrl,
+    moscarossaExpirationTimestamp
 };

@@ -1031,9 +1031,11 @@ async function mainLoop(group, platform) {
                             if (pics.includes(`${GLOBAL_PATH}/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`) == false) {
                                 picsAudit.push({
                                     path: `${GLOBAL_PATH}/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`,
+                                    galleryId: photo.galleria,
+                                    phone: annuncio.tblDonne.phone,
                                     applyPhone: photo.tblGallerium.applyPhone,
                                     crop: photo.tblGallerium.crop,
-                                    isAnteprima: photo.isAnteprima === true
+                                    isAnteprima: Boolean(photo.isAnteprima)
                                 })
                                 pics.push(`${GLOBAL_PATH}/girls/${annuncio.tblDonne.phone}/pics/${photo.tblGallerium.origin}`);
                             }

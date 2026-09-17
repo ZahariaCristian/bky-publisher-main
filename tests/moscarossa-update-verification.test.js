@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
-const { verifyPersistedMoscarossaCity } = require("../adsManage/moscarossa/publishAds");
+const { updateAd, verifyPersistedMoscarossaCity, moscarossaExpirationTimestamp } =
+    require("../adsManage/moscarossa/publishAds");
 
 function mockSourcePage(states) {
     let next = 0;
@@ -103,4 +104,27 @@ test("rejects a confirmed persisted city mismatch", async () => {
         /non ha salvato il Comune richiesto/
     );
     assert.equal(source.createdPages[0].closed, true);
+});
+
+test("skips an expired EDIT without opening the Moscarossa editor", async () => {
+    let openedEditor = false;
+    const expiresAt = Date.now() - 1000;
+    const result = await updateAd({ goto: async () => { openedEditor = true; } }, "1159998", {
+        id: 63,
+        remoteExpiresAt: `${expiresAt}`,
+        urlBK: "https://www.moscarossa.biz/girl-1159998.php"
+    });
+    assert.equal(openedEditor, false);
+    assert.equal(result.skipped, true);
+    assert.equal(result.state, "OK");
+    assert.equal(result.reasonCode, "MOSCAROSSA_EXPIRED");
+    assert.equal(result.remoteExpiresAt, expiresAt);
+});
+
+test("uses the plan duration only when Moscarossa did not supply an expiration", () => {
+    const start = Date.parse("2026-09-16T09:00:00.000Z");
+    assert.equal(moscarossaExpirationTimestamp({
+        data: new Date(start), typeAnnuncio: "Top",
+        period: JSON.stringify({ moscarossa: { plan: "Top", days: 3 } })
+    }), start + 3 * 86400000);
 });
