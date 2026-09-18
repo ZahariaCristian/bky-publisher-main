@@ -1515,10 +1515,11 @@ async function submitExistingAdUpdate(page, remoteId, expectedImageCount = null)
             `invece di ${resolvedRemoteId}.`
         );
     }
-    if (Number.isFinite(expectedImageCount) && result.imageCount !== expectedImageCount) {
+    if (Number.isFinite(expectedImageCount) && Number.isFinite(result.imageCount) &&
+        result.imageCount !== expectedImageCount) {
         throw new Error(
             `Moscarossa non ha confermato la galleria aggiornata: attese ${expectedImageCount} foto, ` +
-            `rilevate ${Number.isFinite(result.imageCount) ? result.imageCount : "sconosciute"}.`
+            `rilevate ${result.imageCount}.`
         );
     }
     console.log("[moscarossa:update] Saved edit page confirmed", {
@@ -3043,9 +3044,24 @@ async function updateAd(page, remoteId, adData = {}) {
 
         // Do not click Free or any paid promotion control: an ordinary edit
         // retains the existing plan.
-        const persisted = await verifyPersistedMoscarossaCity(page, resolvedRemoteId, selectedCity);
+        let persisted = {
+            verified: false,
+            city: selectedCity.text || data.city,
+            cityId: selectedCity.value || data.cityId
+        };
+        let verificationWarning = "";
+        try {
+            persisted = await verifyPersistedMoscarossaCity(page, resolvedRemoteId, selectedCity);
+        } catch (error) {
+            verificationWarning = `Verifica Comune dopo salvataggio non completata: ${error.message}`;
+            console.warn("[moscarossa:update] Saved edit accepted despite Comune verification warning", {
+                remoteId: resolvedRemoteId,
+                warning: verificationWarning
+            });
+        }
         let previewUpdated = false;
-        if ((galleryPending || previewPending) && desiredGallery.length) {
+        try {
+          if ((galleryPending || previewPending) && desiredGallery.length) {
             let verificationPage = null;
             let previewPhoto = null;
             try {
@@ -3119,6 +3135,17 @@ async function updateAd(page, remoteId, adData = {}) {
                     if (finalVerificationPage) await finalVerificationPage.close().catch(() => {});
                 }
             }
+          }
+        } catch (error) {
+            const message = `${error?.message || error || ""}`.replace(/\s+/g, " ").trim();
+            verificationWarning = [verificationWarning, message].filter(Boolean).join(" | ");
+            previewUpdated = false;
+            console.warn("[moscarossa:update] Remote edit saved; post-save verification is non-blocking", {
+                remoteId: resolvedRemoteId,
+                warning: message,
+                savedUrl: savedUpdate.url,
+                savedImageCount: savedUpdate.imageCount
+            });
         }
         const publicUrl = normalizeMoscarossaPublicUrl(savedUpdate.publicUrl, resolvedRemoteId) ||
             await readMoscarossaPublicUrl(page, resolvedRemoteId);
@@ -3131,7 +3158,8 @@ async function updateAd(page, remoteId, adData = {}) {
             cityVerified: persisted.verified,
             promotionChanged: false,
             galleryUpdated: galleryPending,
-            previewUpdated
+            previewUpdated,
+            verificationWarning: verificationWarning || null
         });
 
         return {
@@ -3144,6 +3172,7 @@ async function updateAd(page, remoteId, adData = {}) {
             promotionChanged: false,
             galleryUpdated: galleryPending,
             previewUpdated,
+            verificationWarning: verificationWarning || null,
             url: publicUrl,
             remoteExpiresAt: expiration?.remoteExpiresAt || adData.remoteExpiresAt || null,
             adExpiresAt: expiration?.adExpiresAt || adData.adExpiresAt || null

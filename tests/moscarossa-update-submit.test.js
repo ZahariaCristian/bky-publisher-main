@@ -12,7 +12,7 @@ async function updateResultPage(photoCount) {
             await request.respond({
                 status: 200,
                 contentType: "text/html",
-                body: `<html><body>ANGELICA ${photoCount} foto, 0 video
+                body: `<html><body>ANGELICA ${Number.isFinite(photoCount) ? `${photoCount} foto, 0 video` : "Modifica salvata"}
                   <a href="https://www.moscarossa.biz/girl-1159998.php">Clicca qui per vedere il tuo annuncio</a>
                 </body></html>`
             });
@@ -45,6 +45,17 @@ test("does not confirm an update when the saved gallery count is different", asy
             submitExistingAdUpdate(page, "1159998", 3),
             /attese 3 foto, rilevate 2/
         );
+    } finally {
+        await browser.close();
+    }
+});
+
+test("accepts the saved-ad redirect when its photo count is not rendered yet", async () => {
+    const { browser, page } = await updateResultPage(null);
+    try {
+        const result = await submitExistingAdUpdate(page, "1159998", 5);
+        assert.equal(result.remoteId, "1159998");
+        assert.equal(result.imageCount, null);
     } finally {
         await browser.close();
     }
