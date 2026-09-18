@@ -1067,17 +1067,18 @@ async function inspectMoscarossaEditorPage(page, expectedRemoteId) {
     }, `${expectedRemoteId || ""}`);
 }
 
-async function openMoscarossaEditorPage(page, remoteId, context = "existing ad editor") {
+async function openMoscarossaEditorPage(page, remoteId, context = "existing ad editor",
+    { navigationTimeout = 60000, attempts = 2 } = {}) {
     const resolvedRemoteId = `${remoteId || ""}`.trim();
     const editUrl = `${PUBLISH_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}#f`;
     let lastError = null;
 
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
         let response = null;
         try {
             response = await page.goto(editUrl, {
                 waitUntil: "domcontentloaded",
-                timeout: 60000
+                timeout: navigationTimeout
             });
         } catch (error) {
             lastError = error;
@@ -1097,7 +1098,7 @@ async function openMoscarossaEditorPage(page, remoteId, context = "existing ad e
                 return { editUrl, recoveredFromTimeout: true, state: partial };
             }
 
-            if (attempt < 2) {
+            if (attempt < attempts) {
                 console.warn(`[moscarossa:images] ${context} navigation timed out before the editor was usable; retrying`, {
                     remoteId: resolvedRemoteId,
                     url: page.url(),
@@ -1465,6 +1466,85 @@ async function continueToPromotion(page, existingAd = {}) {
         throw new Error(`Pagina promozione Moscarossa non disponibile: ${JSON.stringify(validation)}`);
     }
     return remoteId;
+}
+
+async function submitExistingAdUpdate(page, remoteId, expectedImageCount = null) {
+    const resolvedRemoteId = `${remoteId || ""}`.trim();
+    const continueButton = await page.waitForSelector(".buttonNext", { visible: true, timeout: 30000 });
+    await continueButton.click();
+
+    const completed = await page.waitForFunction((expectedId) => {
+        try {
+            const url = new URL(location.href);
+            return /\/(?:en\/)?private\/vedi_annuncio_ut\.php$/i.test(url.pathname) &&
+                url.searchParams.get("id_accompa") === expectedId;
+        } catch (_) {
+            return false;
+        }
+    }, { timeout: 30000 }, resolvedRemoteId).then(() => true).catch(() => false);
+
+    if (!completed) {
+        const validation = await collectValidation(page);
+        throw new Error(
+            `Moscarossa non ha confermato il salvataggio della modifica ${resolvedRemoteId}: ` +
+            `${JSON.stringify(validation)}`
+        );
+    }
+
+    const result = await page.evaluate((expectedId) => {
+        const normalize = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const url = new URL(location.href);
+        const body = normalize(document.body?.innerText);
+        const countMatch = body.match(/(\d+)\s*(?:foto|photos?|images?)\b/i);
+        const publicationLink = Array.from(document.querySelectorAll("a[href]"))
+            .map((link) => ({ href: link.href, text: normalize(link.textContent) }))
+            .find((link) => /clicca qui per vedere il tuo annuncio|click here to see your ad/i.test(link.text));
+        return {
+            url: url.href,
+            remoteId: url.searchParams.get("id_accompa") || "",
+            matchesRemoteId: url.searchParams.get("id_accompa") === expectedId,
+            imageCount: countMatch ? Number.parseInt(countMatch[1], 10) : null,
+            publicUrl: publicationLink?.href || "",
+            bodyExcerpt: body.slice(0, 600)
+        };
+    }, resolvedRemoteId);
+
+    if (!result.matchesRemoteId) {
+        throw new Error(
+            `Moscarossa ha salvato la modifica sull'annuncio ${result.remoteId || "sconosciuto"} ` +
+            `invece di ${resolvedRemoteId}.`
+        );
+    }
+    if (Number.isFinite(expectedImageCount) && result.imageCount !== expectedImageCount) {
+        throw new Error(
+            `Moscarossa non ha confermato la galleria aggiornata: attese ${expectedImageCount} foto, ` +
+            `rilevate ${Number.isFinite(result.imageCount) ? result.imageCount : "sconosciute"}.`
+        );
+    }
+    console.log("[moscarossa:update] Saved edit page confirmed", {
+        remoteId: resolvedRemoteId,
+        imageCount: result.imageCount,
+        url: result.url
+    });
+    return result;
+}
+
+async function openFreshMoscarossaEditorPage(sourcePage, remoteId, context) {
+    const editorPage = await sourcePage.browserContext().newPage();
+    editorPage.setDefaultTimeout(15000);
+    editorPage.setDefaultNavigationTimeout(15000);
+    const sourceUserAgent = await sourcePage.evaluate(() => navigator.userAgent).catch(() => "");
+    if (sourceUserAgent) await editorPage.setUserAgent(sourceUserAgent);
+    if (sourcePage.viewport?.()) await editorPage.setViewport(sourcePage.viewport());
+    try {
+        await openMoscarossaEditorPage(editorPage, remoteId, context,
+            { navigationTimeout: 15000, attempts: 1 });
+        await editorPage.waitForSelector("#dati_annuncio", { visible: true, timeout: 15000 });
+        return editorPage;
+    } catch (error) {
+        await editorPage.close().catch(() => {});
+        throw error;
+    }
 }
 
 async function syncImagesForExistingAd(page, remoteId, data) {
@@ -2955,46 +3035,93 @@ async function updateAd(page, remoteId, adData = {}) {
         }
         await captureScreenshot(page, `update-${resolvedRemoteId}-02-form-filled`);
 
-        const returnedRemoteId = await continueToPromotion(page, { remoteId: resolvedRemoteId });
-        if (`${returnedRemoteId}` !== resolvedRemoteId) {
-            throw new Error(
-                `Moscarossa ha restituito l'annuncio ${returnedRemoteId || "sconosciuto"} durante la modifica di ${resolvedRemoteId}.`
-            );
-        }
+        const savedUpdate = await submitExistingAdUpdate(
+            page,
+            resolvedRemoteId,
+            galleryPending ? desiredGallery.length : null
+        );
 
         // Do not click Free or any paid promotion control: an ordinary edit
         // retains the existing plan.
         const persisted = await verifyPersistedMoscarossaCity(page, resolvedRemoteId, selectedCity);
         let previewUpdated = false;
         if ((galleryPending || previewPending) && desiredGallery.length) {
-            await openMoscarossaEditorPage(page, resolvedRemoteId, "saved gallery verification");
-            const persistedGallery = galleryPending
-                ? await verifyEditorGallery(page, resolvedRemoteId, desiredGallery)
-                : { remote: await fingerprintEditorGallery(page, resolvedRemoteId,
-                    await readEditorGallery(page, resolvedRemoteId)) };
-            const selectedIndex = galleryPending
-                ? Math.max(0, desiredGallery.findIndex((photo) => photo.preview)) : 0;
-            const selectedMatch = matchGalleryImages([desiredGallery[selectedIndex]], persistedGallery.remote);
-            const previewPhoto = selectedMatch.matches.length === 1
-                ? persistedGallery.remote[selectedMatch.matches[0].remoteIndex] : null;
-            if (!previewPhoto) {
-                throw new Error(`Moscarossa ${resolvedRemoteId}: la foto anteprima selezionata non è nella galleria salvata.`);
-            }
-            previewUpdated = await setEditorPreview(page, resolvedRemoteId, previewPhoto);
-            if (previewUpdated) {
-                const previewRemoteId = await continueToPromotion(page, { remoteId: resolvedRemoteId });
-                if (`${previewRemoteId}` !== resolvedRemoteId) {
-                    throw new Error(`Moscarossa ha salvato l'anteprima su un annuncio diverso da ${resolvedRemoteId}.`);
+            let verificationPage = null;
+            let previewPhoto = null;
+            try {
+                try {
+                    verificationPage = await openFreshMoscarossaEditorPage(
+                        page, resolvedRemoteId, "saved gallery verification"
+                    );
+                } catch (error) {
+                    throw new MoscarossaWorkflowPendingError(
+                        `MOSCAROSSA_PREVIEW_PENDING: galleria salvata (${savedUpdate.imageCount} foto), ` +
+                        `ma la pagina separata per impostare l'anteprima non è disponibile: ${error.message}`,
+                        { remoteId: resolvedRemoteId, reasonCode: "MOSCAROSSA_PREVIEW_PENDING",
+                            url: savedUpdate.url, payed: Boolean(adData.payed) }
+                    );
                 }
-                await openMoscarossaEditorPage(page, resolvedRemoteId, "saved preview verification");
-                const finalGallery = await readEditorGallery(page, resolvedRemoteId);
-                if (!finalGallery.some((photo) => photo.id === previewPhoto.id && photo.selected)) {
-                    throw new Error(`Moscarossa ${resolvedRemoteId}: la nuova anteprima non risulta salvata.`);
+
+                const persistedGallery = galleryPending
+                    ? await verifyEditorGallery(verificationPage, resolvedRemoteId, desiredGallery)
+                    : { remote: await fingerprintEditorGallery(verificationPage, resolvedRemoteId,
+                        await readEditorGallery(verificationPage, resolvedRemoteId)) };
+                const selectedIndex = galleryPending
+                    ? Math.max(0, desiredGallery.findIndex((photo) => photo.preview)) : 0;
+                const selectedMatch = matchGalleryImages([desiredGallery[selectedIndex]], persistedGallery.remote);
+                previewPhoto = selectedMatch.matches.length === 1
+                    ? persistedGallery.remote[selectedMatch.matches[0].remoteIndex] : null;
+                if (!previewPhoto) {
+                    throw new Error(
+                        `Moscarossa ${resolvedRemoteId}: la foto anteprima selezionata non è nella galleria salvata.`
+                    );
+                }
+
+                try {
+                    previewUpdated = await setEditorPreview(verificationPage, resolvedRemoteId, previewPhoto);
+                    if (previewUpdated) {
+                        await submitExistingAdUpdate(
+                            verificationPage,
+                            resolvedRemoteId,
+                            galleryPending ? desiredGallery.length : null
+                        );
+                    }
+                } catch (error) {
+                    if (error.scheduleState) throw error;
+                    throw new MoscarossaWorkflowPendingError(
+                        `MOSCAROSSA_PREVIEW_PENDING: galleria salvata, ma l'anteprima deve essere completata: ${error.message}`,
+                        { remoteId: resolvedRemoteId, reasonCode: "MOSCAROSSA_PREVIEW_PENDING",
+                            url: savedUpdate.url, payed: Boolean(adData.payed) }
+                    );
+                }
+            } finally {
+                if (verificationPage) await verificationPage.close().catch(() => {});
+            }
+
+            if (previewUpdated && previewPhoto) {
+                let finalVerificationPage = null;
+                try {
+                    finalVerificationPage = await openFreshMoscarossaEditorPage(
+                        page, resolvedRemoteId, "saved preview verification"
+                    );
+                    const finalGallery = await readEditorGallery(finalVerificationPage, resolvedRemoteId);
+                    if (!finalGallery.some((photo) => photo.id === previewPhoto.id && photo.selected)) {
+                        throw new Error(`Moscarossa ${resolvedRemoteId}: la nuova anteprima non risulta salvata.`);
+                    }
+                } catch (error) {
+                    if (error.scheduleState) throw error;
+                    throw new MoscarossaWorkflowPendingError(
+                        `MOSCAROSSA_PREVIEW_PENDING: galleria salvata, verifica finale anteprima non completata: ${error.message}`,
+                        { remoteId: resolvedRemoteId, reasonCode: "MOSCAROSSA_PREVIEW_PENDING",
+                            url: savedUpdate.url, payed: Boolean(adData.payed) }
+                    );
+                } finally {
+                    if (finalVerificationPage) await finalVerificationPage.close().catch(() => {});
                 }
             }
-            if (galleryPending) await verifyEditorGallery(page, resolvedRemoteId, desiredGallery);
         }
-        const publicUrl = await readMoscarossaPublicUrl(page, resolvedRemoteId);
+        const publicUrl = normalizeMoscarossaPublicUrl(savedUpdate.publicUrl, resolvedRemoteId) ||
+            await readMoscarossaPublicUrl(page, resolvedRemoteId);
         const expiration = liveExpiration ||
             await safelyReadMoscarossaExpiration(page, resolvedRemoteId, data.promotion);
         console.log("[moscarossa:update] Existing ad updated", {
@@ -3138,6 +3265,7 @@ module.exports = {
     publishAd,
     readMoscarossaExpiration,
     republishAd,
+    submitExistingAdUpdate,
     updateAd,
     preparePreviewImage,
     readEditorGallery,
