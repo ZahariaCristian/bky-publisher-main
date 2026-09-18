@@ -10,7 +10,7 @@ const PREVIEW_URL = "https://www.moscarossa.biz/private/intro_sel_anteprima.php"
 const CREDIT_URL = "https://www.moscarossa.biz/private/crediti.php";
 const PHONE_VERIFICATION_URL = "https://www.moscarossa.biz/private/ajax_verifica_telefono.php";
 const SCREENSHOT_DIR = path.join("./screenshots", "moscarossa-publish");
-const FREE_IMAGE_LIMIT = 20;
+const MAX_IMAGE_COUNT = 20;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const FREE_PUBLISH_SELECTOR = [
     "#button_pubblica_gratis",
@@ -255,10 +255,39 @@ function resolveImagePaths(images = [], picsAudit = []) {
         if (seen.has(key)) continue;
         seen.add(key);
         resolved.push(existing);
-        if (resolved.length >= FREE_IMAGE_LIMIT) break;
+        if (resolved.length >= MAX_IMAGE_COUNT) break;
     }
 
     return resolved;
+}
+
+function selectedImageSources(images = [], picsAudit = []) {
+    const auditPaths = (Array.isArray(picsAudit) ? picsAudit : [])
+        .map((item) => item?.path).filter(Boolean);
+    return auditPaths.length ? auditPaths : (Array.isArray(images) ? images : []).filter(Boolean);
+}
+
+function validateUploadImagePaths(images, picsAudit, imageLimit) {
+    const selected = selectedImageSources(images, picsAudit);
+    if (selected.length > imageLimit) {
+        throw new Error(`Moscarossa: ${selected.length} immagini selezionate, massimo ${imageLimit} per questa promozione.`);
+    }
+    const resolved = resolveImagePaths(images, picsAudit);
+    if (resolved.length !== selected.length) {
+        throw new Error(
+            `Moscarossa: ${selected.length} immagini selezionate ma solo ${resolved.length} file locali disponibili. ` +
+            "Controlla le immagini della schedulazione prima di pubblicare."
+        );
+    }
+    return resolved;
+}
+
+function parseFreePhotoLimit(text = "") {
+    const normalized = `${text}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const matches = [...normalized.matchAll(/\b(?:massimo|max(?:imum)?)\s+(\d+)\s+(?:foto|photos?)\b/g)]
+        .map((match) => Number.parseInt(match[1], 10))
+        .filter((count) => Number.isInteger(count) && count > 0 && count <= MAX_IMAGE_COUNT);
+    return matches.length ? Math.min(...matches) : null;
 }
 
 function buildPublishData(adData = {}) {
@@ -594,10 +623,10 @@ async function selectMoscarossaCity(page, city, cityId = "") {
     });
 }
 
-async function uploadImages(page, images, picsAudit, imageLimit = FREE_IMAGE_LIMIT) {
-    const imagePaths = resolveImagePaths(images, picsAudit).slice(0, imageLimit);
+async function uploadImages(page, images, picsAudit, imageLimit = MAX_IMAGE_COUNT) {
+    const imagePaths = validateUploadImagePaths(images, picsAudit, imageLimit);
     if (!imagePaths.length) {
-        console.log("[moscarossa:images] No images selected for free publication.");
+        console.log("[moscarossa:images] No images selected for publication.");
         return [];
     }
 
@@ -1247,18 +1276,45 @@ async function readMoscarossaImageState(page, remoteId = "") {
     }, `${remoteId || ""}`);
 }
 
-async function waitForMoscarossaImages(page, remoteId, timeout = 45000) {
-    await page.waitForFunction(() => {
+async function waitForMoscarossaImages(page, remoteId, timeout = 45000, expectedCount = 1) {
+    await page.waitForFunction((minimum) => {
         const clean = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
         return Array.from(document.querySelectorAll("span, p, div"))
             .map((node) => clean(node.textContent))
             .filter((text) => text.length > 0 && text.length <= 100)
             .some((text) => {
                 const match = text.match(/(?:^|\s)(\d+)\s*(?:foto|photos?)\s*,?\s*(\d+)\s*videos?(?:\s|$)/i);
-                return match && Number.parseInt(match[1], 10) > 0;
+                return match && Number.parseInt(match[1], 10) >= minimum;
             });
-    }, { timeout }).catch(() => {});
+    }, { timeout }, expectedCount).catch(() => {});
     return readMoscarossaImageState(page, remoteId);
+}
+
+async function verifyFreePhotoAllowance(page, remoteId, selectedCount, remoteCount) {
+    if (!selectedCount) return;
+    const text = await page.evaluate(() => document.body?.innerText || "");
+    const accountLimit = parseFreePhotoLimit(text);
+    if (accountLimit !== null && selectedCount > accountLimit) {
+        throw new MoscarossaWorkflowPendingError(
+            `Moscarossa indica un limite Free di ${accountLimit} foto per questo annuncio, ma ne sono state selezionate ${selectedCount}. ` +
+            "Riduci le foto della schedulazione oppure completa la verifica delle foto prima di riprovare.",
+            { remoteId, reasonCode: "MOSCAROSSA_PHOTO_LIMIT" }
+        );
+    }
+    if (!Number.isFinite(remoteCount)) {
+        throw new MoscarossaWorkflowPendingError(
+            `Moscarossa non ha confermato quante delle ${selectedCount} foto Free siano state salvate. ` +
+            "Controlla le immagini dell'annuncio prima di riprovare.",
+            { remoteId, reasonCode: "MOSCAROSSA_IMAGE_COUNT_UNKNOWN" }
+        );
+    }
+    if (remoteCount < selectedCount) {
+        throw new MoscarossaWorkflowPendingError(
+            `Moscarossa ha salvato solo ${remoteCount} delle ${selectedCount} foto Free selezionate. ` +
+            "Controlla il limite foto dell'account e le immagini dell'annuncio prima di riprovare.",
+            { remoteId, reasonCode: "MOSCAROSSA_IMAGES_INCOMPLETE" }
+        );
+    }
 }
 
 async function findAndOpenPromotion(page, remoteId) {
@@ -1354,7 +1410,7 @@ async function continueToPromotion(page, existingAd = {}) {
 }
 
 async function syncImagesForExistingAd(page, remoteId, data) {
-    const imagePaths = resolveImagePaths(data.images, data.picsAudit).slice(0, data.imageLimit);
+    const imagePaths = validateUploadImagePaths(data.images, data.picsAudit, data.imageLimit);
     if (!imagePaths.length) return { count: 0, skipped: true };
 
     console.log("[moscarossa:images] Existing ad has no photos; synchronizing selected website images", {
@@ -2124,7 +2180,7 @@ async function publishAd(page, adData = {}) {
         title: data.title,
         category: data.category,
         city: data.city,
-        images: Math.min(resolveImagePaths(data.images, data.picsAudit).length, data.imageLimit),
+        images: selectedImageSources(data.images, data.picsAudit).length,
         promotion: data.promotion,
         days: data.promotionDays
     });
@@ -2140,14 +2196,13 @@ async function publishAd(page, adData = {}) {
         await captureScreenshot(page, "02-first-step-filled");
 
         const remoteId = await continueToPromotion(page, existingAd);
-        const selectedImageCount = Math.min(
-            resolveImagePaths(data.images, data.picsAudit).length,
-            data.imageLimit
-        );
+        const selectedImageCount = selectedImageSources(data.images, data.picsAudit).length;
         if (selectedImageCount > 0) {
             let imageState = await readMoscarossaImageState(page, remoteId);
+            let uploadedSelectedImages = !existingAd.reusedExisting;
             if (imageState.count === 0 && existingAd.reusedExisting) {
                 imageState = await syncImagesForExistingAd(page, remoteId, data);
+                uploadedSelectedImages = true;
             } else if (imageState.count === 0) {
                 imageState = await waitForMoscarossaImages(page, remoteId);
             }
@@ -2160,6 +2215,14 @@ async function publishAd(page, adData = {}) {
                 error.url = imageState.publicUrl ||
                     `https://www.moscarossa.biz/private/promuovi.php?id_accompa=${encodeURIComponent(remoteId)}`;
                 throw error;
+            }
+            if (data.isFree && uploadedSelectedImages) {
+                const accountLimit = parseFreePhotoLimit(await page.evaluate(() => document.body?.innerText || ""));
+                if (imageState.count < selectedImageCount &&
+                    (accountLimit === null || selectedImageCount <= accountLimit)) {
+                    imageState = await waitForMoscarossaImages(page, remoteId, 15000, selectedImageCount);
+                }
+                await verifyFreePhotoAllowance(page, remoteId, selectedImageCount, imageState.count);
             }
         }
         await captureScreenshot(page, "03-promotion-step");
@@ -2716,6 +2779,7 @@ module.exports = {
     buildPublishData,
     captureScreenshot,
     clickPublishFree,
+    parseFreePhotoLimit,
     publishAd,
     readMoscarossaExpiration,
     republishAd,
@@ -2725,6 +2789,8 @@ module.exports = {
     sendPhoneVerificationCode,
     verifyPhoneCode,
     resolveImagePaths,
+    validateUploadImagePaths,
+    verifyFreePhotoAllowance,
     verifyPersistedMoscarossaCity,
     readMoscarossaPublicUrl,
     moscarossaExpirationTimestamp
