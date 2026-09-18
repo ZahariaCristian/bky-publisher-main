@@ -3,10 +3,10 @@ const path = require("path");
 const os = require("os");
 const axios = require("axios");
 const { normalizeMoscarossaPublicUrl } = require("./publicUrl");
+const { matchGalleryImages } = require("./galleryMatch");
 
 const PUBLISH_URL = "https://www.moscarossa.biz/private/inserimento.php";
 const VIEW_URL = "https://www.moscarossa.biz/private/vedi_annuncio_ut.php";
-const PREVIEW_URL = "https://www.moscarossa.biz/private/intro_sel_anteprima.php";
 const CREDIT_URL = "https://www.moscarossa.biz/private/crediti.php";
 const PHONE_VERIFICATION_URL = "https://www.moscarossa.biz/private/ajax_verifica_telefono.php";
 const SCREENSHOT_DIR = path.join("./screenshots", "moscarossa-publish");
@@ -656,6 +656,10 @@ async function uploadImages(page, images, picsAudit, imageLimit = MAX_IMAGE_COUN
     const input = await page.waitForSelector("input.fileuploader_upload[name='files[]']", {
         timeout: 30000
     });
+    const previousItems = await page.evaluate(() => {
+        const widget = document.querySelector("input.fileuploader_upload[name='files[]']")?.closest(".fileuploader");
+        return widget?.querySelectorAll(".fileuploader-items-list > li").length || 0;
+    });
     await page.evaluate(() => {
         const pluginInput = document.querySelector("input.fileuploader_upload");
         if (!pluginInput) return;
@@ -668,26 +672,26 @@ async function uploadImages(page, images, picsAudit, imageLimit = MAX_IMAGE_COUN
 
     await page.waitForFunction((expected) => {
         const pluginInput = document.querySelector("input.fileuploader_upload[name='files[]']");
-        const inputCount = pluginInput?.files?.length || 0;
-        const itemCount = document.querySelectorAll(
-            ".fileuploader-items-list .fileuploader-item, .fileuploader-items-list > li"
-        ).length;
-        return inputCount >= expected || itemCount >= expected;
-    }, { timeout: 90000 }, imagePaths.length).catch(() => {});
+        const widget = pluginInput?.closest(".fileuploader");
+        const itemCount = widget?.querySelectorAll(".fileuploader-items-list > li").length || 0;
+        return itemCount >= expected.before + expected.added;
+    }, { timeout: 90000 }, { before: previousItems, added: imagePaths.length }).catch(() => {});
 
-    const uploaderState = await page.evaluate(() => ({
-        inputFiles: Array.from(
-            document.querySelector("input.fileuploader_upload[name='files[]']")?.files || []
-        ).map((file) => ({ name: file.name, size: file.size })),
-        renderedItems: document.querySelectorAll(
-            ".fileuploader-items-list .fileuploader-item, .fileuploader-items-list > li"
-        ).length,
-        serializedList: `${document.querySelector("input[name='fileuploader-list-files']")?.value || ""}`.slice(0, 500)
-    }));
-    if (uploaderState.inputFiles.length < imagePaths.length && uploaderState.renderedItems < imagePaths.length) {
+    const uploaderState = await page.evaluate(() => {
+        const pluginInput = document.querySelector("input.fileuploader_upload[name='files[]']");
+        const widget = pluginInput?.closest(".fileuploader");
+        return {
+            inputFiles: Array.from(pluginInput?.files || [])
+                .map((file) => ({ name: file.name, size: file.size })),
+            renderedItems: widget?.querySelectorAll(".fileuploader-items-list > li").length || 0,
+            serializedList: `${document.querySelector("input[name='fileuploader-list-files']")?.value || ""}`.slice(0, 500)
+        };
+    });
+    if (uploaderState.renderedItems < previousItems + imagePaths.length) {
         throw new Error(
             `Moscarossa FileUploader non ha registrato tutte le immagini: ` +
-            `${uploaderState.inputFiles.length} file nel campo, ${uploaderState.renderedItems} anteprime, ` +
+            `${uploaderState.inputFiles.length} file nel campo, ${uploaderState.renderedItems} anteprime ` +
+            `(${previousItems} già presenti), ` +
             `${imagePaths.length} richieste.`
         );
     }
@@ -2429,17 +2433,6 @@ async function readMoscarossaPublicUrl(sourcePage, remoteId) {
     }
 }
 
-async function updatePublishedPreview(page, remoteId, data) {
-    const preview = await preparePreviewImage(data, remoteId);
-    try {
-        return await uploadPublishedPreview(page, remoteId, preview.path);
-    } finally {
-        await preview.cleanup().catch((error) => {
-            console.warn("[moscarossa:preview] Temporary image cleanup failed", error.message);
-        });
-    }
-}
-
 async function preparePreviewImage(data, remoteId, { websiteBaseUrl, httpGet = axios.get } = {}) {
     const audit = Array.isArray(data.picsAudit) ? data.picsAudit : [];
     const selected = audit.find((image) => Boolean(image?.isAnteprima)) || audit[0];
@@ -2515,83 +2508,251 @@ async function preparePreviewImage(data, remoteId, { websiteBaseUrl, httpGet = a
     };
 }
 
-async function uploadPublishedPreview(page, remoteId, previewPath) {
-    const previewUrl = `${PREVIEW_URL}?id_accompa=${encodeURIComponent(remoteId)}`;
-    const previewPage = await page.browserContext().newPage();
-    previewPage.setDefaultTimeout(30000);
-    previewPage.setDefaultNavigationTimeout(60000);
-    try {
-        const response = await previewPage.goto(previewUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
-        const before = await previewPage.evaluate(() => ({
-            url: location.href,
-            login: Boolean(document.querySelector("#form_login")) || /login-escort/i.test(location.pathname),
-            hasUpload: Boolean(document.querySelector("input[type='file']:not([name*='video'])"))
-        }));
-        if (response?.status() >= 400 || before.login ||
-            !/\/(?:en\/)?private\/intro_sel_anteprima\.php$/i.test(new URL(before.url).pathname)) {
-            throw new Error(`Pagina Imposta anteprima Moscarossa non disponibile: ${before.url}`);
-        }
-        if (!before.hasUpload) {
-            throw new Error("La pagina Imposta anteprima Moscarossa non espone un campo foto riconoscibile.");
-        }
-
-        const input = await previewPage.$("input[type='file']:not([name*='video'])");
-        await input.uploadFile(previewPath);
-        await previewPage.waitForFunction(() => {
-            const fileInput = document.querySelector("input[type='file']:not([name*='video'])");
-            return !fileInput || fileInput.files?.length > 0 ||
-                document.querySelectorAll(".fileuploader-items-list .fileuploader-item").length > 0;
-        }, { timeout: 15000 }).catch(() => {});
-        await captureScreenshot(previewPage, `update-${remoteId}-preview-ready`);
-
-        const navigation = previewPage.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => null);
-        const submitted = await previewPage.evaluate(() => {
-            const input = document.querySelector("input[type='file']:not([name*='video'])");
-            const form = input?.closest("form");
-            if (!form) return false;
-            const visible = (node) => node && getComputedStyle(node).display !== "none" &&
-                getComputedStyle(node).visibility !== "hidden" && node.getClientRects().length > 0;
-            const controls = Array.from(form.querySelectorAll("button, input[type='submit']"))
-                .filter(visible)
-                .filter((node) => !/annulla|cancel|elimina|delete|acquista|purchase/i.test(
-                    `${node.textContent || ""} ${node.value || ""}`
-                ));
-            const submit = controls.find((node) => /salva|imposta|conferma|save|set|confirm|continua/i.test(
-                `${node.textContent || ""} ${node.value || ""}`
-            )) || (controls.length === 1 ? controls[0] : null);
-            if (!submit) return false;
-            submit.click();
-            return true;
-        });
-        if (!submitted) {
-            throw new Error("La pagina Imposta anteprima Moscarossa non espone un pulsante di salvataggio univoco.");
-        }
-        await Promise.race([navigation, delay(7000)]);
-        const after = await previewPage.evaluate(() => ({
-            url: location.href,
-            body: `${document.body?.innerText || ""}`.replace(/\s+/g, " ").slice(0, 1500),
-            login: Boolean(document.querySelector("#form_login")) || /login-escort/i.test(location.pathname)
-        }));
-        if (after.login || /(?:errore|error).{0,100}(?:anteprima|preview)|(?:anteprima|preview).{0,100}(?:errore|error)/i.test(after.body)) {
-            throw new Error(`Moscarossa ha rifiutato l'anteprima: ${after.body.slice(0, 500)}`);
-        }
-        const confirmedByMessage = /(?:anteprima|preview).{0,100}(?:salvat|impost|aggiornat|caricat|saved|set|updated|uploaded)/i.test(after.body);
-        const returnedToAd = /\/(?:en\/)?private\/vedi_annuncio_ut\.php$/i.test(new URL(after.url).pathname) &&
-            new URL(after.url).searchParams.get("id_accompa") === `${remoteId}`;
-        if (!confirmedByMessage && !returnedToAd) {
-            throw new Error(`Moscarossa non ha confermato la nuova anteprima. Pagina: ${after.url}. ${after.body.slice(0, 500)}`);
-        }
-        await captureScreenshot(previewPage, `update-${remoteId}-preview-confirmed`);
-        console.log("[moscarossa:preview] Published preview updated", { remoteId, file: path.basename(previewPath) });
-        return { ok: true, file: previewPath };
-    } catch (error) {
-        error.remoteId = `${remoteId}`;
-        error.url = previewUrl;
-        await captureScreenshot(previewPage, `error-update-${remoteId}-preview`);
-        throw error;
-    } finally {
-        await previewPage.close().catch(() => {});
+async function readEditorGallery(page, remoteId) {
+    await page.waitForSelector("#dati_annuncio input[name='fileuploader-list-files']", { timeout: 15000 });
+    const gallery = await page.evaluate(() => {
+        const input = document.querySelector("#dati_annuncio input[name='fileuploader-list-files']");
+        if (!input) return null;
+        let files;
+        try { files = JSON.parse(input.value || "[]"); } catch { return null; }
+        if (!Array.isArray(files)) return null;
+        const cards = Array.from(input.closest(".fileuploader")?.querySelectorAll(".fileuploader-items-list > li") || []);
+        return {
+            files: files.map((file, index) => {
+                const card = cards[index];
+                const preview = card?.querySelector("[id^='span_anteprima_']");
+                return {
+                    id: `${preview?.id || ""}`.replace(/^span_anteprima_/, ""),
+                    url: `${file?.file || ""}`,
+                    eligible: Boolean(preview?.getAttribute("onclick")?.includes("sel_anteprima(")),
+                    selected: Boolean(preview?.classList.contains("btn-primary"))
+                };
+            }),
+            cards: cards.length
+        };
+    });
+    if (!gallery || gallery.cards < gallery.files.length) {
+        throw new Error(`Galleria Moscarossa ${remoteId}: elenco foto dell'editor non leggibile.`);
     }
+    for (const photo of gallery.files) {
+        let url;
+        try { url = new URL(photo.url); } catch { /* reported below */ }
+        if (!url || url.protocol !== "https:" || url.hostname !== "foto.moscarossa.biz" ||
+            !url.pathname.startsWith(`/${remoteId}/`) || !/^\d+$/.test(photo.id) ||
+            !url.pathname.includes(`/${photo.id}.`)) {
+            throw new Error(`Galleria Moscarossa ${remoteId}: foto remota non riconosciuta; modifica automatica annullata.`);
+        }
+    }
+    return gallery.files;
+}
+
+async function fingerprintImage(page, bytes, label) {
+    if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) {
+        throw new Error(`Moscarossa: immagine ${label} vuota o superiore a 5 MB.`);
+    }
+    const mime = bytes[0] === 0xff && bytes[1] === 0xd8 ? "image/jpeg" :
+        bytes[0] === 0x89 && bytes[1] === 0x50 ? "image/png" :
+            bytes.toString("ascii", 0, 4) === "RIFF" ? "image/webp" : "";
+    if (!mime) throw new Error(`Moscarossa: formato immagine ${label} non riconosciuto.`);
+    const source = `data:${mime};base64,${bytes.toString("base64")}`;
+    return page.evaluate(async (dataUrl) => {
+        const image = new Image();
+        image.src = dataUrl;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = 16;
+        canvas.height = 16;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        context.drawImage(image, 0, 0, 16, 16);
+        const rgba = context.getImageData(0, 0, 16, 16).data;
+        const pixels = [];
+        for (let index = 0; index < rgba.length; index += 4) {
+            pixels.push(rgba[index], rgba[index + 1], rgba[index + 2]);
+        }
+        return pixels;
+    }, source);
+}
+
+async function fingerprintEditorGallery(page, remoteId, photos) {
+    const result = [];
+    for (const photo of photos) {
+        const response = await axios.get(photo.url, {
+            responseType: "arraybuffer", timeout: 15000,
+            maxContentLength: MAX_IMAGE_BYTES, maxBodyLength: MAX_IMAGE_BYTES,
+            maxRedirects: 0, proxy: false
+        });
+        if (!`${response.headers?.["content-type"] || ""}`.toLowerCase().startsWith("image/")) {
+            throw new Error(`Moscarossa ${remoteId}: la foto remota ${photo.id} non è un'immagine.`);
+        }
+        result.push({ ...photo, pixels: await fingerprintImage(page, Buffer.from(response.data), photo.id) });
+    }
+    return result;
+}
+
+async function prepareDesiredGallery(page, remoteId, data) {
+    const audit = data.picsAudit.length ? data.picsAudit : data.images.map((image) => ({ path: image }));
+    if (!audit.length) throw new Error(`Moscarossa ${remoteId}: nessuna foto selezionata per la galleria.`);
+    if (audit.length > data.imageLimit) {
+        throw new Error(`Moscarossa: ${audit.length} foto selezionate, massimo ${data.imageLimit} per ${data.promotion}.`);
+    }
+    const desired = [];
+    try {
+        for (const item of audit) {
+            const prepared = await preparePreviewImage({ picsAudit: [item] }, remoteId);
+            try {
+                desired.push({ ...prepared,
+                    pixels: await fingerprintImage(page, fs.readFileSync(prepared.path), item.galleryId || path.basename(prepared.path)),
+                    preview: Boolean(item.isAnteprima) });
+            } catch (error) {
+                await prepared.cleanup().catch(() => {});
+                throw error;
+            }
+        }
+        return desired;
+    } catch (error) {
+        await Promise.all(desired.map((photo) => photo.cleanup().catch(() => {})));
+        throw error;
+    }
+}
+
+async function removeEditorPhoto(page, remoteId, photoId) {
+    const selector = `#span_anteprima_${photoId}`;
+    const control = await page.$(`${selector}`);
+    if (!control) throw new Error(`Moscarossa ${remoteId}: foto ${photoId} non presente per la rimozione.`);
+    const remove = await page.$(`${selector} ~ .fileuploader-action-remove`);
+    // The remove action is in the card's sibling column, not beside the preview span.
+    const handle = remove || await control.evaluateHandle((node) => node.closest("li")?.querySelector(".fileuploader-action-remove"));
+    if (!handle || !handle.asElement()) throw new Error(`Moscarossa ${remoteId}: rimozione foto ${photoId} non disponibile.`);
+    await handle.asElement().click();
+    await page.waitForFunction((id) => !document.querySelector(`#span_anteprima_${id}`), { timeout: 15000 }, photoId);
+}
+
+async function synchronizeEditorGallery(page, remoteId, data, desired, onMutation = () => {}) {
+    const existing = await readEditorGallery(page, remoteId);
+    const remote = await fingerprintEditorGallery(page, remoteId, existing);
+    const changes = matchGalleryImages(desired, remote);
+    if (existing.length + changes.additions.length > MAX_IMAGE_COUNT) {
+        throw new Error(`Moscarossa ${remoteId}: servono ${existing.length + changes.additions.length} posizioni temporanee (massimo 20). Rimuovi le foto obsolete manualmente prima di riprovare.`);
+    }
+    if (changes.additions.length || changes.removals.length) onMutation();
+    if (changes.additions.length) {
+        await uploadImages(page, changes.additions.map((index) => desired[index].path), [], MAX_IMAGE_COUNT);
+    }
+    for (const index of changes.removals) {
+        await removeEditorPhoto(page, remoteId, remote[index].id);
+    }
+    console.log("[moscarossa:update] Editor gallery prepared", {
+        remoteId, matched: changes.matches.length,
+        added: changes.additions.length, removed: changes.removals.length
+    });
+    return changes;
+}
+
+async function verifyEditorGallery(page, remoteId, desired) {
+    const photos = await readEditorGallery(page, remoteId);
+    if (photos.length !== desired.length) {
+        throw new Error(`Moscarossa ${remoteId}: salvate ${photos.length} foto invece di ${desired.length}.`);
+    }
+    const remote = await fingerprintEditorGallery(page, remoteId, photos);
+    const match = matchGalleryImages(desired, remote);
+    if (match.additions.length || match.removals.length) {
+        throw new Error(`Moscarossa ${remoteId}: la galleria salvata non coincide con le foto selezionate.`);
+    }
+    return { remote, match };
+}
+
+async function setEditorPreview(page, remoteId, photo) {
+    if (photo.selected) return false;
+    if (!photo.eligible) {
+        throw new Error(`Moscarossa ${remoteId}: la foto selezionata non è idonea come anteprima (immagine non soft).`);
+    }
+    await page.click(`#span_anteprima_${photo.id}`);
+    await page.waitForFunction((id) => {
+        const cropForm = document.querySelector(`#contenuto_modal #form_sel_anteprima_${id}`);
+        if (cropForm?.getClientRects().length) return true;
+        if (document.querySelector("#anteprima_id_immagine")?.value === id ||
+            document.querySelector(`#span_anteprima_${id}`)?.classList.contains("btn-primary")) return true;
+        return Array.from(document.querySelectorAll(".modal.show, .modal.in"))
+            .some((element) => element.getClientRects().length > 0 &&
+                /anteprima|preview|immagine/i.test(`${element.id} ${element.innerText || ""}`) &&
+                Array.from(element.querySelectorAll("button, input[type='submit']"))
+                    .some((node) => node.getClientRects().length > 0 &&
+                        /salva|conferma|imposta|seleziona|save|confirm|set preview/i
+                            .test(`${node.textContent || ""} ${node.value || ""}`)));
+    }, { timeout: 15000 }, photo.id).catch(() => {
+        throw new Error(`Moscarossa ${remoteId}: il dialogo di selezione anteprima non si è aperto.`);
+    });
+    const state = await page.evaluate((id) => {
+        const crop = document.querySelector(`#contenuto_modal #form_sel_anteprima_${id}`);
+        const cropVisible = Boolean(crop?.getClientRects().length);
+        const cropImage = cropVisible ? document.querySelector("#contenuto_modal #cropImage")?.src || "" : "";
+        const cropValues = cropVisible ? Object.fromEntries(["x", "y", "w", "h", "fattore_divisione"]
+            .map((name) => [name, crop.querySelector(`[name='${name}']`)?.value || ""])) : {};
+        const cropImageId = cropVisible ? crop.querySelector("[name='id_immagine']")?.value || "" : "";
+        const cropActions = cropVisible ? Array.from(document.querySelectorAll("#contenuto_modal .crop-buttons [onclick]"))
+            .filter((node) => node.getClientRects().length > 0)
+            .filter((node) => new RegExp(`^\\s*salva_anteprima\\(['\"]?${id}['\"]?\\)`).test(node.getAttribute("onclick") || "")) : [];
+        const modal = Array.from(document.querySelectorAll(".modal.show, .modal.in"))
+            .find((element) => element.getClientRects().length > 0 &&
+                /anteprima|preview|immagine/i.test(`${element.id} ${element.innerText || ""}`));
+        const candidates = modal ? Array.from(modal.querySelectorAll("button, input[type='submit']"))
+            .filter((node) => node.getClientRects().length > 0)
+            .filter((node) => /salva|conferma|imposta|seleziona|save|confirm|set preview/i.test(`${node.textContent || ""} ${node.value || ""}`))
+            .filter((node) => !/annulla|cancel|delete|elimina/i.test(`${node.textContent || ""} ${node.value || ""}`)) : [];
+        return { cropVisible, cropImage, cropImageId, cropValues, cropActions: cropActions.length,
+            modal: Boolean(modal), confirmations: candidates.length };
+    }, photo.id);
+    if (state.cropVisible) {
+        let cropUrl;
+        try { cropUrl = new URL(state.cropImage); } catch { /* reported below */ }
+        if (state.cropImageId !== photo.id || !cropUrl || cropUrl.protocol !== "https:" ||
+            cropUrl.hostname !== "foto.moscarossa.biz" ||
+            !cropUrl.pathname.startsWith(`/${remoteId}/${photo.id}.`) || state.cropActions !== 1 ||
+            ["x", "y", "w", "h", "fattore_divisione"].some((name) =>
+                !Number.isFinite(Number(state.cropValues[name])) || Number(state.cropValues[name]) < 0) ||
+            Number(state.cropValues.w) <= 0 || Number(state.cropValues.h) <= 0 ||
+            Number(state.cropValues.fattore_divisione) <= 0) {
+            throw new Error(`Moscarossa ${remoteId}: dialogo crop della foto ${photo.id} non valido; anteprima non salvata.`);
+        }
+        await page.evaluate((id) => {
+            const action = Array.from(document.querySelectorAll("#contenuto_modal .crop-buttons [onclick]"))
+                .find((node) => node.getClientRects().length > 0 &&
+                    new RegExp(`^\\s*salva_anteprima\\(['\"]?${id}['\"]?\\)`).test(node.getAttribute("onclick") || ""));
+            action.click();
+        }, photo.id);
+        await page.waitForFunction((id) => {
+            const crop = document.querySelector(`#contenuto_modal #form_sel_anteprima_${id}`);
+            return document.querySelector("#anteprima_id_immagine")?.value === id ||
+                document.querySelector(`#span_anteprima_${id}`)?.classList.contains("btn-primary") ||
+                !crop || !crop.getClientRects().length;
+        }, { timeout: 15000 }, photo.id).catch(() => {
+            throw new Error(`Moscarossa ${remoteId}: Salva selezione non ha chiuso il dialogo anteprima.`);
+        });
+        await page.waitForNetworkIdle({ idleTime: 600, timeout: 8000 }).catch(() => {});
+        // Moscarossa saves the crop through its own handler. The update flow
+        // reopens the editor and verifies the selected photo after submission.
+        return true;
+    }
+    if (state.modal) {
+        if (state.confirmations !== 1) throw new Error(`Moscarossa ${remoteId}: conferma anteprima non univoca nel dialogo.`);
+        await page.evaluate(() => {
+            const modal = Array.from(document.querySelectorAll(".modal.show, .modal.in"))
+                .find((element) => element.getClientRects().length > 0 &&
+                    /anteprima|preview|immagine/i.test(`${element.id} ${element.innerText || ""}`));
+            const button = Array.from(modal.querySelectorAll("button, input[type='submit']"))
+                .find((node) => node.getClientRects().length > 0 &&
+                    /salva|conferma|imposta|seleziona|save|confirm|set preview/i.test(`${node.textContent || ""} ${node.value || ""}`) &&
+                    !/annulla|cancel|delete|elimina/i.test(`${node.textContent || ""} ${node.value || ""}`));
+            button.click();
+        });
+    }
+    await page.waitForFunction((id) =>
+        document.querySelector("#anteprima_id_immagine")?.value === id ||
+        document.querySelector(`#span_anteprima_${id}`)?.classList.contains("btn-primary"),
+    { timeout: 10000 }, photo.id).catch(() => {
+        throw new Error(`Moscarossa ${remoteId}: selezione anteprima ${photo.id} non confermata nell'editor.`);
+    });
+    return true;
 }
 
 async function updateAd(page, remoteId, adData = {}) {
@@ -2619,10 +2780,15 @@ async function updateAd(page, remoteId, adData = {}) {
     }
 
     const data = buildPublishData(adData);
-    const previewPending = `${adData.errorReason || ""}` === "MOSCAROSSA_PREVIEW_PENDING";
-    // Verify the selected photo before modifying the remote ad. The website may
-    // hold the file even when the publisher does not share its image directory.
-    const preparedPreview = previewPending ? await preparePreviewImage(data, resolvedRemoteId) : null;
+    const pendingReason = `${adData.errorReason || ""}`;
+    const galleryPending = pendingReason.startsWith("MOSCAROSSA_GALLERY_PENDING");
+    const previewPending = galleryPending || pendingReason.startsWith("MOSCAROSSA_PREVIEW_PENDING");
+    const selectedPreview = data.picsAudit.find((item) => item?.isAnteprima) || data.picsAudit[0] ||
+        { path: data.images[0] };
+    const preparedPreview = previewPending && !galleryPending
+        ? await preparePreviewImage({ picsAudit: [selectedPreview] }, resolvedRemoteId) : null;
+    let desiredGallery = [];
+    let galleryMutationStarted = false;
     console.log("[moscarossa:update] Updating existing ad", {
         remoteId: resolvedRemoteId,
         title: data.title,
@@ -2643,7 +2809,20 @@ async function updateAd(page, remoteId, adData = {}) {
             );
         }
 
+        // Preflight every selected image before touching the remote gallery.
+        // The publisher may need to retrieve files from the website by gallery ID.
+        if (galleryPending) {
+            desiredGallery = await prepareDesiredGallery(page, resolvedRemoteId, data);
+        } else if (previewPending) {
+            desiredGallery = [{ path: preparedPreview.path, cleanup: async () => {},
+                pixels: await fingerprintImage(page, fs.readFileSync(preparedPreview.path), "anteprima"), preview: true }];
+        }
+
         const selectedCity = await fillExistingAdStep(page, data);
+        if (galleryPending) {
+            await synchronizeEditorGallery(page, resolvedRemoteId, data, desiredGallery,
+                () => { galleryMutationStarted = true; });
+        }
         await captureScreenshot(page, `update-${resolvedRemoteId}-02-form-filled`);
 
         const returnedRemoteId = await continueToPromotion(page, { remoteId: resolvedRemoteId });
@@ -2654,11 +2833,37 @@ async function updateAd(page, remoteId, adData = {}) {
         }
 
         // Do not click Free or any paid promotion control: an ordinary edit
-        // retains the existing plan and gallery.
+        // retains the existing plan.
         const persisted = await verifyPersistedMoscarossaCity(page, resolvedRemoteId, selectedCity);
-        const previewUpdated = previewPending
-            ? await uploadPublishedPreview(page, resolvedRemoteId, preparedPreview.path)
-            : null;
+        let previewUpdated = false;
+        if ((galleryPending || previewPending) && desiredGallery.length) {
+            await openMoscarossaEditorPage(page, resolvedRemoteId, "saved gallery verification");
+            const persistedGallery = galleryPending
+                ? await verifyEditorGallery(page, resolvedRemoteId, desiredGallery)
+                : { remote: await fingerprintEditorGallery(page, resolvedRemoteId,
+                    await readEditorGallery(page, resolvedRemoteId)) };
+            const selectedIndex = galleryPending
+                ? Math.max(0, desiredGallery.findIndex((photo) => photo.preview)) : 0;
+            const selectedMatch = matchGalleryImages([desiredGallery[selectedIndex]], persistedGallery.remote);
+            const previewPhoto = selectedMatch.matches.length === 1
+                ? persistedGallery.remote[selectedMatch.matches[0].remoteIndex] : null;
+            if (!previewPhoto) {
+                throw new Error(`Moscarossa ${resolvedRemoteId}: la foto anteprima selezionata non è nella galleria salvata.`);
+            }
+            previewUpdated = await setEditorPreview(page, resolvedRemoteId, previewPhoto);
+            if (previewUpdated) {
+                const previewRemoteId = await continueToPromotion(page, { remoteId: resolvedRemoteId });
+                if (`${previewRemoteId}` !== resolvedRemoteId) {
+                    throw new Error(`Moscarossa ha salvato l'anteprima su un annuncio diverso da ${resolvedRemoteId}.`);
+                }
+                await openMoscarossaEditorPage(page, resolvedRemoteId, "saved preview verification");
+                const finalGallery = await readEditorGallery(page, resolvedRemoteId);
+                if (!finalGallery.some((photo) => photo.id === previewPhoto.id && photo.selected)) {
+                    throw new Error(`Moscarossa ${resolvedRemoteId}: la nuova anteprima non risulta salvata.`);
+                }
+            }
+            if (galleryPending) await verifyEditorGallery(page, resolvedRemoteId, desiredGallery);
+        }
         const publicUrl = await readMoscarossaPublicUrl(page, resolvedRemoteId);
         console.log("[moscarossa:update] Existing ad updated", {
             remoteId: resolvedRemoteId,
@@ -2666,7 +2871,8 @@ async function updateAd(page, remoteId, adData = {}) {
             cityId: persisted.cityId,
             cityVerified: persisted.verified,
             promotionChanged: false,
-            previewUpdated: Boolean(previewUpdated)
+            galleryUpdated: galleryPending,
+            previewUpdated
         });
 
         return {
@@ -2677,10 +2883,18 @@ async function updateAd(page, remoteId, adData = {}) {
             cityId: persisted.cityId,
             cityVerified: persisted.verified,
             promotionChanged: false,
-            previewUpdated: Boolean(previewUpdated),
+            galleryUpdated: galleryPending,
+            previewUpdated,
             url: publicUrl
         };
     } catch (error) {
+        if (galleryMutationStarted && !error.scheduleState) {
+            error = new MoscarossaWorkflowPendingError(
+                `MOSCAROSSA_GALLERY_PENDING: modifica foto Moscarossa potenzialmente parziale; verifica finale incompleta: ${error.message}`,
+                { remoteId: resolvedRemoteId, reasonCode: "MOSCAROSSA_GALLERY_PENDING",
+                    url: `${PUBLISH_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}` }
+            );
+        }
         error.remoteId = error.remoteId || resolvedRemoteId;
         error.url = error.url || `${VIEW_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}`;
         const protocolUnavailable = /ProtocolError|Runtime\.callFunctionOn timed out|Navigation timeout of \d+ ms exceeded|Page\.captureScreenshot timed out|Target closed|Session closed/i
@@ -2692,11 +2906,12 @@ async function updateAd(page, remoteId, adData = {}) {
         }
         throw error;
     } finally {
-        if (preparedPreview) {
-            await preparedPreview.cleanup().catch((error) => {
-                console.warn("[moscarossa:preview] Temporary image cleanup failed", error.message);
-            });
-        }
+        await Promise.all(desiredGallery.map((photo) => photo.cleanup().catch((error) => {
+            console.warn("[moscarossa:images] Temporary image cleanup failed", error.message);
+        })));
+        if (preparedPreview) await preparedPreview.cleanup().catch((error) => {
+            console.warn("[moscarossa:preview] Temporary image cleanup failed", error.message);
+        });
     }
 }
 
@@ -2784,8 +2999,10 @@ module.exports = {
     readMoscarossaExpiration,
     republishAd,
     updateAd,
-    updatePublishedPreview,
     preparePreviewImage,
+    readEditorGallery,
+    removeEditorPhoto,
+    setEditorPreview,
     sendPhoneVerificationCode,
     verifyPhoneCode,
     resolveImagePaths,
