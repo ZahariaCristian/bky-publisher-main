@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
-const { updateAd, verifyPersistedMoscarossaCity, moscarossaExpirationTimestamp } =
+const { updateAd, verifyPersistedMoscarossaCity, moscarossaExpirationTimestamp,
+    parseMoscarossaAdExpiration } =
     require("../adsManage/moscarossa/publishAds");
 
 function mockSourcePage(states) {
@@ -111,22 +112,26 @@ test("skips an expired EDIT without opening the Moscarossa editor", async () => 
     const expiresAt = Date.now() - 1000;
     const result = await updateAd({ goto: async () => { openedEditor = true; } }, "1159998", {
         id: 63,
-        remoteExpiresAt: `${expiresAt}`,
+        adExpiresAt: `${expiresAt}`,
         urlBK: "https://www.moscarossa.biz/girl-1159998.php"
     });
     assert.equal(openedEditor, false);
     assert.equal(result.skipped, true);
     assert.equal(result.state, "OK");
     assert.equal(result.reasonCode, "MOSCAROSSA_EXPIRED");
-    assert.equal(result.remoteExpiresAt, expiresAt);
+    assert.equal(result.adExpiresAt, expiresAt);
 });
 
-test("uses the plan duration only when Moscarossa did not supply an expiration", () => {
-    const start = Date.parse("2026-09-16T09:00:00.000Z");
-    assert.equal(moscarossaExpirationTimestamp({
-        data: new Date(start), typeAnnuncio: "Top",
-        period: JSON.stringify({ moscarossa: { plan: "Top", days: 3 } })
-    }), start + 3 * 86400000);
+test("does not treat a promotion countdown as advertisement expiration", () => {
+    assert.equal(moscarossaExpirationTimestamp({ remoteExpiresAt: `${Date.now() - 1000}` }), null);
+});
+
+test("parses the Moscarossa Online fino al date at the end of the Rome day", () => {
+    assert.equal(
+        new Date(parseMoscarossaAdExpiration("Annuncio Pubblicato Online fino al 08/10/26")).toISOString(),
+        "2026-10-08T21:59:59.999Z"
+    );
+    assert.equal(parseMoscarossaAdExpiration("PREMIUM fino al 18-09-2026 alle 19:00"), null);
 });
 
 test("keeps gallery synchronization pending when the editor fails before mutation", async () => {

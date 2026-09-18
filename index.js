@@ -510,7 +510,10 @@ async function runMoscarossaPhoneVerificationFromPublisher(payload = {}) {
             payed: Number(result.creditsConsumed || 0) > 0,
             remoteExpiresAt: Number.isFinite(Number(result.remoteExpiresAt))
                 ? `${Math.trunc(Number(result.remoteExpiresAt))}`
-                : (schedule.remoteExpiresAt || null)
+                : (schedule.remoteExpiresAt || null),
+            adExpiresAt: Number.isFinite(Number(result.adExpiresAt))
+                ? `${Math.trunc(Number(result.adExpiresAt))}`
+                : (schedule.adExpiresAt || null)
         });
     }
 
@@ -1292,11 +1295,15 @@ async function resolveMoscarossaRemoteTarget(ad) {
     if (!ad.remoteExpiresAt && reusable.remoteExpiresAt) {
         ad.remoteExpiresAt = reusable.remoteExpiresAt;
     }
+    if (!ad.adExpiresAt && reusable.adExpiresAt) {
+        ad.adExpiresAt = reusable.adExpiresAt;
+    }
 
     await ad.update({
         remotePostID,
         urlBK: normalizeMoscarossaPublicUrl(ad.urlBK, remotePostID),
-        remoteExpiresAt: ad.remoteExpiresAt || null
+        remoteExpiresAt: ad.remoteExpiresAt || null,
+        adExpiresAt: ad.adExpiresAt || null
     });
     console.log("[moscarossa:schedule] Reusing existing remote ad", {
         scheduleId: ad.id,
@@ -1331,7 +1338,8 @@ async function propagateMoscarossaRemoteTarget(ad) {
     const [updated] = await ctx.tblSchedulazioni.update({
         remotePostID,
         urlBK: normalizeMoscarossaPublicUrl(ad.urlBK, remotePostID),
-        remoteExpiresAt: ad.remoteExpiresAt || null
+        remoteExpiresAt: ad.remoteExpiresAt || null,
+        adExpiresAt: ad.adExpiresAt || null
     }, { where });
     if (updated > 0) {
         console.log("[moscarossa:schedule] Propagated remote ad to pending schedules", {
@@ -1538,6 +1546,9 @@ async function postThis(ad, group, platform) {
                     if (Number.isFinite(Number(updateResult?.remoteExpiresAt))) {
                         ad.remoteExpiresAt = `${Math.trunc(Number(updateResult.remoteExpiresAt))}`;
                     }
+                    if (Number.isFinite(Number(updateResult?.adExpiresAt))) {
+                        ad.adExpiresAt = `${Math.trunc(Number(updateResult.adExpiresAt))}`;
+                    }
                     console.log(`${new Date()} ${platform.platform} update result for schedule ${ad.id}:`, updateResult);
                     pubStatus = "OK";
                     platform.needRefresh = true;
@@ -1620,6 +1631,9 @@ async function postThis(ad, group, platform) {
                     if (platform.platform === "moscarossa" && Number.isFinite(Number(result?.remoteExpiresAt))) {
                         ad.remoteExpiresAt = `${Math.trunc(Number(result.remoteExpiresAt))}`;
                     }
+                    if (platform.platform === "moscarossa" && Number.isFinite(Number(result?.adExpiresAt))) {
+                        ad.adExpiresAt = `${Math.trunc(Number(result.adExpiresAt))}`;
+                    }
                     if (platform.platform === "moscarossa" && Number.isFinite(Number(result?.remainingCredit))) {
                         platform.credit = Number(result.remainingCredit);
                     }
@@ -1659,6 +1673,7 @@ async function postThis(ad, group, platform) {
                 payed: ad.payed,
                 dateTimeTop: ad.dateTimeTop,
                 remoteExpiresAt: ad.remoteExpiresAt || null,
+                adExpiresAt: ad.adExpiresAt || null,
                 period: ad.period,
                 errorReason: null
             });
@@ -1690,6 +1705,7 @@ async function postThis(ad, group, platform) {
                     urlBK: ad.urlBK || null,
                     payed: ad.payed,
                     remoteExpiresAt: ad.remoteExpiresAt || null,
+                    adExpiresAt: ad.adExpiresAt || null,
                     errorReason
                 });
                 console.log(
@@ -1959,6 +1975,20 @@ async function ensurePublisherSchema() {
             }
         }
         console.log("[publisher:schema] tblSchedulazioni.remoteExpiresAt added.");
+    }
+    if (!scheduleColumns.adExpiresAt) {
+        console.log("[publisher:schema] Adding tblSchedulazioni.adExpiresAt...");
+        try {
+            await queryInterface.addColumn("tblSchedulazioni", "adExpiresAt", {
+                type: ctx.model.Sequelize.BIGINT,
+                allowNull: true
+            });
+        } catch (error) {
+            if (error?.original?.code !== "ER_DUP_FIELDNAME" && error?.parent?.code !== "ER_DUP_FIELDNAME") {
+                throw error;
+            }
+        }
+        console.log("[publisher:schema] tblSchedulazioni.adExpiresAt added.");
     }
 }
 

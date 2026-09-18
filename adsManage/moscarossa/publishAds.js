@@ -190,15 +190,48 @@ function parsePromotionPeriod(period, planName) {
 }
 
 function moscarossaExpirationTimestamp(adData = {}) {
-    const remoteTimestamp = Number(adData.remoteExpiresAt);
+    const remoteTimestamp = Number(adData.adExpiresAt);
     if (Number.isFinite(remoteTimestamp) && remoteTimestamp > 0) return remoteTimestamp;
+    return null;
+}
 
-    const scheduledAt = new Date(adData.data).getTime();
-    if (!Number.isFinite(scheduledAt)) return null;
-    const planName = `${adData.typeAnnuncio || adData.promo?.visibility || "Free"}`.trim();
-    const promotion = parsePromotionPeriod(adData.period || adData.schedule, planName);
-    const days = promotion.plan.name === "Free" ? 1 : promotion.days;
-    return scheduledAt + days * 86400000;
+function romeDateTimeToUtc(year, month, day, hour, minute, second = 0, millisecond = 0) {
+    const target = Date.UTC(year, month - 1, day, hour, minute, second, millisecond);
+    const formatter = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+    });
+    // Probe at noon so the formatted Rome time cannot cross into an adjacent
+    // date merely because the requested time is close to midnight.
+    const probe = Date.UTC(year, month - 1, day, 12, 0, 0);
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(probe))
+        .filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
+    const rendered = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+    return target - (rendered - probe);
+}
+
+function parseMoscarossaAdExpiration(text) {
+    const normalized = `${text || ""}`.replace(/\s+/g, " ").trim();
+    const match = normalized.match(
+        /(?:online\s+fino\s+al|online\s+until|annuncio\s+online\s+fino\s+al)\s*:?\s*(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})(?:\s*(?:,|alle|at)?\s*(\d{1,2})[:.](\d{2}))?/i
+    );
+    if (!match) return null;
+    const yearValue = Number(match[3]);
+    const year = yearValue < 100 ? 2000 + yearValue : yearValue;
+    const month = Number(match[2]);
+    const day = Number(match[1]);
+    const hasTime = match[4] !== undefined;
+    const hour = hasTime ? Number(match[4]) : 23;
+    const minute = hasTime ? Number(match[5]) : 59;
+    if (year < 2020 || month < 1 || month > 12 || day < 1 || day > 31 ||
+        hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    const timestamp = romeDateTimeToUtc(year, month, day, hour, minute,
+        hasTime ? 0 : 59, hasTime ? 0 : 999);
+    const verification = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/Rome", year: "numeric", month: "2-digit", day: "2-digit"
+    }).format(new Date(timestamp));
+    if (verification !== `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`) return null;
+    return timestamp;
 }
 
 function normalizeMoscarossaDetails(input = {}) {
@@ -927,8 +960,12 @@ async function readMoscarossaExpiration(page, remoteId, promotionName) {
         throw error;
     }
 
-    const expiration = await page.evaluate((expectedPlan) => {
+    const expirationState = await page.evaluate((expectedPlan) => {
         const normalize = (value) => `${value || ""}`.replace(/\s+/g, " ").trim();
+        const bodyText = normalize(document.body?.innerText);
+        const adExpiration = bodyText.match(
+            /(?:online\s+fino\s+al|online\s+until|annuncio\s+online\s+fino\s+al)\s*:?\s*\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}(?:\s*(?:,|alle|at)?\s*\d{1,2}[:.]\d{2})?/i
+        );
         const expected = expectedPlan.replace(/[^a-z0-9_-]/g, "");
         const preferred = expected ? document.querySelector(`#scadenza_${expected}`) : null;
         const candidates = Array.from(document.querySelectorAll('[id^="scadenza_"]'))
@@ -936,28 +973,32 @@ async function readMoscarossaExpiration(page, remoteId, promotionName) {
         const container = preferred?.querySelector("table.countdown")
             ? preferred
             : (candidates.length === 1 ? candidates[0] : null);
-        if (!container) return null;
+        const result = { adExpirationText: normalize(adExpiration?.[0]), countdown: null };
+        if (!container) return result;
 
         const values = Array.from(container.querySelectorAll("table.countdown tr:first-child th"))
             .slice(0, 4)
             .map((node) => Number.parseInt(normalize(node.textContent), 10));
         if (values.length !== 4 || values.some((value) => !Number.isFinite(value) || value < 0)) {
-            return null;
+            return result;
         }
 
         const [days, hours, minutes, seconds] = values;
         const remainingSeconds = (((days * 24) + hours) * 60 + minutes) * 60 + seconds;
-        if (remainingSeconds <= 0) return null;
+        if (remainingSeconds <= 0) return result;
 
         const outerRow = container.parentElement?.closest("tr");
         const cells = outerRow ? Array.from(outerRow.children) : [];
-        return {
+        result.countdown = {
             remoteExpiresAt: Date.now() + (remainingSeconds * 1000),
             remainingSeconds,
             expirationText: normalize(cells[2]?.textContent),
             countdownId: container.id || ""
         };
+        return result;
     }, plan);
+    const expiration = expirationState?.countdown || {};
+    expiration.adExpiresAt = parseMoscarossaAdExpiration(expirationState?.adExpirationText);
 
     if (expiration?.remoteExpiresAt) {
         console.log("[moscarossa:expiration] Remote promotion expiration resolved", {
@@ -976,7 +1017,20 @@ async function readMoscarossaExpiration(page, remoteId, promotionName) {
         });
     }
 
-    return expiration;
+    if (expiration.adExpiresAt) {
+        console.log("[moscarossa:expiration] Advertisement expiration resolved", {
+            remoteId: resolvedRemoteId,
+            adExpiresAt: expiration.adExpiresAt,
+            expirationText: expirationState.adExpirationText
+        });
+    } else {
+        console.warn("[moscarossa:expiration] Advertisement 'Online fino al' date not available", {
+            remoteId: resolvedRemoteId,
+            url: page.url()
+        });
+    }
+
+    return expiration.remoteExpiresAt || expiration.adExpiresAt ? expiration : null;
 }
 
 async function safelyReadMoscarossaExpiration(page, remoteId, promotionName) {
@@ -2170,6 +2224,7 @@ async function verifyPhoneCode(page, { phone, code, remoteId, resume = false, pr
         return {
             ...publicationResult,
             remoteExpiresAt: expiration?.remoteExpiresAt || null,
+            adExpiresAt: expiration?.adExpiresAt || null,
             status: "published"
         };
     } catch (error) {
@@ -2268,6 +2323,7 @@ async function publishAd(page, adData = {}) {
             },
             url,
             remoteExpiresAt: expiration?.remoteExpiresAt || null,
+            adExpiresAt: expiration?.adExpiresAt || null,
             creditsConsumed: promotionResult.creditsConsumed || 0,
             freePublication: data.isFree,
             response: promotionResult.response
@@ -2806,7 +2862,9 @@ async function updateAd(page, remoteId, adData = {}) {
         throw new Error(`Moscarossa remotePostID non valido per la modifica: ${resolvedRemoteId || "vuoto"}.`);
     }
 
-    const expiresAt = moscarossaExpirationTimestamp(adData);
+    const data = buildPublishData(adData);
+    let expiresAt = moscarossaExpirationTimestamp(adData);
+    let liveExpiration = null;
     if (expiresAt !== null && expiresAt <= Date.now()) {
         console.log("[moscarossa:update] Skipping EDIT for expired publication", {
             remoteId: resolvedRemoteId,
@@ -2819,12 +2877,12 @@ async function updateAd(page, remoteId, adData = {}) {
             state: "OK",
             skipped: true,
             reasonCode: "MOSCAROSSA_EXPIRED",
-            remoteExpiresAt: expiresAt,
+            remoteExpiresAt: liveExpiration?.remoteExpiresAt || adData.remoteExpiresAt || null,
+            adExpiresAt: expiresAt,
             url: normalizeMoscarossaPublicUrl(adData.urlBK, resolvedRemoteId)
         };
     }
 
-    const data = buildPublishData(adData);
     const pendingReason = `${adData.errorReason || ""}`;
     const galleryPending = pendingReason.startsWith("MOSCAROSSA_GALLERY_PENDING");
     const previewPending = galleryPending || pendingReason.startsWith("MOSCAROSSA_PREVIEW_PENDING");
@@ -2832,6 +2890,33 @@ async function updateAd(page, remoteId, adData = {}) {
         { path: data.images[0] };
     const preparedPreview = previewPending && !galleryPending
         ? await preparePreviewImage({ picsAudit: [selectedPreview] }, resolvedRemoteId) : null;
+    // Legacy rows only contain the promotion countdown. Resolve the actual
+    // advertisement lifetime after local image preflight, but before opening
+    // the editor or changing the remote gallery.
+    if (expiresAt === null) {
+        liveExpiration = await safelyReadMoscarossaExpiration(page, resolvedRemoteId, data.promotion);
+        if (Number.isFinite(Number(liveExpiration?.adExpiresAt))) {
+            expiresAt = Number(liveExpiration.adExpiresAt);
+        }
+        if (expiresAt !== null && expiresAt <= Date.now()) {
+            if (preparedPreview) await preparedPreview.cleanup().catch(() => {});
+            console.log("[moscarossa:update] Skipping EDIT for expired publication", {
+                remoteId: resolvedRemoteId,
+                scheduleId: adData.id || null,
+                expiresAt
+            });
+            return {
+                ok: true,
+                remoteId: resolvedRemoteId,
+                state: "OK",
+                skipped: true,
+                reasonCode: "MOSCAROSSA_EXPIRED",
+                remoteExpiresAt: liveExpiration?.remoteExpiresAt || adData.remoteExpiresAt || null,
+                adExpiresAt: expiresAt,
+                url: normalizeMoscarossaPublicUrl(adData.urlBK, resolvedRemoteId)
+            };
+        }
+    }
     let desiredGallery = [];
     let galleryMutationStarted = false;
     console.log("[moscarossa:update] Updating existing ad", {
@@ -2910,6 +2995,8 @@ async function updateAd(page, remoteId, adData = {}) {
             if (galleryPending) await verifyEditorGallery(page, resolvedRemoteId, desiredGallery);
         }
         const publicUrl = await readMoscarossaPublicUrl(page, resolvedRemoteId);
+        const expiration = liveExpiration ||
+            await safelyReadMoscarossaExpiration(page, resolvedRemoteId, data.promotion);
         console.log("[moscarossa:update] Existing ad updated", {
             remoteId: resolvedRemoteId,
             city: persisted.city,
@@ -2930,7 +3017,9 @@ async function updateAd(page, remoteId, adData = {}) {
             promotionChanged: false,
             galleryUpdated: galleryPending,
             previewUpdated,
-            url: publicUrl
+            url: publicUrl,
+            remoteExpiresAt: expiration?.remoteExpiresAt || adData.remoteExpiresAt || null,
+            adExpiresAt: expiration?.adExpiresAt || adData.adExpiresAt || null
         };
     } catch (error) {
         if (galleryMutationStarted && !error.scheduleState) {
@@ -3023,6 +3112,7 @@ async function republishAd(page, remoteId, adData = {}) {
             state: "OK",
             url: promotionResult.publicUrl || `${VIEW_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}`,
             remoteExpiresAt: expiration?.remoteExpiresAt || null,
+            adExpiresAt: expiration?.adExpiresAt || null,
             creditsConsumed: promotionResult.creditsConsumed || 0,
             response: promotionResult.response
         };
@@ -3060,5 +3150,6 @@ module.exports = {
     verifyFreePhotoAllowance,
     verifyPersistedMoscarossaCity,
     readMoscarossaPublicUrl,
-    moscarossaExpirationTimestamp
+    moscarossaExpirationTimestamp,
+    parseMoscarossaAdExpiration
 };
