@@ -40,4 +40,19 @@ function matchGalleryImages(desired, remote, { maximumDistance = 0.06, ambiguity
     };
 }
 
-module.exports = { imageDistance, matchGalleryImages };
+function planGalleryUpdate(existingCount, changes, maximumCount) {
+    const additions = changes.additions || [];
+    const removals = changes.removals || [];
+    const finalCount = existingCount + additions.length - removals.length;
+    if (finalCount > maximumCount) {
+        throw new Error(`Moscarossa: la galleria finale avrebbe ${finalCount} foto (massimo ${maximumCount}).`);
+    }
+    // Keep matching photos, but remove every obsolete photo before uploading
+    // replacements. Moscarossa asks for confirmation for each removal.
+    return {
+        beforeUpload: [...removals],
+        afterUpload: []
+    };
+}
+
+module.exports = { imageDistance, matchGalleryImages, planGalleryUpdate };

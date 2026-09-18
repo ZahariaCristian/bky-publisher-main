@@ -3,7 +3,7 @@ const path = require("path");
 const os = require("os");
 const axios = require("axios");
 const { normalizeMoscarossaPublicUrl } = require("./publicUrl");
-const { matchGalleryImages } = require("./galleryMatch");
+const { matchGalleryImages, planGalleryUpdate } = require("./galleryMatch");
 
 const PUBLISH_URL = "https://www.moscarossa.biz/private/inserimento.php";
 const VIEW_URL = "https://www.moscarossa.biz/private/vedi_annuncio_ut.php";
@@ -2623,27 +2623,72 @@ async function removeEditorPhoto(page, remoteId, photoId) {
     // The remove action is in the card's sibling column, not beside the preview span.
     const handle = remove || await control.evaluateHandle((node) => node.closest("li")?.querySelector(".fileuploader-action-remove"));
     if (!handle || !handle.asElement()) throw new Error(`Moscarossa ${remoteId}: rimozione foto ${photoId} non disponibile.`);
-    await handle.asElement().click();
-    await page.waitForFunction((id) => !document.querySelector(`#span_anteprima_${id}`), { timeout: 15000 }, photoId);
+    let dialogTask = null;
+    const onDialog = (dialog) => {
+        dialogTask = (async () => {
+            const message = `${dialog.message() || ""}`.replace(/\s+/g, " ").trim();
+            if (dialog.type() !== "confirm" ||
+                !/\b(cancellare|eliminare|delete|remove)\b/i.test(message) ||
+                !/\b(foto|photo|image|immagine)\b/i.test(message)) {
+                await dialog.dismiss();
+                return new Error(`Moscarossa ${remoteId}: conferma inattesa durante la rimozione della foto ${photoId}: ${message}`);
+            }
+            await dialog.accept();
+            return null;
+        })().catch((error) => error);
+    };
+    page.on("dialog", onDialog);
+    try {
+        await handle.asElement().click();
+        const dialogError = dialogTask ? await dialogTask : null;
+        if (dialogError) throw dialogError;
+        await page.waitForFunction((id) => !document.querySelector(`#span_anteprima_${id}`),
+            { timeout: 15000 }, photoId).catch(() => {
+            throw new Error(`Moscarossa ${remoteId}: la rimozione della foto ${photoId} non è stata confermata dall'editor.`);
+        });
+    } finally {
+        page.off("dialog", onDialog);
+    }
 }
 
 async function synchronizeEditorGallery(page, remoteId, data, desired, onMutation = () => {}) {
     const existing = await readEditorGallery(page, remoteId);
     const remote = await fingerprintEditorGallery(page, remoteId, existing);
     const changes = matchGalleryImages(desired, remote);
-    if (existing.length + changes.additions.length > MAX_IMAGE_COUNT) {
-        throw new Error(`Moscarossa ${remoteId}: servono ${existing.length + changes.additions.length} posizioni temporanee (massimo 20). Rimuovi le foto obsolete manualmente prima di riprovare.`);
-    }
+    // Keep the current cover photo until the end when another obsolete photo
+    // can be removed to make room first.
+    const removable = [...changes.removals].sort((left, right) =>
+        Number(remote[left].selected) - Number(remote[right].selected));
+    const updatePlan = planGalleryUpdate(existing.length,
+        { ...changes, removals: removable }, Math.min(MAX_IMAGE_COUNT, data.imageLimit));
     if (changes.additions.length || changes.removals.length) onMutation();
+    for (const index of updatePlan.beforeUpload) {
+        await removeEditorPhoto(page, remoteId, remote[index].id);
+    }
+    if (updatePlan.beforeUpload.length) {
+        const expectedCount = existing.length - updatePlan.beforeUpload.length;
+        await page.waitForFunction((count) => {
+            const input = document.querySelector("#dati_annuncio input[name='fileuploader-list-files']");
+            if (!input) return false;
+            let files;
+            try { files = JSON.parse(input.value || "[]"); } catch { return false; }
+            const cards = input.closest(".fileuploader")?.querySelectorAll(".fileuploader-items-list > li").length;
+            return Array.isArray(files) && files.length === count && cards === count;
+        }, { timeout: 15000 }, expectedCount).catch(() => {
+            throw new Error(`Moscarossa ${remoteId}: l'editor non ha confermato la rimozione delle foto prima del caricamento.`);
+        });
+        await readEditorGallery(page, remoteId);
+    }
     if (changes.additions.length) {
         await uploadImages(page, changes.additions.map((index) => desired[index].path), [], MAX_IMAGE_COUNT);
     }
-    for (const index of changes.removals) {
+    for (const index of updatePlan.afterUpload) {
         await removeEditorPhoto(page, remoteId, remote[index].id);
     }
     console.log("[moscarossa:update] Editor gallery prepared", {
         remoteId, matched: changes.matches.length,
-        added: changes.additions.length, removed: changes.removals.length
+        added: changes.additions.length, removed: changes.removals.length,
+        removedBeforeUpload: updatePlan.beforeUpload.length
     });
     return changes;
 }
@@ -2894,6 +2939,11 @@ async function updateAd(page, remoteId, adData = {}) {
                 { remoteId: resolvedRemoteId, reasonCode: "MOSCAROSSA_GALLERY_PENDING",
                     url: `${PUBLISH_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}` }
             );
+        }
+        if (galleryPending && !`${error.message || ""}`.startsWith("MOSCAROSSA_GALLERY_PENDING")) {
+            // A retry with the same selected gallery IDs must still synchronize
+            // the remote gallery; the website cannot infer this from IDs alone.
+            error.message = `MOSCAROSSA_GALLERY_PENDING: ${error.message}`;
         }
         error.remoteId = error.remoteId || resolvedRemoteId;
         error.url = error.url || `${VIEW_URL}?id_accompa=${encodeURIComponent(resolvedRemoteId)}`;

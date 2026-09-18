@@ -128,3 +128,16 @@ test("uses the plan duration only when Moscarossa did not supply an expiration",
         period: JSON.stringify({ moscarossa: { plan: "Top", days: 3 } })
     }), start + 3 * 86400000);
 });
+
+test("keeps gallery synchronization pending when the editor fails before mutation", async () => {
+    const page = {
+        goto: async () => { throw new Error("editor unavailable"); },
+        isClosed: () => true
+    };
+    await assert.rejects(updateAd(page, "1159998", {
+        typeAnnuncio: "Premium",
+        errorReason: "MOSCAROSSA_GALLERY_PENDING",
+        data: new Date(),
+        images: [__filename]
+    }), /MOSCAROSSA_GALLERY_PENDING: editor unavailable/);
+});

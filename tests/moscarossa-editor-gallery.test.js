@@ -161,14 +161,61 @@ test("removes only the intended remote photo card", async () => {
         await page.setContent(`
             <form id="dati_annuncio"><ul class="fileuploader-items-list">
               <li><div class="content-holder"><span id="span_anteprima_1001">first</span></div>
-                <div class="column-actions"><a class="fileuploader-action-remove" onclick="this.closest('li').remove()">Remove</a></div></li>
+                <div class="column-actions"><a class="fileuploader-action-remove" onclick="if (confirm('Cancellare la foto?')) this.closest('li').remove()">Remove</a></div></li>
               <li><div class="content-holder"><span id="span_anteprima_1002">second</span></div>
-                <div class="column-actions"><a class="fileuploader-action-remove" onclick="this.closest('li').remove()">Remove</a></div></li>
+                <div class="column-actions"><a class="fileuploader-action-remove" onclick="if (confirm('Cancellare la foto?')) this.closest('li').remove()">Remove</a></div></li>
             </ul></form>
         `);
         await removeEditorPhoto(page, "1159998", "1002");
         assert.equal(await page.$("#span_anteprima_1002"), null);
         assert.notEqual(await page.$("#span_anteprima_1001"), null);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("removal updates the serialized uploader list before replacement upload", async () => {
+    const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] });
+    const page = await browser.newPage();
+    try {
+        await page.setContent(`
+            <form id="dati_annuncio"><div class="fileuploader">
+              <input name="fileuploader-list-files" value='[{"file":"https://foto.moscarossa.biz/1159998/1001.jpg"},{"file":"https://foto.moscarossa.biz/1159998/1002.jpg"}]'>
+              <ul class="fileuploader-items-list">
+                <li><span id="span_anteprima_1001">first</span>
+                  <a class="fileuploader-action-remove" onclick="if (confirm('Cancellare la foto?')) removePhoto(this, '1001')">Remove</a></li>
+                <li><span id="span_anteprima_1002">second</span>
+                  <a class="fileuploader-action-remove" onclick="if (confirm('Cancellare la foto?')) removePhoto(this, '1002')">Remove</a></li>
+              </ul>
+            </div></form>
+            <script>function removePhoto(button, id) {
+              const input = document.querySelector("input[name='fileuploader-list-files']");
+              input.value = JSON.stringify(JSON.parse(input.value).filter((photo) => !photo.file.includes('/' + id + '.')));
+              button.closest('li').remove();
+            }</script>
+        `);
+        await removeEditorPhoto(page, "1159998", "1002");
+        const gallery = await readEditorGallery(page, "1159998");
+        assert.deepEqual(gallery.map((photo) => photo.id), ["1001"]);
+        await removeEditorPhoto(page, "1159998", "1001");
+        assert.deepEqual(await readEditorGallery(page, "1159998"), []);
+    } finally {
+        await browser.close();
+    }
+});
+
+test("dismisses an unrelated confirmation instead of deleting a remote photo", async () => {
+    const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox"] });
+    const page = await browser.newPage();
+    try {
+        await page.setContent(`
+            <form id="dati_annuncio"><ul class="fileuploader-items-list">
+              <li><span id="span_anteprima_1002">second</span>
+                <a class="fileuploader-action-remove" onclick="if (confirm('Delete account?')) this.closest('li').remove()">Remove</a></li>
+            </ul></form>
+        `);
+        await assert.rejects(removeEditorPhoto(page, "1159998", "1002"), /conferma inattesa/);
+        assert.notEqual(await page.$("#span_anteprima_1002"), null);
     } finally {
         await browser.close();
     }
