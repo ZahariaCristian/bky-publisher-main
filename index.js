@@ -1123,6 +1123,7 @@ async function mainLoop(group, platform) {
                     s.promo = {
                         active: s.typeAnnuncio !== "Free",
                         visibility: s.typeAnnuncio,
+                        product: s.typeAnnuncio === "Flash" ? "flash" : "top",
                         schedule: s.period,
                         premium: s.hasPremium,
                         etichetta: s.hasEtichetta,
@@ -1161,6 +1162,9 @@ async function mainLoop(group, platform) {
                 // }
 
                 switch (ad.typeAnnuncio) {
+                    case "Flash":
+                        expiryDate.setDate(expiryDate.getDate() + 1);
+                        break;
                     case "1x1":
                     case "10x1":
                         expiryDate.setDate(expiryDate.getDate() + 2); // third day

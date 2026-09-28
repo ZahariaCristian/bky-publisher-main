@@ -950,6 +950,7 @@ class BakecaincontriiBot {
       promo: {
         active: tblSchedulazioni.promo.active || false,
         visibility: tblSchedulazioni.promo.visibility || "",
+        product: tblSchedulazioni.promo.product || "",
         schedule: tblSchedulazioni.promo.schedule || "",
         premium: tblSchedulazioni.promo.premium || false,
         highlight: tblSchedulazioni.promo.highlight || false,
@@ -959,6 +960,58 @@ class BakecaincontriiBot {
     };
 
     return transformedObject;
+  }
+
+  async activateFlashPromotion(page) {
+    const flashCardSelector = '[data-testid="flash-promotion-card"]';
+    const productIdSelector = 'input[name="ctt_product_id"]';
+    const productTypeSelector = 'input[name="product_type"]';
+    const submitSelector = '[data-testid="post-promote-summary-submit-button"]';
+
+    await page.waitForSelector(flashCardSelector, { visible: true, timeout: 30000 });
+    const selected = await page.$eval(
+      flashCardSelector,
+      (card) => card.classList.contains("selected")
+    ).catch(() => false);
+
+    if (!selected) {
+      await page.click(flashCardSelector);
+    }
+
+    await page.waitForFunction((productId, productType, submit) => {
+      const idInput = document.querySelector(productId);
+      const typeInput = document.querySelector(productType);
+      const button = document.querySelector(submit);
+      return Boolean(
+        idInput?.value &&
+        `${typeInput?.value || ""}`.toLowerCase() === "flash" &&
+        button &&
+        !button.disabled &&
+        button.getAttribute("aria-disabled") !== "true"
+      );
+    }, { timeout: 30000 }, productIdSelector, productTypeSelector, submitSelector);
+
+    const selection = await page.evaluate((productId, productType) => ({
+      productId: document.querySelector(productId)?.value || "",
+      productType: document.querySelector(productType)?.value || "",
+      total: document.querySelector('[data-testid="post-promote-summary-total-price"]')?.textContent?.trim() || ""
+    }), productIdSelector, productTypeSelector);
+    console.log("[bakecaincontrii:flash] Promotion selected", selection);
+
+    const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+    await page.click(submitSelector);
+    await navigation;
+    await delay(1500);
+
+    const stillPending = await page.evaluate((submit) => {
+      const button = document.querySelector(submit);
+      return /\/u\/post-promote\//i.test(window.location.pathname) && Boolean(button);
+    }, submitSelector).catch(() => false);
+    if (stillPending) {
+      throw new Error("Bakecaincontrii Flash payment was not confirmed after Paga per pubblicare.");
+    }
+
+    console.log("[bakecaincontrii:flash] Payment completed", { url: page.url() });
   }
 
   async publish(info, cookie) {
@@ -1002,6 +1055,10 @@ class BakecaincontriiBot {
 
         if (API_RESPONSE.data.promo) {
           console.log("External promo req resolved");
+          const promotionType = `${API_RESPONSE.data.promotionType || info?.promo?.product || info?.promo?.visibility || ""}`.trim().toLowerCase();
+          if (promotionType === "flash") {
+            await this.activateFlashPromotion(page);
+          }
           // Get the remote post ID
           remotePostID = await this.GetRemotePostID(page, 0);
           await delay(500);
@@ -1069,9 +1126,19 @@ class BakecaincontriiBot {
   };
 
   async GetRemotePostID(page, times) {
-    if (page.url().indexOf("manage") != -1) {
-      const re = /manage\/(.*?)\/$/g;
-      return re.exec(page.url())[1];
+    const currentUrl = page.url();
+    const manageMatch = currentUrl.match(/\/u\/post-manage\/([^/?#]+)\/?/i);
+    if (manageMatch) {
+      return manageMatch[1];
+    }
+
+    const manageHref = await page.evaluate(() => {
+      const link = document.querySelector('a[href*="/u/post-manage/"]');
+      return link?.href || "";
+    }).catch(() => "");
+    const linkedManageMatch = manageHref.match(/\/u\/post-manage\/([^/?#]+)\/?/i);
+    if (linkedManageMatch) {
+      return linkedManageMatch[1];
     }
     else {
       times++;
