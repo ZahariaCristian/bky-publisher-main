@@ -78,7 +78,7 @@ class BakecaincontriiBot {
             break;
           }
           lastHTMLSize = currentHTMLSize;
-          await delay(checkDurationMsecs);
+          await this.delay(checkDurationMsecs);
         }
       } catch (e) {
         resolve()
@@ -262,7 +262,7 @@ class BakecaincontriiBot {
           break;
         }
         console.warn('Injection failed, retrying...');
-        await delay(1000);
+        await this.delay(1000);
       }
       // Step 4 (Optional): Submit the form manually if the site doesn't do it
       // Uncomment if needed
@@ -823,7 +823,7 @@ class BakecaincontriiBot {
     await page.screenshot({
       path: './postclick.jpg'
     });
-    await delay(Math.random() * 1000 + 1000);
+    await this.delay(Math.random() * 1000 + 1000);
 
     if (await page.$(".img404") !== null) {
       return JSON.stringify({ err: "NOT FOUND" });
@@ -869,12 +869,6 @@ class BakecaincontriiBot {
     }).catch((e) => console.log(e))
     console.log("RESPONSE", API_RESPONSE)
     console.log("Advertisement updated.");
-  }
-
-  async delay(time) {
-    return new Promise(function (resolve) {
-      setTimeout(resolve, time)
-    });
   }
 
   formatCookies(cookie) {
@@ -1003,7 +997,7 @@ class BakecaincontriiBot {
     const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
     await page.click(submitSelector);
     await navigation;
-    await delay(1500);
+    await this.delay(1500);
 
     const stillPending = await page.evaluate((submit) => {
       const button = document.querySelector(submit);
@@ -1070,7 +1064,7 @@ class BakecaincontriiBot {
         const cookies = JSON.parse(cookie);
         await page.setCookie(...cookies);
         await page.goto(botResult.uri, { waitUntil: 'domcontentloaded' });
-        await delay(1000);
+        await this.delay(1000);
 
         if (botResult.promo) {
           console.log("External promo req resolved");
@@ -1080,7 +1074,7 @@ class BakecaincontriiBot {
           }
           // Get the remote post ID
           remotePostID = await this.GetRemotePostID(page, 0);
-          await delay(500);
+          await this.delay(500);
         } else {
           console.log("External free req resolved");
           remotePostID = botResult.remotePostId;
@@ -1118,7 +1112,7 @@ class BakecaincontriiBot {
       }
 
       // Retry the photo upload if an error occurs and retries are left
-      await delay(3000);
+      await this.delay(3000);
       if (retry < 3) {
         retry++;
         await self.publishPhoto(p, page, retry);
@@ -1129,17 +1123,17 @@ class BakecaincontriiBot {
   async type(page, selector, text) {
     if (!text) return;
     for (let char of text) {
-      await delay(Math.random() * 1 + 5);
+      await this.delay(Math.random() * 1 + 5);
       await page.type(selector, char)
-      await delay(Math.random() * 1 + 5);
+      await this.delay(Math.random() * 1 + 5);
     };
   };
 
   async copyText(page, selector, text) {
     if (!text) return;
-    await delay(Math.random() * 1 + 5);
+    await this.delay(Math.random() * 1 + 5);
     await page.evaluate((sel, t) => { $(sel).val(t); }, selector, text);
-    await delay(Math.random() * 1 + 5);
+    await this.delay(Math.random() * 1 + 5);
   };
 
   async GetRemotePostID(page, times) {
@@ -1165,16 +1159,16 @@ class BakecaincontriiBot {
           console.log("L'uri contiene promote");
           try {
             await page.click(".modal-footer button");
-            await delay(1000);
+            await this.delay(1000);
             await page.evaluate(`$("#app > div.modal.fade.show.d-block").remove();`);
             await page.evaluate(`$("#lightbox-vm18").remove();`);
             //await page.click(".modal-header.text-center > button");
           } catch (e) { };
           await page.click(".btn.btn-primary.waves-effect.waves-light");
           try {
-            await delay(1000);
+            await this.delay(1000);
             await page.click("#visible_call_button_modal > div > div > div.modal-footer > div > div > div:nth-child(1) > button");
-            await delay(4000);
+            await this.delay(4000);
           } catch (e) { };
           times = 0;
           return await this.GetRemotePostID(page, times);
@@ -1186,14 +1180,14 @@ class BakecaincontriiBot {
           console.log("Ancora in checkout");
           try {
             await page.click(".modal-footer button");
-            await delay(1000);
+            await this.delay(1000);
             await page.evaluate(`$("#app > div.modal.fade.show.d-block").remove();`);
             // -- await page.evaluate(`$("#lightbox-vm18").remove();`);
             await page.click(".modal-header.text-center > button");
 
 
             await page.click("button.btn.btn-primary.w-50.rounded-pill.b1");
-            await delay(1000);
+            await this.delay(1000);
           } catch (e) { };
           c = await page.url()
           console.log("CHECKOUT2", c)
@@ -1208,7 +1202,7 @@ class BakecaincontriiBot {
             } else {
               console.log("non ho il bottone")
             }
-            await delay(1000);
+            await this.delay(1000);
           } catch (e) { console.log("errore nel premere il nuovo bottone2 ", e) };
 
           await page.screenshot({ path: "./bug2.png", fullPage: true });
@@ -1225,7 +1219,7 @@ class BakecaincontriiBot {
           console.log("Premo paga ora");
           //await page.click(".onlydk > button");
 
-          await delay(1000);
+          await this.delay(1000);
           try {
             console.log("Salvo screenshot");
             await page.screenshot({ path: "./screenshots/pagopremo.png", fullPage: true });
@@ -1263,7 +1257,7 @@ class BakecaincontriiBot {
           };
 
 
-          await delay(1000);
+          await this.delay(1000);
           try {
             console.log("Salvo screenshot");
             await page.screenshot({ path: "./screenshots/pagopremo2.png", fullPage: true });
@@ -1282,9 +1276,9 @@ class BakecaincontriiBot {
 
           try {
             console.log("recaptcha Fatto");
-            await delay(1000);
+            await this.delay(1000);
             await page.click(".onlydk > button");
-            await delay(4000);
+            await this.delay(4000);
           } catch (e) { };
           times = 0;
           return await this.GetRemotePostID(page, times);
@@ -1295,7 +1289,7 @@ class BakecaincontriiBot {
       }
       await page.goto(page.url());
       console.log(`${times}/9 NOT FOUND MANAGE PAGE AT: ${page.url()}`);
-      await delay(500);
+      await this.delay(500);
       return await this.GetRemotePostID(page, times);
     }
   }
@@ -1372,36 +1366,36 @@ class BakecaincontriiBot {
 
     // Info section
     await page.click(".modal-footer button");
-    await delay(Math.random() * 1000 + 1000);
+    await this.delay(Math.random() * 1000 + 1000);
 
     await page.select("select[name='category']", "5c8a29c0c5591de8c62447ce");
     await page.select("select[name='city']", info.city);
 
     await this.type(page, "input[name='place']", "");
-    await delay(Math.random() * 20 + 30);
+    await this.delay(Math.random() * 20 + 30);
 
     await this.type(page, "input[name='age']", "20");
-    await delay(Math.random() * 20 + 30);
+    await this.delay(Math.random() * 20 + 30);
 
     await this.type(page, "textarea[name='title']", "Titolo Check Phone");
-    await delay(Math.random() * 20 + 30);
+    await this.delay(Math.random() * 20 + 30);
 
     await this.type(page, "textarea[name='description']", "Lorem Ipsum is simply dummy text of the printing and typesetting..");
-    await delay(Math.random() * 20 + 30);
+    await this.delay(Math.random() * 20 + 30);
 
     await this.type(page, "input[name='telephone']", info.contact);
-    await delay(Math.random() * 20 + 30);
+    await this.delay(Math.random() * 20 + 30);
 
     await page.click(".col-md-1 .switch .switch-label");
 
     await page.solveRecaptchas();
-    await delay(1000);
+    await this.delay(1000);
     await page.click(".btn.btn-primary.waves-effect.waves-light");
-    await delay(3000);
+    await this.delay(3000);
     await page.solveRecaptchas();
     await page.click(".modal-dialog .btn.btn-block.btn-outline-primary");
 
-      await delay(10000);
+      await this.delay(10000);
       console.log("Advertisement uploaded.");
     } finally {
       await page.close().catch(() => { });
