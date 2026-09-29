@@ -1490,7 +1490,10 @@ class BakecaincontriiBot {
       const code = details?.code || error?.code || "BKY_BOT_REQUEST_FAILED";
       const stage = details?.stage || "bot-request";
       const message = details?.message || error?.message || "Nessuna risposta da bky-bot.";
-      throw new Error(`${code} (${stage}): ${message}`);
+      const diagnosticDetails = details?.details && Object.keys(details.details).length
+        ? ` Dettagli: ${JSON.stringify(details.details)}`
+        : "";
+      throw new Error(`${code} (${stage}): ${message}${diagnosticDetails}`);
     }
 
     const botResult = API_RESPONSE?.data;
