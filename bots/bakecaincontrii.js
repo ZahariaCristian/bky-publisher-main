@@ -20,7 +20,6 @@ const solver = new TwoCaptcha.Solver(API_KEY);
 const LOGIN_URL = "https://www.bakecaincontrii.com/u/login/";
 const PUBLISH_URL = "https://bakecaincontrii.com/u/post-insert/";
 const MANAGE_POST = "https://bakecaincontrii.com/u/post-manage/";
-const PURCHASE_SUM = "https://bakecaincontrii.com/u/purchase-summary/";
 const PAGE_DASHBOARD = "https://www.bakecaincontrii.com/u/account/dashboard/";
 const CREDIT_SELECTOR = "#app > main > div > div.row > div.col-md-7.order-md-0 > div:nth-child(1) > div:nth-child(2) > div > div > div > div > div > ul > li:nth-child(1) > span.badge";
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
@@ -47,6 +46,7 @@ class BakecaincontriiBot {
     this.token = null;
     this.credit = null;
     this.remotePostID = null;
+    this.lastPublishedResult = null;
   };
 
   getLoginCredentialsSnapshot() {
@@ -803,56 +803,69 @@ class BakecaincontriiBot {
 
     });
     try {
-    var datetimes = [];
-    var rUri = "";
-    const page = await otherBot.newPage();
-    const cookies = JSON.parse(cookie);
-    await page.setCookie(...cookies);
-    if (isFree) {
-      await page.goto(MANAGE_POST + remoteID);
-    } else {
-      await page.goto(PURCHASE_SUM + remoteID);
-    }
-    await page.screenshot({
-      path: './preclick.jpg'
-    });
-    try {
-      await page.click(".modal-footer button");
-      await page.evaluate(`$("#lightbox-vm18").remove();`);
-    } catch { }
-    await page.screenshot({
-      path: './postclick.jpg'
-    });
-    await this.delay(Math.random() * 1000 + 1000);
+      let datetimes = [];
+      const page = await otherBot.newPage();
+      const cookies = JSON.parse(cookie);
+      await page.setCookie(...cookies);
 
-    if (await page.$(".img404") !== null) {
-      return JSON.stringify({ err: "NOT FOUND" });
-    }
-
-    rUri = await page.evaluate(async () => { return await new Promise(resolve => { resolve($(".item-title a").attr("href")); }) });
-    if (rUri == null) {
-      return JSON.stringify({ err: "NOT FOUND" });
-    }
-    await page.screenshot({
-      path: './prefetch.jpg'
-    });
-    if (!isFree) {
-      datetimes = await page.evaluate(async () => { return await new Promise(resolve => { resolve($("span.date, td.active, td.noactive").text().split("  ")); }) });
-      if (datetimes == null) datetimes = [];
-      for (let x in datetimes) {
-        var rTime = new RegExp("[0-9]*:[0-9]*", "g");
-        try {
-          let result;
-          while (result = rTime.exec(datetimes[x])) {
-            datetimes[x] = datetimes[x].replace(result[0], `,${result[0]}`);
-          }
-        } catch { }
-        if (datetimes[x].indexOf(" ") == 0) datetimes[x] = datetimes[x].substring(1, datetimes[x].length);
-        if (datetimes[x].indexOf("Oggi") == 0) datetimes[x] = datetimes[x].substring(5, datetimes[x].length);
+      const manageUrl = `${MANAGE_POST}${encodeURIComponent(remoteID)}/`;
+      try {
+        const consentUrl = new URL("/", manageUrl).href;
+        await page.setCookie(
+          { name: "adult_cookie", value: "1", url: consentUrl, secure: true, sameSite: "Lax" },
+          { name: "privacy_cookie", value: "1", url: consentUrl, secure: true, sameSite: "Lax" }
+        );
+      } catch (error) {
+        console.warn("[bakecaincontrii:uri] Unable to prepare consent cookies:", error.message);
       }
-    }
-    await page.evaluate(() => gc());
-    return { uri: rUri, datetimes: datetimes };
+
+      await page.goto(manageUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+      await this.delay(750);
+      await this.acceptBakecaincontriiAdultConsent(page);
+
+      if (await page.$(".img404") !== null) {
+        return { uri: "", datetimes: [], err: "NOT FOUND" };
+      }
+
+      await page.waitForSelector('[data-testid="post-manage-content"]', { timeout: 30000 }).catch(() => { });
+      let publicUrl = await this.extractBakecaincontriiPublicUrl(page);
+      const cachedResult = this.lastPublishedResult;
+      if (!publicUrl && cachedResult && `${cachedResult.remoteId}` === `${remoteID}`) {
+        publicUrl = cachedResult.publicUrl || "";
+      }
+
+      if (!publicUrl) {
+        console.error("[bakecaincontrii:uri] Public advertisement link not found", {
+          remoteID,
+          url: page.url()
+        });
+        return { uri: "", datetimes: [], err: "PUBLIC_URL_NOT_FOUND" };
+      }
+
+      if (!isFree) {
+        datetimes = await page.evaluate(() => {
+          const values = [];
+          const promotionSummary = document.querySelector('[data-testid="post-manage-promotion-summary"]');
+          const promotionText = `${promotionSummary?.innerText || ""}`.replace(/\s+/g, " ").trim();
+          const expiryMatch = promotionText.match(/La promo termina il\s+([^\n.]+(?:alle\s+\d{1,2}:\d{2})?)/i);
+          if (expiryMatch?.[1]) values.push(expiryMatch[1].trim());
+
+          for (const item of document.querySelectorAll("#calendarCarouselControls .calendar-list-item")) {
+            const text = `${item.innerText || ""}`.replace(/\s+/g, " ").trim();
+            if (text) values.push(text);
+          }
+          return [...new Set(values)];
+        }).catch(() => []);
+      }
+
+      this.lastPublishedResult = { remoteId: `${remoteID}`, publicUrl };
+      console.log("[bakecaincontrii:uri] Public URL captured", {
+        remoteID,
+        publicUrl,
+        datetimes: datetimes.length
+      });
+      await page.evaluate(() => typeof gc === "function" && gc()).catch(() => { });
+      return { uri: publicUrl, datetimes, err: null };
     } finally {
       await otherBot.close().catch(() => { });
     }
@@ -1022,6 +1035,196 @@ class BakecaincontriiBot {
     return true;
   }
 
+  async extractBakecaincontriiPublicUrl(page) {
+    const publicUrl = await page.evaluate(() => {
+      const isPublicAdUrl = (candidate) => {
+        try {
+          const baseUrl = /^https?:\/\//i.test(window.location.origin)
+            ? window.location.origin
+            : "https://www.bakecaincontrii.com";
+          const parsed = new URL(candidate, baseUrl);
+          return /(^|\.)bakecaincontrii\.com$/i.test(parsed.hostname) &&
+            /\/annuncio\//i.test(parsed.pathname)
+            ? parsed.href
+            : "";
+        } catch {
+          return "";
+        }
+      };
+
+      const directLink = document.querySelector('[data-testid="post-status-view-online-link"]')?.href || "";
+      const directPublicUrl = isPublicAdUrl(directLink);
+      if (directPublicUrl) return directPublicUrl;
+
+      const shareSelectors = [
+        '[data-testid="post-status-share-whatsapp-link"]',
+        '[data-testid="post-status-share-telegram-link"]',
+        '[data-testid="post-status-share-email-link"]'
+      ];
+      for (const selector of shareSelectors) {
+        const href = document.querySelector(selector)?.href || "";
+        if (!href) continue;
+        let decoded = href;
+        try {
+          decoded = decodeURIComponent(href);
+        } catch { }
+        const match = decoded.match(/https?:\/\/[^\s&"']+\/annuncio\/[^\s&"']+/i);
+        const sharedPublicUrl = isPublicAdUrl(match?.[0] || "");
+        if (sharedPublicUrl) return sharedPublicUrl;
+      }
+
+      for (const anchor of document.querySelectorAll('a[href*="/annuncio/"]')) {
+        const fallbackPublicUrl = isPublicAdUrl(anchor.href);
+        if (fallbackPublicUrl) return fallbackPublicUrl;
+      }
+      return "";
+    }).catch(() => "");
+
+    return `${publicUrl || ""}`.trim();
+  }
+
+  async completeFlashCheckout(page) {
+    const checkoutManagerSelector = '[data-testid="checkout-order-manager"]';
+    const creditSelector = 'input[name="radio-button"][value="credits"]';
+    const termsSelectors = [
+      '[data-testid="checkout-terms-checkbox-desktop"]',
+      '[data-testid="checkout-terms-checkbox-mobile"]'
+    ];
+    const termsLabelSelectors = [
+      '[data-testid="checkout-terms-label-desktop"]',
+      '[data-testid="checkout-terms-label-mobile"]'
+    ];
+    const paySelectors = [
+      '[data-testid="checkout-pay-button-desktop"]',
+      '[data-testid="checkout-pay-button-mobile"]'
+    ];
+
+    if (!/\/u\/order-checkout\//i.test(page.url())) return false;
+
+    try {
+      await page.waitForSelector(checkoutManagerSelector, { visible: true, timeout: 30000 });
+    } catch (error) {
+      throw new Error(`FLASH_CHECKOUT_NOT_READY: la pagina checkout non e pronta (${error.message}).`);
+    }
+
+    await this.acceptBakecaincontriiAdultConsent(page);
+
+    const chooseVisibleSelector = async (selectors) => page.evaluate((candidates) => {
+      for (const selector of candidates) {
+        const element = document.querySelector(selector);
+        if (!element) continue;
+        const style = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        if (
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          style.opacity !== "0" &&
+          rect.width > 0 &&
+          rect.height > 0
+        ) return selector;
+      }
+      return "";
+    }, selectors).catch(() => "");
+
+    const creditAvailable = await page.$(creditSelector);
+    if (!creditAvailable) {
+      throw new Error("FLASH_CHECKOUT_CREDITS_NOT_AVAILABLE: il metodo di pagamento Crediti non e disponibile.");
+    }
+
+    let creditSelected = await page.$eval(creditSelector, (input) => input.checked).catch(() => false);
+    if (!creditSelected) {
+      await page.$eval(creditSelector, (input) => input.click()).catch(() => { });
+      try {
+        await page.waitForFunction((selector) => Boolean(document.querySelector(selector)?.checked),
+          { timeout: 10000 }, creditSelector);
+      } catch (error) {
+        throw new Error(`FLASH_CHECKOUT_CREDITS_NOT_SELECTED: impossibile selezionare il pagamento con crediti (${error.message}).`);
+      }
+      creditSelected = true;
+    }
+
+    let termsSelector = await chooseVisibleSelector(termsSelectors);
+    let termsLabelSelector = await chooseVisibleSelector(termsLabelSelectors);
+    if (!termsSelector) {
+      // The checkbox itself may be visually hidden by the custom switch while its label is visible.
+      termsSelector = termsLabelSelector?.includes("mobile") ? termsSelectors[1] : termsSelectors[0];
+    }
+    if (!await page.$(termsSelector)) {
+      throw new Error("FLASH_CHECKOUT_TERMS_NOT_FOUND: il controllo Termini e Condizioni non e disponibile.");
+    }
+
+    let termsAccepted = await page.$eval(termsSelector, (input) => input.checked).catch(() => false);
+    if (!termsAccepted) {
+      if (termsLabelSelector) {
+        await page.click(termsLabelSelector).catch(() => { });
+      }
+      termsAccepted = await page.$eval(termsSelector, (input) => input.checked).catch(() => false);
+      if (!termsAccepted) {
+        await page.$eval(termsSelector, (input) => input.click()).catch(() => { });
+      }
+      try {
+        await page.waitForFunction((selector) => Boolean(document.querySelector(selector)?.checked),
+          { timeout: 10000 }, termsSelector);
+      } catch (error) {
+        throw new Error(`FLASH_CHECKOUT_TERMS_NOT_ACCEPTED: impossibile attivare Termini e Condizioni (${error.message}).`);
+      }
+    }
+
+    const paySelector = await chooseVisibleSelector(paySelectors);
+    if (!paySelector) {
+      throw new Error("FLASH_CHECKOUT_PAY_BUTTON_NOT_FOUND: il pulsante Paga per pubblicare del checkout non e disponibile.");
+    }
+
+    const checkoutState = await page.evaluate((credit, terms, pay) => ({
+      url: window.location.href,
+      creditsSelected: Boolean(document.querySelector(credit)?.checked),
+      termsAccepted: Boolean(document.querySelector(terms)?.checked),
+      payDisabled: Boolean(
+        document.querySelector(pay)?.disabled ||
+        document.querySelector(pay)?.getAttribute("aria-disabled") === "true"
+      ),
+      total: document.querySelector('[data-testid="checkout-summary-basket"] .price.sel')?.textContent?.trim() || ""
+    }), creditSelector, termsSelector, paySelector);
+    console.log("[bakecaincontrii:flash] Checkout ready", checkoutState);
+
+    if (!checkoutState.creditsSelected || !checkoutState.termsAccepted || checkoutState.payDisabled) {
+      throw new Error(`FLASH_CHECKOUT_INVALID_STATE: checkout non pronto per il pagamento. Stato: ${JSON.stringify(checkoutState)}`);
+    }
+
+    const checkoutUrl = page.url();
+    const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+    await page.click(paySelector).catch(async () => {
+      await page.$eval(paySelector, (button) => button.click());
+    });
+
+    await Promise.race([
+      navigation,
+      page.waitForFunction((startingUrl) => window.location.href !== startingUrl,
+        { timeout: 60000 }, checkoutUrl).catch(() => null),
+      this.delay(60000)
+    ]);
+    await this.delay(1500);
+
+    if (/\/u\/order-checkout\//i.test(page.url())) {
+      const failure = await page.evaluate(() => {
+        const alert = document.querySelector("#error-top-alert");
+        const style = alert ? window.getComputedStyle(alert) : null;
+        const visible = Boolean(alert && style?.display !== "none" && style?.visibility !== "hidden");
+        return {
+          error: visible ? `${alert.textContent || ""}`.replace(/\s+/g, " ").trim() : "",
+          bodyExcerpt: `${document.body?.innerText || ""}`.replace(/\s+/g, " ").trim().slice(0, 500)
+        };
+      }).catch(() => ({ error: "", bodyExcerpt: "" }));
+      throw new Error(
+        `FLASH_CHECKOUT_PAYMENT_NOT_CONFIRMED: Bakecaincontrii e rimasto nella pagina checkout` +
+        `${failure.error ? ` (${failure.error})` : ""}. Contenuto: ${failure.bodyExcerpt}`
+      );
+    }
+
+    console.log("[bakecaincontrii:flash] Checkout payment completed", { url: page.url() });
+    return true;
+  }
+
   async activateFlashPromotion(page) {
     const flashCardSelector = '[data-testid="flash-promotion-card"]';
     const flashManagerSelector = '[data-testid="post-promote-manager-flash-promotion"]';
@@ -1181,7 +1384,7 @@ class BakecaincontriiBot {
       }, { timeout: 15000 }, submitSelector);
     } catch (error) {
       await failFlashStage(
-        "FLASH_CHECKOUT_NOT_READY",
+        "FLASH_PROMOTION_SUBMIT_NOT_READY",
         `Flash e selezionato ma il pulsante Paga per pubblicare non e disponibile (${error.message})`
       );
     }
@@ -1246,10 +1449,13 @@ class BakecaincontriiBot {
       );
     }
 
+    await this.completeFlashCheckout(page);
+
     console.log("[bakecaincontrii:flash] Payment completed", { url: page.url() });
   }
 
   async publish(info, cookie) {
+    this.lastPublishedResult = null;
     const executablePath = await puppeteer.executablePath();
     var otherBot = await puppeteer.launch({
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", '--js-flags=--expose-gc'],
@@ -1322,6 +1528,19 @@ class BakecaincontriiBot {
           }
           // Get the remote post ID
           remotePostID = await this.GetRemotePostID(page, 0);
+          const publicUrl = await this.extractBakecaincontriiPublicUrl(page);
+          if (publicUrl) {
+            this.lastPublishedResult = { remoteId: `${remotePostID || ""}`, publicUrl };
+            console.log("[bakecaincontrii:publish] Public URL captured", {
+              remoteId: remotePostID,
+              publicUrl
+            });
+          } else {
+            console.warn("[bakecaincontrii:publish] Public URL is not available on the current page", {
+              remoteId: remotePostID,
+              url: page.url()
+            });
+          }
           await this.delay(500);
         } else {
           console.log("External free req resolved");
