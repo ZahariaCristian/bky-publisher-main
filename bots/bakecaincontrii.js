@@ -791,13 +791,15 @@ class BakecaincontriiBot {
   }
 
   async getDatetimes(remoteID, isFree, cookie) {
+    const executablePath = await puppeteer.executablePath();
     var otherBot = await puppeteer.launch({
-      args: ["--no-sandbox", "--disable-setuid-sandbox", '--js-flags=--expose-gc'],
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", '--js-flags=--expose-gc'],
       headless: true,
       defaultViewport: {
         width: 1920,
         height: 1080,
-      }, executablePath: puppeteer.executablePath()
+      },
+      executablePath
 
     });
     try {
@@ -1015,14 +1017,15 @@ class BakecaincontriiBot {
   }
 
   async publish(info, cookie) {
+    const executablePath = await puppeteer.executablePath();
     var otherBot = await puppeteer.launch({
-      args: ["--no-sandbox", "--disable-setuid-sandbox", '--js-flags=--expose-gc'],
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", '--js-flags=--expose-gc'],
       headless: true,
       defaultViewport: {
         width: 1920,
         height: 1080,
       },
-      executablePath: puppeteer.executablePath()
+      executablePath
     });
     try {
 
