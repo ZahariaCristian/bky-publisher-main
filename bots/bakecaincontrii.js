@@ -960,42 +960,172 @@ class BakecaincontriiBot {
 
   async activateFlashPromotion(page) {
     const flashCardSelector = '[data-testid="flash-promotion-card"]';
+    const flashManagerSelector = '[data-testid="post-promote-manager-flash-promotion"]';
     const productIdSelector = 'input[name="ctt_product_id"]';
     const productTypeSelector = 'input[name="product_type"]';
     const submitSelector = '[data-testid="post-promote-summary-submit-button"]';
+    const screenshotDir = path.join(".", "screenshots", "bakecaincontrii-flash");
 
-    await page.waitForSelector(flashCardSelector, { visible: true, timeout: 30000 });
-    const selected = await page.$eval(
-      flashCardSelector,
-      (card) => card.classList.contains("selected")
-    ).catch(() => false);
+    const getFlashState = async () => page.evaluate((selectors) => {
+      const card = document.querySelector(selectors.card);
+      const manager = document.querySelector(selectors.manager);
+      const idInput = document.querySelector(selectors.productId);
+      const typeInput = document.querySelector(selectors.productType);
+      const button = document.querySelector(selectors.submit);
+      const cardRect = card?.getBoundingClientRect();
+      const cardStyle = card ? window.getComputedStyle(card) : null;
+      let elementAtCardCenter = "";
 
-    if (!selected) {
-      await page.click(flashCardSelector);
+      if (cardRect && cardRect.width > 0 && cardRect.height > 0) {
+        const centerX = Math.min(window.innerWidth - 1, Math.max(0, cardRect.left + (cardRect.width / 2)));
+        const centerY = Math.min(window.innerHeight - 1, Math.max(0, cardRect.top + (cardRect.height / 2)));
+        const elementAtPoint = document.elementFromPoint(centerX, centerY);
+        elementAtCardCenter = elementAtPoint?.getAttribute("data-testid") ||
+          elementAtPoint?.tagName?.toLowerCase() || "";
+      }
+
+      return {
+        url: window.location.href,
+        title: document.title,
+        managerPresent: Boolean(manager),
+        cardPresent: Boolean(card),
+        cardVisible: Boolean(
+          cardRect &&
+          cardRect.width > 0 &&
+          cardRect.height > 0 &&
+          cardStyle?.visibility !== "hidden" &&
+          cardStyle?.display !== "none"
+        ),
+        cardClasses: card?.className || "",
+        elementAtCardCenter,
+        productId: idInput?.value || "",
+        productType: typeInput?.value || "",
+        submitPresent: Boolean(button),
+        submitDisabled: button ? Boolean(
+          button.disabled || button.getAttribute("aria-disabled") === "true"
+        ) : null,
+        total: document.querySelector('[data-testid="post-promote-summary-total-price"]')?.textContent?.trim() || "",
+        bodyExcerpt: `${document.body?.innerText || ""}`.replace(/\s+/g, " ").trim().slice(0, 500)
+      };
+    }, {
+      card: flashCardSelector,
+      manager: flashManagerSelector,
+      productId: productIdSelector,
+      productType: productTypeSelector,
+      submit: submitSelector
+    }).catch((error) => ({ evaluationError: error.message, url: page.url() }));
+
+    const captureFlashState = async (stage, { screenshot = false } = {}) => {
+      const state = await getFlashState();
+      console.log(`[bakecaincontrii:flash] ${stage}`, state);
+      if (screenshot) {
+        try {
+          fs.mkdirSync(screenshotDir, { recursive: true });
+          const safeStage = `${stage}`.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase();
+          const screenshotPath = path.join(screenshotDir, `${Date.now()}-${safeStage}.png`);
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+          console.log(`[bakecaincontrii:flash] Screenshot saved: ${screenshotPath}`);
+        } catch (error) {
+          console.warn(`[bakecaincontrii:flash] Unable to capture ${stage} screenshot:`, error.message);
+        }
+      }
+      return state;
+    };
+
+    const failFlashStage = async (code, message) => {
+      const state = await captureFlashState(`error-${code}`, { screenshot: true });
+      const details = JSON.stringify({
+        url: state.url,
+        managerPresent: state.managerPresent,
+        cardPresent: state.cardPresent,
+        cardVisible: state.cardVisible,
+        cardClasses: state.cardClasses,
+        elementAtCardCenter: state.elementAtCardCenter,
+        productId: state.productId,
+        productType: state.productType,
+        submitPresent: state.submitPresent,
+        submitDisabled: state.submitDisabled
+      });
+      throw new Error(`${code}: ${message}. Stato: ${details}`);
+    };
+
+    try {
+      await page.waitForSelector(flashManagerSelector, { timeout: 30000 });
+      await page.waitForSelector(flashCardSelector, { visible: true, timeout: 30000 });
+      await page.waitForFunction((selector) => {
+        const card = document.querySelector(selector);
+        const rect = card?.getBoundingClientRect();
+        return Boolean(card && rect && rect.width > 0 && rect.height > 0);
+      }, { timeout: 10000 }, flashCardSelector);
+    } catch (error) {
+      await failFlashStage(
+        "FLASH_CARD_NOT_FOUND",
+        `la promozione Flash non e disponibile o non e visibile (${error.message})`
+      );
     }
 
-    await page.waitForFunction((productId, productType, submit) => {
+    // Give the client-side promotion component time to attach its click handlers.
+    await this.delay(750);
+    let state = await captureFlashState("before-selection");
+    const isFlashSelected = (currentState) => Boolean(
+      currentState.productId && `${currentState.productType || ""}`.toLowerCase() === "flash"
+    );
+    const waitForFlashSelection = (timeout) => page.waitForFunction((productId, productType) => {
       const idInput = document.querySelector(productId);
       const typeInput = document.querySelector(productType);
-      const button = document.querySelector(submit);
       return Boolean(
-        idInput?.value &&
-        `${typeInput?.value || ""}`.toLowerCase() === "flash" &&
-        button &&
-        !button.disabled &&
-        button.getAttribute("aria-disabled") !== "true"
+        idInput?.value && `${typeInput?.value || ""}`.toLowerCase() === "flash"
       );
-    }, { timeout: 30000 }, productIdSelector, productTypeSelector, submitSelector);
+    }, { timeout }, productIdSelector, productTypeSelector);
 
-    const selection = await page.evaluate((productId, productType) => ({
-      productId: document.querySelector(productId)?.value || "",
-      productType: document.querySelector(productType)?.value || "",
-      total: document.querySelector('[data-testid="post-promote-summary-total-price"]')?.textContent?.trim() || ""
-    }), productIdSelector, productTypeSelector);
+    if (!isFlashSelected(state)) {
+      await page.$eval(flashCardSelector, (card) => {
+        card.scrollIntoView({ block: "center", inline: "center" });
+      });
+      await this.delay(250);
+
+      // Start with a real Puppeteer mouse click so frameworks receive a trusted event.
+      await page.click(flashCardSelector).catch(() => { });
+      await waitForFlashSelection(8000).catch(() => { });
+      state = await getFlashState();
+
+      if (!isFlashSelected(state)) {
+        console.warn("[bakecaincontrii:flash] Mouse click did not select Flash; using DOM click fallback.");
+        await page.$eval(flashCardSelector, (card) => card.click()).catch(() => { });
+        await waitForFlashSelection(12000).catch(() => { });
+        state = await getFlashState();
+      }
+    }
+
+    if (!isFlashSelected(state)) {
+      await failFlashStage(
+        "FLASH_SELECTION_NOT_APPLIED",
+        "il click sulla scheda Flash non ha valorizzato product_type e ctt_product_id"
+      );
+    }
+
+    try {
+      await page.waitForSelector(submitSelector, { visible: true, timeout: 15000 });
+      await page.waitForFunction((submit) => {
+        const button = document.querySelector(submit);
+        return Boolean(
+          button && !button.disabled && button.getAttribute("aria-disabled") !== "true"
+        );
+      }, { timeout: 15000 }, submitSelector);
+    } catch (error) {
+      await failFlashStage(
+        "FLASH_CHECKOUT_NOT_READY",
+        `Flash e selezionato ma il pulsante Paga per pubblicare non e disponibile (${error.message})`
+      );
+    }
+
+    const selection = await captureFlashState("selection-ready");
     console.log("[bakecaincontrii:flash] Promotion selected", selection);
 
     const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
-    await page.click(submitSelector);
+    await page.click(submitSelector).catch(async () => {
+      await page.$eval(submitSelector, (button) => button.click());
+    });
     await navigation;
     await this.delay(1500);
 
@@ -1004,7 +1134,10 @@ class BakecaincontriiBot {
       return /\/u\/post-promote\//i.test(window.location.pathname) && Boolean(button);
     }, submitSelector).catch(() => false);
     if (stillPending) {
-      throw new Error("Bakecaincontrii Flash payment was not confirmed after Paga per pubblicare.");
+      await failFlashStage(
+        "FLASH_PAYMENT_NOT_CONFIRMED",
+        "Bakecaincontrii non ha confermato il pagamento dopo Paga per pubblicare"
+      );
     }
 
     console.log("[bakecaincontrii:flash] Payment completed", { url: page.url() });
