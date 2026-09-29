@@ -958,6 +958,70 @@ class BakecaincontriiBot {
     return transformedObject;
   }
 
+  async acceptBakecaincontriiAdultConsent(page) {
+    const modalSelector = "#lightbox-vm18";
+    const isModalVisible = async () => page.evaluate((selector) => {
+      const modal = document.querySelector(selector);
+      if (!modal) return false;
+      const style = window.getComputedStyle(modal);
+      const rect = modal.getBoundingClientRect();
+      return Boolean(
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        style.opacity !== "0" &&
+        rect.width > 0 &&
+        rect.height > 0
+      );
+    }, modalSelector).catch(() => false);
+
+    if (!await isModalVisible()) return false;
+
+    console.log("[bakecaincontrii:consent] Accepting the visible 18+ notice.");
+    const clicked = await page.evaluate((selector) => {
+      const modal = document.querySelector(selector);
+      if (!modal) return false;
+      const buttons = Array.from(modal.querySelectorAll("button"));
+      const button = modal.querySelector(".modal-footer button.btn-primary") ||
+        buttons.find((candidate) => `${candidate.textContent || ""}`.trim().toLowerCase() === "accetto");
+      if (!button) return false;
+      button.click();
+      return true;
+    }, modalSelector).catch(() => false);
+
+    if (!clicked) {
+      throw new Error("FLASH_ADULT_CONSENT_BUTTON_NOT_FOUND: il popup 18+ e visibile ma il pulsante ACCETTO non e disponibile.");
+    }
+
+    try {
+      await page.waitForFunction((selector) => {
+        const modal = document.querySelector(selector);
+        if (!modal) return true;
+        const style = window.getComputedStyle(modal);
+        const rect = modal.getBoundingClientRect();
+        return style.display === "none" ||
+          style.visibility === "hidden" ||
+          style.opacity === "0" ||
+          rect.width === 0 ||
+          rect.height === 0;
+      }, { timeout: 10000 }, modalSelector);
+    } catch (error) {
+      throw new Error(`FLASH_ADULT_CONSENT_NOT_DISMISSED: il popup 18+ e rimasto visibile dopo ACCETTO (${error.message}).`);
+    }
+
+    try {
+      const consentUrl = new URL("/", page.url()).href;
+      await page.setCookie(
+        { name: "adult_cookie", value: "1", url: consentUrl, secure: true, sameSite: "Lax" },
+        { name: "privacy_cookie", value: "1", url: consentUrl, secure: true, sameSite: "Lax" }
+      );
+    } catch (error) {
+      console.warn("[bakecaincontrii:consent] Unable to persist consent cookies:", error.message);
+    }
+
+    console.log("[bakecaincontrii:consent] 18+ notice accepted.");
+    return true;
+  }
+
   async activateFlashPromotion(page) {
     const flashCardSelector = '[data-testid="flash-promotion-card"]';
     const flashManagerSelector = '[data-testid="post-promote-manager-flash-promotion"]';
@@ -965,6 +1029,9 @@ class BakecaincontriiBot {
     const productTypeSelector = 'input[name="product_type"]';
     const submitSelector = '[data-testid="post-promote-summary-submit-button"]';
     const screenshotDir = path.join(".", "screenshots", "bakecaincontrii-flash");
+
+    // This modal can cover the promotion controls even when they are present in the DOM.
+    await this.acceptBakecaincontriiAdultConsent(page);
 
     const getFlashState = async () => page.evaluate((selectors) => {
       const card = document.querySelector(selectors.card);
@@ -1122,12 +1189,51 @@ class BakecaincontriiBot {
     const selection = await captureFlashState("selection-ready");
     console.log("[bakecaincontrii:flash] Promotion selected", selection);
 
-    const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
-    await page.click(submitSelector).catch(async () => {
-      await page.$eval(submitSelector, (button) => button.click());
-    });
-    await navigation;
+    // Recheck immediately before payment: the notice may be mounted lazily by the page.
+    await this.acceptBakecaincontriiAdultConsent(page);
+
+    const clickPaymentButton = async () => {
+      await page.waitForFunction((submit) => {
+        const button = document.querySelector(submit);
+        return Boolean(button && !button.disabled && button.getAttribute("aria-disabled") !== "true");
+      }, { timeout: 10000 }, submitSelector);
+      await page.click(submitSelector).catch(async () => {
+        await page.$eval(submitSelector, (button) => button.click());
+      });
+    };
+
+    let navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+    await clickPaymentButton();
+
+    // Do not wait a full navigation timeout when the first click opens the consent notice.
+    await Promise.race([navigation, this.delay(2500)]);
+    const consentInterruptedPayment = await this.acceptBakecaincontriiAdultConsent(page);
+    if (consentInterruptedPayment) {
+      console.log("[bakecaincontrii:flash] 18+ notice interrupted payment; retrying payment once.");
+      navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+      await clickPaymentButton();
+    }
+
+    await Promise.race([navigation, this.delay(30000)]);
     await this.delay(1500);
+
+    const adultConsentStillVisible = await page.evaluate(() => {
+      const modal = document.querySelector("#lightbox-vm18");
+      if (!modal) return false;
+      const style = window.getComputedStyle(modal);
+      const rect = modal.getBoundingClientRect();
+      return style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        style.opacity !== "0" &&
+        rect.width > 0 &&
+        rect.height > 0;
+    }).catch(() => false);
+    if (adultConsentStillVisible) {
+      await failFlashStage(
+        "FLASH_ADULT_CONSENT_NOT_DISMISSED",
+        "il popup 18+ blocca ancora la conferma del pagamento"
+      );
+    }
 
     const stillPending = await page.evaluate((submit) => {
       const button = document.querySelector(submit);
@@ -1196,6 +1302,15 @@ class BakecaincontriiBot {
         const page = await otherBot.newPage();
         const cookies = JSON.parse(cookie);
         await page.setCookie(...cookies);
+        try {
+          const consentUrl = new URL("/", botResult.uri).href;
+          await page.setCookie(
+            { name: "adult_cookie", value: "1", url: consentUrl, secure: true, sameSite: "Lax" },
+            { name: "privacy_cookie", value: "1", url: consentUrl, secure: true, sameSite: "Lax" }
+          );
+        } catch (error) {
+          console.warn("[bakecaincontrii:consent] Unable to prepare consent cookies:", error.message);
+        }
         await page.goto(botResult.uri, { waitUntil: 'domcontentloaded' });
         await this.delay(1000);
 
