@@ -1037,28 +1037,44 @@ class BakecaincontriiBot {
     })
 
     // Send the API request
-    const API_RESPONSE = await axios.post("http://localhost:9999", {
-      adv: this.transformObject(info),
-      cookies: this.formatCookies(cookie),
-      expectedEmail: this.email
-    }).catch(() => remotePostID = null);
-
-    if (API_RESPONSE.data === "ERROR") {
-      console.log("External req on error");
-      remotePostID = null;
+    const botServiceUrl = process.env.BKY_BOT_URL || "http://127.0.0.1:9999";
+    let API_RESPONSE;
+    try {
+      API_RESPONSE = await axios.post(botServiceUrl, {
+        adv: this.transformObject(info),
+        cookies: this.formatCookies(cookie),
+        expectedEmail: this.email
+      });
+    } catch (error) {
+      const response = error?.response;
+      const details = response?.data || {};
+      const code = details?.code || error?.code || "BKY_BOT_REQUEST_FAILED";
+      const stage = details?.stage || "bot-request";
+      const message = details?.message || error?.message || "Nessuna risposta da bky-bot.";
+      throw new Error(`${code} (${stage}): ${message}`);
     }
 
-    if (API_RESPONSE.data.uri) {
+    const botResult = API_RESPONSE?.data;
+    if (!botResult || botResult === "ERROR" || botResult.ok === false) {
+      throw new Error(
+        `${botResult?.code || "BKY_BOT_INVALID_RESPONSE"}: ${botResult?.message || "bky-bot non ha restituito un risultato valido."}`
+      );
+    }
+    if (!botResult.uri) {
+      throw new Error("BKY_BOT_MISSING_URI: bky-bot non ha restituito la pagina di pubblicazione.");
+    }
+
+    if (botResult.uri) {
       try {
         const page = await otherBot.newPage();
         const cookies = JSON.parse(cookie);
         await page.setCookie(...cookies);
-        await page.goto(API_RESPONSE.data.uri, { waitUntil: 'domcontentloaded' });
+        await page.goto(botResult.uri, { waitUntil: 'domcontentloaded' });
         await delay(1000);
 
-        if (API_RESPONSE.data.promo) {
+        if (botResult.promo) {
           console.log("External promo req resolved");
-          const promotionType = `${API_RESPONSE.data.promotionType || info?.promo?.product || info?.promo?.visibility || ""}`.trim().toLowerCase();
+          const promotionType = `${botResult.promotionType || info?.promo?.product || info?.promo?.visibility || ""}`.trim().toLowerCase();
           if (promotionType === "flash") {
             await this.activateFlashPromotion(page);
           }
@@ -1067,18 +1083,16 @@ class BakecaincontriiBot {
           await delay(500);
         } else {
           console.log("External free req resolved");
-          remotePostID = API_RESPONSE.data.remotePostId;
+          remotePostID = botResult.remotePostId;
         }
       } catch (error) {
-        if (error.message.includes('Execution context was destroyed')) {
-          console.log("Navigation error occurred, retrying...");
-          // Retry the navigation or handle the error
-        } else {
-          console.log("Unexpected error: ", error);
-        }
+        throw new Error(`BAKECAINCONTRII_BROWSER_WORKFLOW_FAILED: ${error.message}`);
       }
     }
 
+    if (!remotePostID) {
+      throw new Error("BAKECAINCONTRII_REMOTE_ID_MISSING: pubblicazione non confermata.");
+    }
     console.log("REMOTE POST ID", remotePostID);
     return remotePostID;
     } finally {

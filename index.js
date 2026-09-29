@@ -1405,6 +1405,9 @@ async function postThis(ad, group, platform) {
                         published.push(ad.id);
                         try {
                             remotePostID = await group.bot.publish(ad, group.cookie);
+                            if (!remotePostID) {
+                                throw new Error("Bakecaincontrii did not return a remote post ID.");
+                            }
                             console.log(`${new Date()} Insertion complete for schedule ${ad.id}`);
                             logger.Write(`Publish successful: https://bari.bakecaincontrii.com/u/post-manage/${remotePostID}/`);
                         } catch (publishError) {
