@@ -1502,6 +1502,12 @@ class BakecaincontriiBot {
         `${botResult?.code || "BKY_BOT_INVALID_RESPONSE"}: ${botResult?.message || "bky-bot non ha restituito un risultato valido."}`
       );
     }
+    if (Array.isArray(botResult.imageWarnings) && botResult.imageWarnings.length) {
+      console.warn("[bakecaincontrii:images] Publication continued with rejected images skipped", {
+        skipped: botResult.imageWarnings.length,
+        warnings: botResult.imageWarnings,
+      });
+    }
     if (!botResult.uri) {
       throw new Error("BKY_BOT_MISSING_URI: bky-bot non ha restituito la pagina di pubblicazione.");
     }
