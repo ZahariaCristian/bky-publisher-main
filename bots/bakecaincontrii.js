@@ -22,6 +22,7 @@ const PUBLISH_URL = "https://bakecaincontrii.com/u/post-insert/";
 const MANAGE_POST = "https://bakecaincontrii.com/u/post-manage/";
 const PAGE_DASHBOARD = "https://www.bakecaincontrii.com/u/account/dashboard/";
 const CREDIT_SELECTOR = "#app > main > div > div.row > div.col-md-7.order-md-0 > div:nth-child(1) > div:nth-child(2) > div > div > div > div > div > ul > li:nth-child(1) > span.badge";
+const AVAILABLE_ADS_SELECTOR = '[data-testid="dashboard-card-list-one-data-pacchetti-annunci"]';
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
 puppeteer.use(
@@ -45,9 +46,32 @@ class BakecaincontriiBot {
     this.page = null;
     this.token = null;
     this.credit = null;
+    this.availableAds = null;
     this.remotePostID = null;
     this.lastPublishedResult = null;
   };
+
+  async readAvailableAds() {
+    if (!this.page || this.page.isClosed()) return null;
+    return this.page.evaluate((primarySelector) => {
+      const parseAmount = (value) => {
+        const normalized = `${value || ""}`.replace(/[^0-9]/g, "");
+        return normalized === "" ? null : Number.parseInt(normalized, 10);
+      };
+
+      const primary = document.querySelector(primarySelector);
+      const primaryAmount = parseAmount(primary?.textContent);
+      if (Number.isFinite(primaryAmount)) return primaryAmount;
+
+      const items = Array.from(document.querySelectorAll("ul.list-group li.list-group-item"));
+      const availableItem = items.find((item) =>
+        /annunci\s+disponibili/i.test(`${item.textContent || ""}`)
+      );
+      return parseAmount(
+        availableItem?.querySelector("span.badge, span:last-child")?.textContent
+      );
+    }, AVAILABLE_ADS_SELECTOR).catch(() => null);
+  }
 
   getLoginCredentialsSnapshot() {
     return {
@@ -705,6 +729,12 @@ class BakecaincontriiBot {
 
         this.credit = credit;
         console.log("[✓] Credit Bakecaincontrii found:refresh", this.credit);
+        this.availableAds = await this.readAvailableAds();
+        if (Number.isFinite(this.availableAds)) {
+          console.log("[✓] Available Bakecaincontrii ads found:refresh", this.availableAds);
+        } else {
+          console.warn("[!] Available Bakecaincontrii ads amount not found:refresh");
+        }
 
         // --- Cookie logic
         let cookies = await this.page.cookies();
@@ -719,7 +749,7 @@ class BakecaincontriiBot {
           return { error: "Cookies not available" };
         }
 
-        return [this.credit, JSON.stringify(cookies)];
+        return [this.credit, JSON.stringify(cookies), this.availableAds];
       } catch (error) {
         const msg = error && error.message ? error.message : String(error);
         if (msg.includes("Execution context was destroyed") && attempt < maxAttempts) {
@@ -772,6 +802,12 @@ class BakecaincontriiBot {
       }
       this.credit = credit;
       console.log("[✓] Credit Bakecaincontrii found:refresh2", this.credit);
+      this.availableAds = await this.readAvailableAds();
+      if (Number.isFinite(this.availableAds)) {
+        console.log("[✓] Available Bakecaincontrii ads found:refresh2", this.availableAds);
+      } else {
+        console.warn("[!] Available Bakecaincontrii ads amount not found:refresh2");
+      }
       this.coupon = await this.page.$$eval(
         'div.coupon.rounded-lg.flex-column.h-100.coupon-border.p-3',
         els => els.length > 0 ? 1 : 0
@@ -783,7 +819,7 @@ class BakecaincontriiBot {
         cookies = await this.page.cookies();
       }
       if (!cookies || cookies.length === 0) return { error: "Cookies not available" };
-      return [this.credit, JSON.stringify(cookies), this.coupon];
+      return [this.credit, JSON.stringify(cookies), this.coupon, this.availableAds];
     } catch (error) {
       console.error("Bakecaincontrii Error in refresh2:", error.message);
       return { error: error.message };

@@ -207,6 +207,10 @@ var tblGruppi = model.define("tblGruppi",{
         type: Sequelize.STRING,
         allowNull: true
     },
+    bkAvailableAds:{
+        type: Sequelize.INTEGER,
+        allowNull: true
+    },
     GCRecord:{
         type: Sequelize.INTEGER,
         allowNull: true

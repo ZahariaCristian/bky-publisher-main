@@ -911,9 +911,10 @@ async function mainLoop(group, platform) {
                     { where: { id: platform.id } }          // condition
                 );
             } else {
-                group.update({
+                await group.update({
                     bkCredit: cr[0],
-                    coupon: cr[2]
+                    coupon: cr[2],
+                    bkAvailableAds: Number.isFinite(cr[3]) ? cr[3] : group.bkAvailableAds
                 });
                 group.cookie = cr[1];
                 platform.cookie = cr[1];
@@ -1968,6 +1969,22 @@ async function startAllGroupLoops(groups) {
 async function ensurePublisherSchema() {
     const queryInterface = ctx.model.getQueryInterface();
     const scheduleColumns = await queryInterface.describeTable("tblSchedulazioni");
+    const groupColumns = await queryInterface.describeTable("tblGruppi");
+
+    if (!groupColumns.bkAvailableAds) {
+        console.log("[publisher:schema] Adding tblGruppi.bkAvailableAds...");
+        try {
+            await queryInterface.addColumn("tblGruppi", "bkAvailableAds", {
+                type: ctx.model.Sequelize.INTEGER,
+                allowNull: true
+            });
+        } catch (error) {
+            if (error?.original?.code !== "ER_DUP_FIELDNAME" && error?.parent?.code !== "ER_DUP_FIELDNAME") {
+                throw error;
+            }
+        }
+        console.log("[publisher:schema] tblGruppi.bkAvailableAds added.");
+    }
 
     if (!scheduleColumns.remoteExpiresAt) {
         console.log("[publisher:schema] Adding tblSchedulazioni.remoteExpiresAt...");
