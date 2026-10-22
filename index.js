@@ -714,11 +714,15 @@ async function CreateGroupsBot() {
             var decrypted = decryptPassword(group.bkPassword);
             // Create a new bot instance for each group
             group.bot = await new BakecaincontriiBot(group.bkUserName, decrypted);
+            group.bot.groupId = group.id;
+            group.bot.groupName = group.name;
             group.overBusyBot = 0;
 
             // Create a new botCheckPhone instance for each group to avoid sharing
             //BUG DA FIXARE, RADOPPIA I BROWSER
             botCheckPhone = await new BakecaincontriiBot(group.bkUserName, decrypted);
+            botCheckPhone.groupId = group.id;
+            botCheckPhone.groupName = group.name;
         }
 
         /* 
@@ -915,6 +919,13 @@ async function mainLoop(group, platform) {
                     bkCredit: cr[0],
                     coupon: cr[2],
                     bkAvailableAds: Number.isFinite(cr[3]) ? cr[3] : group.bkAvailableAds
+                });
+                console.log("[bakecaincontrii:dashboard] Saved group dashboard values", {
+                    groupId: group.id,
+                    groupName: group.name,
+                    credit: cr[0],
+                    availableAds: Number.isFinite(cr[3]) ? cr[3] : group.bkAvailableAds,
+                    source: "refresh2"
                 });
                 group.cookie = cr[1];
                 platform.cookie = cr[1];
@@ -1756,7 +1767,39 @@ async function contactVerifyLoop(bot, cookies) {
 
     phoneCheckRunning = true;
     try {
-        if (bot.refresh) await bot.refresh();
+        const refreshResult = bot.refresh ? await bot.refresh() : null;
+        if (Array.isArray(refreshResult)) {
+            const availableAds = Number.parseInt(refreshResult[2], 10);
+            const ownerGroup = groups.find((group) => `${group.id}` === `${bot.groupId}`);
+
+            if (ownerGroup && Number.isFinite(availableAds)) {
+                const credit = refreshResult[0];
+                const dashboardChanged = `${ownerGroup.bkAvailableAds ?? ""}` !== `${availableAds}`
+                    || `${ownerGroup.bkCredit ?? ""}` !== `${credit ?? ""}`;
+
+                if (dashboardChanged) {
+                    await ownerGroup.update({
+                        bkCredit: credit,
+                        bkAvailableAds: availableAds
+                    });
+                }
+
+                console.log("[bakecaincontrii:dashboard] Saved phone-bot dashboard values", {
+                    groupId: ownerGroup.id,
+                    groupName: ownerGroup.name,
+                    credit,
+                    availableAds,
+                    changed: dashboardChanged,
+                    source: "refresh"
+                });
+            } else if (Number.isFinite(availableAds)) {
+                console.warn("[bakecaincontrii:dashboard] Cannot save available ads because the phone bot has no matching group", {
+                    botGroupId: bot.groupId,
+                    botGroupName: bot.groupName,
+                    availableAds
+                });
+            }
+        }
 
         const operations = await ctx.tblContactVerifyBakeca.findAll({
             where: { action: { [Op.notLike]: "checked" } }
