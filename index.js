@@ -1773,7 +1773,7 @@ const contactVerifySucceeded = (res, body) => {
     }
 };
 
-async function contactVerifyLoop(bot, cookies) {
+async function contactVerifyLoop(bot) {
     if (phoneCheckRunning) {
         console.log("[i] Phone verification is still running; skipping overlapping cycle.");
         return;
@@ -1781,43 +1781,19 @@ async function contactVerifyLoop(bot, cookies) {
 
     phoneCheckRunning = true;
     try {
-        const refreshResult = bot.refresh ? await bot.refresh() : null;
-        if (Array.isArray(refreshResult)) {
-            const availableAds = Number.parseInt(refreshResult[2], 10);
-            const ownerGroup = groups.find((group) => `${group.id}` === `${bot.groupId}`);
-
-            if (ownerGroup && Number.isFinite(availableAds)) {
-                const credit = refreshResult[0];
-                const dashboardChanged = `${ownerGroup.bkAvailableAds ?? ""}` !== `${availableAds}`
-                    || `${ownerGroup.bkCredit ?? ""}` !== `${credit ?? ""}`;
-
-                if (dashboardChanged) {
-                    await ownerGroup.update({
-                        bkCredit: credit,
-                        bkAvailableAds: availableAds
-                    });
-                }
-
-                console.log("[bakecaincontrii:dashboard] Saved phone-bot dashboard values", {
-                    groupId: ownerGroup.id,
-                    groupName: ownerGroup.name,
-                    credit,
-                    availableAds,
-                    changed: dashboardChanged,
-                    source: "refresh"
-                });
-            } else if (Number.isFinite(availableAds)) {
-                console.warn("[bakecaincontrii:dashboard] Cannot save available ads because the phone bot has no matching group", {
-                    botGroupId: bot.groupId,
-                    botGroupName: bot.groupName,
-                    availableAds
-                });
-            }
-        }
-
         const operations = await ctx.tblContactVerifyBakeca.findAll({
             where: { action: { [Op.notLike]: "checked" } }
         });
+        if (!operations.length) return;
+
+        // Phone verification must not refresh the Bakecaincontrii dashboard.
+        // Credit and available-ad values are owned by the normal per-group
+        // refresh2() workflow. Only establish a session when verification work
+        // actually exists.
+        const cookies = await ensureSession(bot, bot.email);
+        if (!cookies) {
+            throw new Error(`No Bakecaincontrii session available for phone verification (${bot.email || "unknown account"}).`);
+        }
 
         for (const operation of operations) {
             const basicInfo = {
@@ -1875,17 +1851,17 @@ async function contactVerifyLoop(bot, cookies) {
     }
 }
 
-function scheduleNextPhoneCheck(bot, cookies, generation, delayMs = 10000) {
+function scheduleNextPhoneCheck(bot, generation, delayMs = 10000) {
     if (generation !== phoneCheckSchedulerGeneration) return;
     checkPhoneMailLoop = setTimeout(async () => {
         if (generation !== phoneCheckSchedulerGeneration) return;
         try {
-            await contactVerifyLoop(bot, cookies);
+            await contactVerifyLoop(bot);
         } catch (err) {
             console.error("[!] Phone verification cycle failed:", err?.message || err);
             logger.Write(`Publisher ERROR PHONE LOOP: ${err?.message || err}`);
         } finally {
-            scheduleNextPhoneCheck(bot, cookies, generation, 10000);
+            scheduleNextPhoneCheck(bot, generation, 10000);
         }
     }, delayMs);
 }
@@ -1904,19 +1880,8 @@ async function startCheckPhoneBot() {
     if (!botCheckPhone) return;
 
     const generation = phoneCheckSchedulerGeneration;
-    try {
-        const cookies = await ensureSession(botCheckPhone, botCheckPhone.email);
-        if (generation !== phoneCheckSchedulerGeneration) return;
-        logger.Write(`Publisher say: Bot per la verifica del numero di telefono ha eseguito il login.`);
-        scheduleNextPhoneCheck(botCheckPhone, cookies, generation, 0);
-    } catch (err) {
-        console.log(err);
-        logger.Write(`Publisher ERROR: ${err}`);
-        await closeBotBrowser(botCheckPhone, "check-phone login failure");
-        if (generation === phoneCheckSchedulerGeneration) {
-            checkPhoneMailLoop = setTimeout(() => startCheckPhoneBot(), 3000);
-        }
-    }
+    logger.Write(`Publisher say: Controllo verifica telefono Bakecaincontrii avviato; il login verrà eseguito solo quando necessario.`);
+    scheduleNextPhoneCheck(botCheckPhone, generation, 0);
 }
 
 async function runGroupLoop(group) {

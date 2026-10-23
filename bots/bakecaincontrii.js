@@ -1786,6 +1786,15 @@ class BakecaincontriiBot {
         `STAR_CATEGORY_NOT_ELIGIBLE: Star è disponibile solo per Donna Cerca Uomo e Trans (categoria: ${info?.categorie || "non specificata"}).`
       );
     }
+    const selectedImages = Array.isArray(info?.picsAudit)
+      ? info.picsAudit.filter((image) => `${image?.path || ""}`.trim())
+      : [];
+    const selectedImagePaths = Array.isArray(info?.pics)
+      ? info.pics.filter((imagePath) => `${imagePath || ""}`.trim())
+      : [];
+    if (requestedPromotionType === "star" && !selectedImages.length && !selectedImagePaths.length) {
+      throw new Error("STAR_IMAGE_REQUIRED: la promozione Star richiede almeno una foto selezionata.");
+    }
     const executablePath = await puppeteer.executablePath();
     var otherBot = await puppeteer.launch({
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", '--js-flags=--expose-gc'],
