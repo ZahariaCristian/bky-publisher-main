@@ -1132,11 +1132,15 @@ async function mainLoop(group, platform) {
                     s.sono = annuncio.sono; //add by zaharia
 
                     s.time = scheduleTime.toISOString().split("T")[1].split(":00.")[0];
+                    let promotionDetails = {};
+                    try { promotionDetails = JSON.parse(s.period || "{}"); } catch { promotionDetails = {}; }
                     s.promo = {
                         active: s.typeAnnuncio !== "Free",
                         visibility: s.typeAnnuncio,
-                        product: s.typeAnnuncio === "Flash" ? "flash" : "top",
+                        product: s.typeAnnuncio === "Flash" ? "flash" : (s.typeAnnuncio === "Star" ? "star" : "top"),
                         schedule: s.period,
+                        slots: s.typeAnnuncio === "Star" && Array.isArray(promotionDetails.slots) ? promotionDetails.slots : [],
+                        maxTotalCredits: s.typeAnnuncio === "Star" ? Number(promotionDetails.maxTotalCredits || 0) : 0,
                         premium: s.hasPremium,
                         etichetta: s.hasEtichetta,
                         highlight: s.hasHighlight,
@@ -1177,6 +1181,16 @@ async function mainLoop(group, platform) {
                     case "Flash":
                         expiryDate.setDate(expiryDate.getDate() + 1);
                         break;
+                    case "Star": {
+                        try {
+                            const details = JSON.parse(ad.period || "{}");
+                            const endTimes = (Array.isArray(details.slots) ? details.slots : [])
+                                .map((slot) => new Date(slot.end).getTime())
+                                .filter(Number.isFinite);
+                            if (endTimes.length) expiryDate = new Date(Math.max(...endTimes));
+                        } catch { expiryDate.setDate(expiryDate.getDate() + 1); }
+                        break;
+                    }
                     case "1x1":
                     case "10x1":
                         expiryDate.setDate(expiryDate.getDate() + 2); // third day
@@ -2013,6 +2027,21 @@ async function ensurePublisherSchema() {
     const queryInterface = ctx.model.getQueryInterface();
     const scheduleColumns = await queryInterface.describeTable("tblSchedulazioni");
     const groupColumns = await queryInterface.describeTable("tblGruppi");
+    const [typeAnnuncioColumns] = await ctx.model.query("SHOW COLUMNS FROM `tblSchedulazioni` LIKE 'typeAnnuncio'");
+    const typeAnnuncioDefinition = `${typeAnnuncioColumns?.[0]?.Type || typeAnnuncioColumns?.[0]?.type || ""}`.toLowerCase();
+    const [periodColumns] = await ctx.model.query("SHOW COLUMNS FROM `tblSchedulazioni` LIKE 'period'");
+    const periodDefinition = `${periodColumns?.[0]?.Type || periodColumns?.[0]?.type || ""}`.toLowerCase();
+
+    if (!typeAnnuncioDefinition.includes("'star'")) {
+        console.log("[publisher:schema] Adding Star to tblSchedulazioni.typeAnnuncio...");
+        await ctx.model.query("ALTER TABLE `tblSchedulazioni` MODIFY COLUMN `typeAnnuncio` ENUM('Free','Flash','Star','1x1','1x3','1x7','1x14','1x28','3x1','3x3','3x7','3x14','3x28','10x1','10x3','10x7','Turbo','TopList','Vetrina','Premium','Top','Red','Gold') NULL");
+        console.log("[publisher:schema] Star enum value added.");
+    }
+    if (!periodDefinition.includes("text")) {
+        console.log("[publisher:schema] Expanding tblSchedulazioni.period for multi-slot promotions...");
+        await ctx.model.query("ALTER TABLE `tblSchedulazioni` MODIFY COLUMN `period` TEXT NULL");
+        console.log("[publisher:schema] tblSchedulazioni.period expanded.");
+    }
 
     if (!groupColumns.bkAvailableAds) {
         console.log("[publisher:schema] Adding tblGruppi.bkAvailableAds...");

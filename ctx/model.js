@@ -766,6 +766,17 @@ var tblSchedulazioni = model.define("tblSchedulazioni",{
                 dead.setDate(dead.getDate() + days);
                 return dead;
             }
+            if (this.typeAnnuncio === "Star") {
+                try {
+                    const details = JSON.parse(this.period || "{}");
+                    const ends = (Array.isArray(details.slots) ? details.slots : [])
+                        .map((slot) => new Date(slot.end))
+                        .filter((date) => !Number.isNaN(date.getTime()));
+                    if (ends.length) return new Date(Math.max(...ends.map((date) => date.getTime())));
+                } catch {}
+                dead.setDate(dead.getDate() + 1);
+                return dead;
+            }
             switch(this.typeAnnuncio){
                 case "Free":
                 case "Flash":
@@ -794,11 +805,11 @@ var tblSchedulazioni = model.define("tblSchedulazioni",{
         }
     },
     period:{
-        type: Sequelize.STRING,
+        type: Sequelize.TEXT,
         allowNull: true
     },
     typeAnnuncio:{
-        type: Sequelize.ENUM("Free", "Flash", "1x1", "1x3", "1x7", "1x14", "1x28", "3x1", "3x3", "3x7", "3x14", "3x28", "10x1", "10x3", "10x7", "Turbo", "TopList", "Vetrina", "Premium", "Top", "Red", "Gold"),
+        type: Sequelize.ENUM("Free", "Flash", "Star", "1x1", "1x3", "1x7", "1x14", "1x28", "3x1", "3x3", "3x7", "3x14", "3x28", "10x1", "10x3", "10x7", "Turbo", "TopList", "Vetrina", "Premium", "Top", "Red", "Gold"),
         allowNull: true
     },
     state:{

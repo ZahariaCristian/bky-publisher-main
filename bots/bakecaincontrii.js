@@ -24,6 +24,11 @@ const PAGE_DASHBOARD = "https://www.bakecaincontrii.com/u/account/dashboard/";
 const CREDIT_SELECTOR = "#app > main > div > div.row > div.col-md-7.order-md-0 > div:nth-child(1) > div:nth-child(2) > div > div > div > div > div > ul > li:nth-child(1) > span.badge";
 const AVAILABLE_ADS_SELECTOR = '[data-testid="dashboard-card-list-one-data-pacchetti-annunci"]';
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+const isStarCategoryEligible = (category) => {
+  const compact = `${category || ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z]/gi, "").toUpperCase();
+  return compact === "DONNAUOMO" || compact === "DONNACERCAUOMO" || compact === "TRANS";
+};
 
 puppeteer.use(
   StealthPlugin(),
@@ -997,6 +1002,8 @@ class BakecaincontriiBot {
         visibility: tblSchedulazioni.promo.visibility || "",
         product: tblSchedulazioni.promo.product || "",
         schedule: tblSchedulazioni.promo.schedule || "",
+        slots: Array.isArray(tblSchedulazioni.promo.slots) ? tblSchedulazioni.promo.slots : [],
+        maxTotalCredits: Number(tblSchedulazioni.promo.maxTotalCredits || 0),
         premium: tblSchedulazioni.promo.premium || false,
         highlight: tblSchedulazioni.promo.highlight || false,
         etichetta: tblSchedulazioni.promo.etichetta || false,
@@ -1007,7 +1014,7 @@ class BakecaincontriiBot {
     return transformedObject;
   }
 
-  async acceptBakecaincontriiAdultConsent(page) {
+  async acceptBakecaincontriiAdultConsent(page, codePrefix = "FLASH") {
     const modalSelector = "#lightbox-vm18";
     const isModalVisible = async () => page.evaluate((selector) => {
       const modal = document.querySelector(selector);
@@ -1038,7 +1045,7 @@ class BakecaincontriiBot {
     }, modalSelector).catch(() => false);
 
     if (!clicked) {
-      throw new Error("FLASH_ADULT_CONSENT_BUTTON_NOT_FOUND: il popup 18+ e visibile ma il pulsante ACCETTO non e disponibile.");
+      throw new Error(`${codePrefix}_ADULT_CONSENT_BUTTON_NOT_FOUND: il popup 18+ e visibile ma il pulsante ACCETTO non e disponibile.`);
     }
 
     try {
@@ -1054,7 +1061,7 @@ class BakecaincontriiBot {
           rect.height === 0;
       }, { timeout: 10000 }, modalSelector);
     } catch (error) {
-      throw new Error(`FLASH_ADULT_CONSENT_NOT_DISMISSED: il popup 18+ e rimasto visibile dopo ACCETTO (${error.message}).`);
+      throw new Error(`${codePrefix}_ADULT_CONSENT_NOT_DISMISSED: il popup 18+ e rimasto visibile dopo ACCETTO (${error.message}).`);
     }
 
     try {
@@ -1119,7 +1126,8 @@ class BakecaincontriiBot {
     return `${publicUrl || ""}`.trim();
   }
 
-  async completeFlashCheckout(page) {
+  async completePaidCheckout(page, codePrefix = "FLASH") {
+    const logScope = `${codePrefix}`.toLowerCase();
     const checkoutManagerSelector = '[data-testid="checkout-order-manager"]';
     const creditSelector = 'input[name="radio-button"][value="credits"]';
     const termsSelectors = [
@@ -1140,10 +1148,10 @@ class BakecaincontriiBot {
     try {
       await page.waitForSelector(checkoutManagerSelector, { visible: true, timeout: 30000 });
     } catch (error) {
-      throw new Error(`FLASH_CHECKOUT_NOT_READY: la pagina checkout non e pronta (${error.message}).`);
+      throw new Error(`${codePrefix}_CHECKOUT_NOT_READY: la pagina checkout non e pronta (${error.message}).`);
     }
 
-    await this.acceptBakecaincontriiAdultConsent(page);
+    await this.acceptBakecaincontriiAdultConsent(page, codePrefix);
 
     const chooseVisibleSelector = async (selectors) => page.evaluate((candidates) => {
       for (const selector of candidates) {
@@ -1164,7 +1172,7 @@ class BakecaincontriiBot {
 
     const creditAvailable = await page.$(creditSelector);
     if (!creditAvailable) {
-      throw new Error("FLASH_CHECKOUT_CREDITS_NOT_AVAILABLE: il metodo di pagamento Crediti non e disponibile.");
+      throw new Error(`${codePrefix}_CHECKOUT_CREDITS_NOT_AVAILABLE: il metodo di pagamento Crediti non e disponibile.`);
     }
 
     let creditSelected = await page.$eval(creditSelector, (input) => input.checked).catch(() => false);
@@ -1174,7 +1182,7 @@ class BakecaincontriiBot {
         await page.waitForFunction((selector) => Boolean(document.querySelector(selector)?.checked),
           { timeout: 10000 }, creditSelector);
       } catch (error) {
-        throw new Error(`FLASH_CHECKOUT_CREDITS_NOT_SELECTED: impossibile selezionare il pagamento con crediti (${error.message}).`);
+        throw new Error(`${codePrefix}_CHECKOUT_CREDITS_NOT_SELECTED: impossibile selezionare il pagamento con crediti (${error.message}).`);
       }
       creditSelected = true;
     }
@@ -1186,7 +1194,7 @@ class BakecaincontriiBot {
       termsSelector = termsLabelSelector?.includes("mobile") ? termsSelectors[1] : termsSelectors[0];
     }
     if (!await page.$(termsSelector)) {
-      throw new Error("FLASH_CHECKOUT_TERMS_NOT_FOUND: il controllo Termini e Condizioni non e disponibile.");
+      throw new Error(`${codePrefix}_CHECKOUT_TERMS_NOT_FOUND: il controllo Termini e Condizioni non e disponibile.`);
     }
 
     let termsAccepted = await page.$eval(termsSelector, (input) => input.checked).catch(() => false);
@@ -1202,13 +1210,13 @@ class BakecaincontriiBot {
         await page.waitForFunction((selector) => Boolean(document.querySelector(selector)?.checked),
           { timeout: 10000 }, termsSelector);
       } catch (error) {
-        throw new Error(`FLASH_CHECKOUT_TERMS_NOT_ACCEPTED: impossibile attivare Termini e Condizioni (${error.message}).`);
+        throw new Error(`${codePrefix}_CHECKOUT_TERMS_NOT_ACCEPTED: impossibile attivare Termini e Condizioni (${error.message}).`);
       }
     }
 
     const paySelector = await chooseVisibleSelector(paySelectors);
     if (!paySelector) {
-      throw new Error("FLASH_CHECKOUT_PAY_BUTTON_NOT_FOUND: il pulsante Paga per pubblicare del checkout non e disponibile.");
+      throw new Error(`${codePrefix}_CHECKOUT_PAY_BUTTON_NOT_FOUND: il pulsante Paga per pubblicare del checkout non e disponibile.`);
     }
 
     const checkoutState = await page.evaluate((credit, terms, pay) => ({
@@ -1221,10 +1229,10 @@ class BakecaincontriiBot {
       ),
       total: document.querySelector('[data-testid="checkout-summary-basket"] .price.sel')?.textContent?.trim() || ""
     }), creditSelector, termsSelector, paySelector);
-    console.log("[bakecaincontrii:flash] Checkout ready", checkoutState);
+    console.log(`[bakecaincontrii:${logScope}] Checkout ready`, checkoutState);
 
     if (!checkoutState.creditsSelected || !checkoutState.termsAccepted || checkoutState.payDisabled) {
-      throw new Error(`FLASH_CHECKOUT_INVALID_STATE: checkout non pronto per il pagamento. Stato: ${JSON.stringify(checkoutState)}`);
+      throw new Error(`${codePrefix}_CHECKOUT_INVALID_STATE: checkout non pronto per il pagamento. Stato: ${JSON.stringify(checkoutState)}`);
     }
 
     const checkoutUrl = page.url();
@@ -1252,13 +1260,17 @@ class BakecaincontriiBot {
         };
       }).catch(() => ({ error: "", bodyExcerpt: "" }));
       throw new Error(
-        `FLASH_CHECKOUT_PAYMENT_NOT_CONFIRMED: Bakecaincontrii e rimasto nella pagina checkout` +
+        `${codePrefix}_CHECKOUT_PAYMENT_NOT_CONFIRMED: Bakecaincontrii e rimasto nella pagina checkout` +
         `${failure.error ? ` (${failure.error})` : ""}. Contenuto: ${failure.bodyExcerpt}`
       );
     }
 
-    console.log("[bakecaincontrii:flash] Checkout payment completed", { url: page.url() });
+    console.log(`[bakecaincontrii:${logScope}] Checkout payment completed`, { url: page.url() });
     return true;
+  }
+
+  async completeFlashCheckout(page) {
+    return this.completePaidCheckout(page, "FLASH");
   }
 
   async activateFlashPromotion(page) {
@@ -1275,6 +1287,9 @@ class BakecaincontriiBot {
     const getFlashState = async () => page.evaluate((selectors) => {
       const card = document.querySelector(selectors.card);
       const manager = document.querySelector(selectors.manager);
+      const nicknameModal = document.querySelector('[data-testid="star-promotion-nickname-lightbox"]');
+      const nicknameModalStyle = nicknameModal ? window.getComputedStyle(nicknameModal) : null;
+      const nicknameModalRect = nicknameModal?.getBoundingClientRect();
       const idInput = document.querySelector(selectors.productId);
       const typeInput = document.querySelector(selectors.productType);
       const button = document.querySelector(selectors.submit);
@@ -1294,6 +1309,8 @@ class BakecaincontriiBot {
         url: window.location.href,
         title: document.title,
         managerPresent: Boolean(manager),
+        nicknameModalVisible: Boolean(nicknameModal && nicknameModalStyle?.display !== "none" &&
+          nicknameModalStyle?.visibility !== "hidden" && nicknameModalRect?.width > 0 && nicknameModalRect?.height > 0),
         cardPresent: Boolean(card),
         cardVisible: Boolean(
           cardRect &&
@@ -1490,8 +1507,285 @@ class BakecaincontriiBot {
     console.log("[bakecaincontrii:flash] Payment completed", { url: page.url() });
   }
 
+  async activateStarPromotion(page, promo = {}, nickname = "", category = "") {
+    if (!isStarCategoryEligible(category)) {
+      throw new Error(`STAR_CATEGORY_NOT_ELIGIBLE: la categoria ${category || "non specificata"} non supporta Star.`);
+    }
+    const cardSelector = '[data-testid="star-promotion-card"]';
+    const managerSelector = '[data-testid="post-promote-manager-star-promotion"]';
+    const selectedCodesSelector = '[data-testid="post-promote-form-star-slot-codes"]';
+    const productTypeSelector = 'input[name="product_type"]';
+    const productIdSelector = '[data-testid="post-promote-form-star-product-id"]';
+    const submitSelector = '[data-testid="post-promote-summary-submit-button"]';
+    const totalSelector = '[data-testid="post-promote-summary-total-price"]';
+    const screenshotDir = path.join(".", "screenshots", "bakecaincontrii-star");
+    const normalizeDateTime = (value) => `${value || ""}`.trim().replace(/\.\d{1,3}Z?$/i, "").replace(/Z$/i, "").slice(0, 19);
+    const requestedSlots = (Array.isArray(promo.slots) ? promo.slots : []).map((slot) => ({
+      start: normalizeDateTime(slot?.start),
+      end: normalizeDateTime(slot?.end),
+      quotedCredits: Number(slot?.quotedCredits || 0)
+    })).filter((slot) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(slot.start) &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(slot.end));
+    const maxTotalCredits = Number(promo.maxTotalCredits || 0);
+
+    if (!requestedSlots.length) {
+      throw new Error("STAR_SLOTS_MISSING: nessuno slot Star valido e stato richiesto.");
+    }
+    if (!Number.isFinite(maxTotalCredits) || maxTotalCredits <= 0) {
+      throw new Error("STAR_CREDIT_LIMIT_INVALID: il limite massimo di crediti Star non e valido.");
+    }
+
+    const getState = async () => page.evaluate((selectors) => {
+      const card = document.querySelector(selectors.card);
+      const manager = document.querySelector(selectors.manager);
+      const totalText = document.querySelector(selectors.total)?.textContent?.trim() || "";
+      const totalMatch = totalText.replace(/\./g, "").match(/\d+/);
+      return {
+        url: window.location.href,
+        cardPresent: Boolean(card),
+        cardClasses: card?.className || "",
+        managerPresent: Boolean(manager),
+        productType: document.querySelector(selectors.productType)?.value || "",
+        productId: document.querySelector(selectors.productId)?.value || "",
+        selectedCodes: document.querySelector(selectors.selectedCodes)?.value || "",
+        selectedCount: document.querySelectorAll('[data-testid^="star-promotion-slot-"].slot--selected').length,
+        totalText,
+        totalCredits: totalMatch ? Number(totalMatch[0]) : null,
+        submitDisabled: Boolean(
+          document.querySelector(selectors.submit)?.disabled ||
+          document.querySelector(selectors.submit)?.getAttribute("aria-disabled") === "true"
+        )
+      };
+    }, {
+      card: cardSelector,
+      manager: managerSelector,
+      productType: productTypeSelector,
+      productId: productIdSelector,
+      selectedCodes: selectedCodesSelector,
+      total: totalSelector,
+      submit: submitSelector
+    }).catch((error) => ({ url: page.url(), evaluationError: error.message }));
+
+    const captureState = async (stage, screenshot = false) => {
+      const state = await getState();
+      console.log(`[bakecaincontrii:star] ${stage}`, state);
+      if (screenshot) {
+        try {
+          fs.mkdirSync(screenshotDir, { recursive: true });
+          const safeStage = `${stage}`.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase();
+          const screenshotPath = path.join(screenshotDir, `${Date.now()}-${safeStage}.png`);
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+          console.log(`[bakecaincontrii:star] Screenshot saved: ${screenshotPath}`);
+        } catch (error) {
+          console.warn(`[bakecaincontrii:star] Unable to capture ${stage} screenshot:`, error.message);
+        }
+      }
+      return state;
+    };
+
+    const unselectStar = async () => {
+      if (!/\/u\/post-promote\//i.test(page.url())) return;
+      await page.evaluate((selector) => {
+        const card = document.querySelector(selector);
+        const unselect = card?.querySelector('[data-testid="post-promote-product-card-unselect-button"]');
+        if (unselect) unselect.click();
+      }, cardSelector).catch(() => { });
+      await this.delay(300);
+    };
+
+    const failStarStage = async (code, message) => {
+      const state = await captureState(`error-${code}`, true);
+      await unselectStar();
+      throw new Error(`${code}: ${message}. Stato: ${JSON.stringify(state)}`);
+    };
+
+    await this.acceptBakecaincontriiAdultConsent(page, "STAR");
+    try {
+      await page.waitForSelector(managerSelector, { timeout: 30000 });
+      await page.waitForSelector(cardSelector, { visible: true, timeout: 30000 });
+    } catch (error) {
+      await failStarStage("STAR_CARD_NOT_FOUND", `la promozione Star non e disponibile (${error.message})`);
+    }
+
+    let state = await captureState("before-selection");
+    if (`${state.productType || ""}`.toLowerCase() !== "star" || !`${state.cardClasses || ""}`.includes("selected")) {
+      await page.$eval(cardSelector, (card) => {
+        card.scrollIntoView({ block: "center", inline: "center" });
+      }).catch(() => { });
+      await this.delay(250);
+      await page.click(cardSelector).catch(() => { });
+      await page.waitForFunction((card) => {
+        const cardElement = document.querySelector(card);
+        const modal = document.querySelector('[data-testid="star-promotion-nickname-lightbox"]');
+        const modalStyle = modal ? window.getComputedStyle(modal) : null;
+        const modalRect = modal?.getBoundingClientRect();
+        const modalVisible = Boolean(modal && modalStyle?.display !== "none" &&
+          modalStyle?.visibility !== "hidden" && modalRect?.width > 0 && modalRect?.height > 0);
+        return Boolean(cardElement?.classList.contains("selected") || modalVisible);
+      }, { timeout: 6000 }, cardSelector).catch(() => { });
+      state = await getState();
+      if (`${state.productType || ""}`.toLowerCase() !== "star" &&
+        !`${state.cardClasses || ""}`.includes("selected") && !state.nicknameModalVisible) {
+        await page.$eval(cardSelector, (card) => card.click()).catch(() => { });
+        await this.delay(500);
+      }
+    }
+
+    const nicknameModalVisible = await page.evaluate(() => {
+      const modal = document.querySelector('[data-testid="star-promotion-nickname-lightbox"]');
+      if (!modal) return false;
+      const style = window.getComputedStyle(modal);
+      const rect = modal.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+    }).catch(() => false);
+    if (nicknameModalVisible) {
+      const nicknameValue = `${nickname || ""}`.trim().slice(0, 20);
+      if (!nicknameValue) {
+        await failStarStage("STAR_NICKNAME_REQUIRED", "Bakecaincontrii richiede un Nome d'Arte per Star");
+      }
+      await page.$eval('[data-testid="lightbox-add-nickname-input"]', (input, value) => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        if (setter) setter.call(input, value); else input.value = value;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }, nicknameValue).catch(async () => {
+        await page.type('[data-testid="lightbox-add-nickname-input"]', nicknameValue);
+      });
+      await page.click('[data-testid="lightbox-add-nickname-save-button"]').catch(async () => {
+        await page.$eval('[data-testid="lightbox-add-nickname-save-button"]', (button) => button.click());
+      });
+      await this.delay(750);
+    }
+
+    try {
+      await page.waitForFunction((card, productType) => {
+        const cardElement = document.querySelector(card);
+        return Boolean(cardElement?.classList.contains("selected") &&
+          `${document.querySelector(productType)?.value || ""}`.toLowerCase() === "star");
+      }, { timeout: 15000 }, cardSelector, productTypeSelector);
+    } catch (error) {
+      await failStarStage("STAR_SELECTION_NOT_APPLIED", `la scheda Star non e stata selezionata (${error.message})`);
+    }
+
+    for (const requested of requestedSlots) {
+      const suffix = `${requested.start}-${requested.end}`;
+      const slotState = await page.evaluate((expectedSuffix) => {
+        const slot = [...document.querySelectorAll('[data-testid^="star-promotion-slot-"]')]
+          .find((element) => `${element.getAttribute("data-testid") || ""}`.endsWith(expectedSuffix));
+        if (!slot) return { found: false };
+        const priceTexts = [...slot.querySelectorAll(".badge-star")]
+          .map((badge) => `${badge.textContent || ""}`.replace(/\s+/g, " ").trim());
+        const numericPrice = priceTexts.map((text) => text.match(/^\s*(\d+)\b/)?.[1]).filter(Boolean).pop();
+        return {
+          found: true,
+          testId: slot.getAttribute("data-testid") || "",
+          classes: slot.className || "",
+          selected: slot.classList.contains("slot--selected"),
+          available: slot.classList.contains("slot--available"),
+          cannotAfford: Boolean(slot.querySelector('[data-testid="star-promotion-slot-cannot-afford-badge"]')),
+          price: numericPrice ? Number(numericPrice) : null,
+          text: `${slot.textContent || ""}`.replace(/\s+/g, " ").trim()
+        };
+      }, suffix);
+
+      if (!slotState.found) {
+        await failStarStage("STAR_SLOT_NOT_FOUND", `lo slot ${suffix} non e presente nel calendario remoto`);
+      }
+      if (!slotState.selected && (!slotState.available || slotState.cannotAfford)) {
+        await failStarStage("STAR_SLOT_NOT_AVAILABLE", `lo slot ${suffix} non e disponibile (${slotState.text || slotState.classes})`);
+      }
+      if (!slotState.selected) {
+        await page.evaluate((testId) => {
+          const slot = [...document.querySelectorAll('[data-testid^="star-promotion-slot-"]')]
+            .find((element) => element.getAttribute("data-testid") === testId);
+          slot?.click();
+        }, slotState.testId);
+        try {
+          await page.waitForFunction((testId, code) => {
+            const slot = [...document.querySelectorAll('[data-testid^="star-promotion-slot-"]')]
+              .find((element) => element.getAttribute("data-testid") === testId);
+            const selectedCodes = document.querySelector('[data-testid="post-promote-form-star-slot-codes"]')?.value || "";
+            return Boolean(slot?.classList.contains("slot--selected") && selectedCodes.includes(code));
+          }, { timeout: 12000 }, slotState.testId, slotState.testId.replace(/^star-promotion-slot-/, ""));
+        } catch (error) {
+          await failStarStage("STAR_SLOT_SELECTION_NOT_APPLIED", `Bakecaincontrii non ha selezionato lo slot ${suffix} (${error.message})`);
+        }
+      }
+    }
+
+    await page.waitForFunction((expectedCount, total) => {
+      const selectedCount = document.querySelectorAll('[data-testid^="star-promotion-slot-"].slot--selected').length;
+      const totalText = document.querySelector(total)?.textContent || "";
+      return selectedCount === expectedCount && /\d+/.test(totalText);
+    }, { timeout: 10000 }, requestedSlots.length, totalSelector).catch(() => { });
+    state = await captureState("slots-selected");
+    const requestedCodesPresent = requestedSlots.every((slot) => `${state.selectedCodes || ""}`.includes(`${slot.start}-${slot.end}`));
+    if (!requestedCodesPresent || state.selectedCount !== requestedSlots.length) {
+      await failStarStage(
+        "STAR_SLOT_SELECTION_MISMATCH",
+        `richiesti ${requestedSlots.length} slot ma Bakecaincontrii ne ha confermati ${state.selectedCount || 0}`
+      );
+    }
+    if (!Number.isFinite(state.totalCredits) || state.totalCredits <= 0) {
+      await failStarStage("STAR_TOTAL_NOT_AVAILABLE", "il totale crediti Star non e leggibile");
+    }
+    if (state.totalCredits > maxTotalCredits) {
+      await failStarStage(
+        "STAR_TOTAL_EXCEEDS_LIMIT",
+        `il totale remoto di ${state.totalCredits} crediti supera il limite configurato di ${maxTotalCredits}`
+      );
+    }
+
+    try {
+      await page.waitForSelector(submitSelector, { visible: true, timeout: 15000 });
+      await page.waitForFunction((selector) => {
+        const button = document.querySelector(selector);
+        return Boolean(button && !button.disabled && button.getAttribute("aria-disabled") !== "true");
+      }, { timeout: 15000 }, submitSelector);
+    } catch (error) {
+      await failStarStage("STAR_PROMOTION_SUBMIT_NOT_READY", `il pulsante Paga per pubblicare non e disponibile (${error.message})`);
+    }
+
+    await this.acceptBakecaincontriiAdultConsent(page, "STAR");
+    const clickPaymentButton = async () => {
+      await page.click(submitSelector).catch(async () => {
+        await page.$eval(submitSelector, (button) => button.click());
+      });
+    };
+    let navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+    await clickPaymentButton();
+    await Promise.race([navigation, this.delay(2500)]);
+    const consentInterruptedPayment = await this.acceptBakecaincontriiAdultConsent(page, "STAR");
+    if (consentInterruptedPayment) {
+      navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+      await clickPaymentButton();
+    }
+    await Promise.race([navigation, this.delay(30000)]);
+    await this.delay(1500);
+
+    const stillPending = await page.evaluate((submit) => (
+      /\/u\/post-promote\//i.test(window.location.pathname) && Boolean(document.querySelector(submit))
+    ), submitSelector).catch(() => false);
+    if (stillPending) {
+      await failStarStage("STAR_PAYMENT_NOT_CONFIRMED", "Bakecaincontrii non ha aperto il checkout Star");
+    }
+
+    await this.completePaidCheckout(page, "STAR");
+    console.log("[bakecaincontrii:star] Payment completed", {
+      url: page.url(),
+      slots: requestedSlots.length,
+      totalCredits: state.totalCredits
+    });
+  }
+
   async publish(info, cookie) {
     this.lastPublishedResult = null;
+    const requestedPromotionType = `${info?.promo?.product || info?.promo?.visibility || ""}`.trim().toLowerCase();
+    if (requestedPromotionType === "star" && !isStarCategoryEligible(info?.categorie)) {
+      throw new Error(
+        `STAR_CATEGORY_NOT_ELIGIBLE: Star è disponibile solo per Donna Cerca Uomo e Trans (categoria: ${info?.categorie || "non specificata"}).`
+      );
+    }
     const executablePath = await puppeteer.executablePath();
     var otherBot = await puppeteer.launch({
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", '--js-flags=--expose-gc'],
@@ -1570,6 +1864,8 @@ class BakecaincontriiBot {
           const promotionType = `${botResult.promotionType || info?.promo?.product || info?.promo?.visibility || ""}`.trim().toLowerCase();
           if (promotionType === "flash") {
             await this.activateFlashPromotion(page);
+          } else if (promotionType === "star") {
+            await this.activateStarPromotion(page, info?.promo || {}, info?.nickname || "", info?.categorie || "");
           }
           // Get the remote post ID
           remotePostID = await this.GetRemotePostID(page, 0);
