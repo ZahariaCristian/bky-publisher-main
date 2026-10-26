@@ -914,20 +914,42 @@ class BakecaincontriiBot {
   }
 
   async edit(info, cookie) {
-    console.log("Initialized suspending")
-    const API_RESPONSE = await axios.post("http://localhost:9999/edit-adv", {
-      adv: this.transformObject(info),
-      cookies: this.formatCookies(cookie),
+    const adv = this.transformObject(info);
+    const cookies = this.formatCookies(cookie);
+    console.log("[bakecaincontrii:edit] Sending request", {
       remotePostID: info.remotePostID,
-      expectedEmail: this.email
-    }).catch((e) => console.log(e))
-    console.log("RESPONSE", API_RESPONSE)
-    console.log("Advertisement updated.");
+      images: Array.isArray(adv.picsAudit) ? adv.picsAudit.length : 0,
+      category: adv.categorie || "",
+    });
+
+    try {
+      const response = await axios.post("http://localhost:9999/edit-adv", {
+        adv,
+        cookies,
+        remotePostID: info.remotePostID,
+        expectedEmail: this.email
+      });
+      if (!response?.data || response.data === "ERROR" || response.data?.ok === false) {
+        throw new Error(response?.data?.message || "bky-bot non ha confermato la modifica.");
+      }
+      console.log("[bakecaincontrii:edit] Advertisement updated", {
+        remotePostID: info.remotePostID,
+        status: response.status,
+      });
+      return response.data;
+    } catch (error) {
+      const details = error?.response?.data || {};
+      const code = details?.code || error?.code || "BAKECAINCONTRII_EDIT_FAILED";
+      const message = details?.message || error?.message || "Modifica Bakecaincontrii non riuscita.";
+      const diagnosticDetails = details?.details && Object.keys(details.details).length
+        ? ` Dettagli: ${JSON.stringify(details.details)}`
+        : "";
+      throw new Error(`${code}: ${message}${diagnosticDetails}`);
+    }
   }
 
   formatCookies(cookie) {
     if (cookie) {
-      logger.Write(`Cookie before: ${cookie}`);
       cookie = JSON.parse(cookie)
       let csrftoken = cookie.find(c => c.name === "csrftoken");
       let logged_cookie = cookie.find(c => c.name === "logged_cookie");
@@ -1808,19 +1830,22 @@ class BakecaincontriiBot {
     try {
 
     var remotePostID = null;
-    console.log("Sending external REQ");
-    console.log({
-      adv: this.transformObject(info),
-      cookies: this.formatCookies(cookie)
-    })
+    const transformedAdv = this.transformObject(info);
+    const formattedCookies = this.formatCookies(cookie);
+    console.log("[bakecaincontrii:publish] Sending external request", {
+      category: transformedAdv.categorie || "",
+      promotion: transformedAdv?.promo?.active ? (requestedPromotionType || "paid") : "free",
+      images: Array.isArray(transformedAdv.picsAudit) ? transformedAdv.picsAudit.length : 0,
+      city: transformedAdv.city || "",
+    });
 
     // Send the API request
     const botServiceUrl = process.env.BKY_BOT_URL || "http://127.0.0.1:9999";
     let API_RESPONSE;
     try {
       API_RESPONSE = await axios.post(botServiceUrl, {
-        adv: this.transformObject(info),
-        cookies: this.formatCookies(cookie),
+        adv: transformedAdv,
+        cookies: formattedCookies,
         expectedEmail: this.email
       });
     } catch (error) {
