@@ -1529,6 +1529,230 @@ class BakecaincontriiBot {
     console.log("[bakecaincontrii:flash] Payment completed", { url: page.url() });
   }
 
+  async activateTopPromotion(page, promo = {}) {
+    const cardSelector = '[data-testid="post-promote-manager-top-promotion"]';
+    const productIdSelector = '[data-testid="post-promote-form-ctt-product-id"]';
+    const productTypeSelector = 'input[name="product_type"]';
+    const submitSelector = '[data-testid="post-promote-summary-submit-button"]';
+    const totalSelector = '[data-testid="post-promote-summary-total-price"]';
+    const screenshotDir = path.join(".", "screenshots", "bakecaincontrii-top");
+    const visibility = `${promo.visibility || ""}`.trim().toLowerCase();
+    const optionMatch = visibility.match(/^(\d+)x(\d+)$/);
+    const requestedClimbs = optionMatch ? Number(optionMatch[1]) : null;
+    const requestedDays = optionMatch ? Number(optionMatch[2]) : null;
+    const schedule = `${promo.schedule || ""}`.trim();
+    const startHourMatch = schedule.match(/(?:^|\s)(\d{1,2}):\d{2}/);
+    const startHour = startHourMatch ? Number(startHourMatch[1]) : null;
+    const requestedTimeRange = Number.isFinite(startHour)
+      ? (startHour < 6 ? "NIGHT" : startHour < 12 ? "MORNING" : startHour < 18 ? "AFTERNOON" : "EVENING")
+      : "";
+
+    const getState = async () => page.evaluate((selectors) => {
+      const card = document.querySelector(selectors.card);
+      const submit = document.querySelector(selectors.submit);
+      const checkedRanges = [...document.querySelectorAll('[data-testid="top-promotion-time-ranges"] input:checked')]
+        .map((input) => input.id || input.value || "");
+      return {
+        url: window.location.href,
+        cardPresent: Boolean(card),
+        cardClasses: card?.className || "",
+        productId: document.querySelector(selectors.productId)?.value || "",
+        productType: document.querySelector(selectors.productType)?.value || "",
+        checkedRanges,
+        submitPresent: Boolean(submit),
+        submitDisabled: submit ? Boolean(
+          submit.disabled || submit.getAttribute("aria-disabled") === "true"
+        ) : null,
+        total: document.querySelector(selectors.total)?.textContent?.trim() || "",
+        bodyExcerpt: `${document.body?.innerText || ""}`.replace(/\s+/g, " ").trim().slice(0, 500)
+      };
+    }, {
+      card: cardSelector,
+      productId: productIdSelector,
+      productType: productTypeSelector,
+      submit: submitSelector,
+      total: totalSelector
+    }).catch((error) => ({ url: page.url(), evaluationError: error.message }));
+
+    const captureState = async (stage, screenshot = false) => {
+      const state = await getState();
+      console.log(`[bakecaincontrii:top] ${stage}`, state);
+      if (screenshot) {
+        try {
+          fs.mkdirSync(screenshotDir, { recursive: true });
+          const safeStage = `${stage}`.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase();
+          const screenshotPath = path.join(screenshotDir, `${Date.now()}-${safeStage}.png`);
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+          console.log(`[bakecaincontrii:top] Screenshot saved: ${screenshotPath}`);
+        } catch (error) {
+          console.warn(`[bakecaincontrii:top] Unable to capture ${stage} screenshot:`, error.message);
+        }
+      }
+      return state;
+    };
+
+    const failTopStage = async (code, message) => {
+      const state = await captureState(`error-${code}`, true);
+      throw new Error(`${code}: ${message}. Stato: ${JSON.stringify(state)}`);
+    };
+
+    if (/\/u\/post-manage\//i.test(page.url())) return;
+    if (/\/u\/order-checkout\//i.test(page.url())) {
+      await this.completePaidCheckout(page, "TOP");
+      return;
+    }
+
+    await this.acceptBakecaincontriiAdultConsent(page, "TOP");
+    try {
+      await page.waitForSelector(cardSelector, { visible: true, timeout: 30000 });
+    } catch (error) {
+      await failTopStage("TOP_CARD_NOT_FOUND", `la promozione Top non e disponibile (${error.message})`);
+    }
+
+    let state = await captureState("before-selection");
+    const isTopReady = (currentState) => Boolean(
+      `${currentState.productType || ""}`.toLowerCase() === "top" && currentState.productId
+    );
+
+    // Current bky-bot versions preselect the exact Top product on the server. This
+    // fallback supports a fresh promotion page without the old generic selector.
+    if (!isTopReady(state)) {
+      if (!optionMatch || !requestedTimeRange) {
+        await failTopStage(
+          "TOP_CONFIGURATION_INVALID",
+          `configurazione Top non valida (prodotto=${visibility || "vuoto"}, fascia=${schedule || "vuota"})`
+        );
+      }
+
+      await page.$eval(cardSelector, (card) => card.scrollIntoView({ block: "center", inline: "center" }))
+        .catch(() => { });
+      await this.delay(250);
+      await page.click(cardSelector).catch(async () => {
+        await page.$eval(cardSelector, (card) => card.click());
+      });
+      await this.delay(500);
+
+      const timeRangeSelector = `#input-range-${requestedTimeRange}`;
+      const timeRangeLabelSelector = `label[for="input-range-${requestedTimeRange}"]`;
+      try {
+        await page.waitForSelector(timeRangeSelector, { timeout: 15000 });
+        await page.waitForSelector(timeRangeLabelSelector, { visible: true, timeout: 15000 });
+        const alreadyChecked = await page.$eval(timeRangeSelector, (input) => input.checked).catch(() => false);
+        if (!alreadyChecked) {
+          await page.click(timeRangeLabelSelector).catch(async () => {
+            await page.$eval(timeRangeSelector, (input) => input.click());
+          });
+        }
+        await page.waitForFunction((selector) => Boolean(document.querySelector(selector)?.checked),
+          { timeout: 10000 }, timeRangeSelector);
+      } catch (error) {
+        await failTopStage(
+          "TOP_TIME_RANGE_NOT_SELECTED",
+          `impossibile selezionare ${requestedTimeRange} per la fascia ${schedule} (${error.message})`
+        );
+      }
+
+      const chooseNumericOption = async (containerSelector, expectedValue) => page.evaluate((container, expected) => {
+        const root = document.querySelector(container);
+        if (!root) return { found: false, reason: "container-missing" };
+        const candidates = [...root.querySelectorAll('input, button, label, [role="button"]')];
+        const target = candidates.find((element) => {
+          const input = element.matches("input") ? element : element.querySelector("input");
+          const values = [
+            input?.value,
+            input?.dataset?.value,
+            input?.id,
+            element.dataset?.value,
+            element.getAttribute("value")
+          ].filter(Boolean).map((value) => `${value}`.trim().toLowerCase());
+          if (values.some((value) => value === `${expected}` || value.endsWith(`-${expected}`))) return true;
+          const text = `${element.textContent || ""}`.replace(/\s+/g, " ").trim();
+          return new RegExp(`(^|\\D)${expected}(\\D|$)`).test(text);
+        });
+        if (!target) return {
+          found: false,
+          reason: "option-missing",
+          options: candidates.map((element) => `${element.textContent || element.getAttribute("value") || ""}`
+            .replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 20)
+        };
+        const clickable = target.matches("input") && target.id
+          ? (root.querySelector(`label[for="${CSS.escape(target.id)}"]`) || target)
+          : target;
+        clickable.click();
+        return { found: true, text: `${target.textContent || target.getAttribute("value") || ""}`.trim() };
+      }, containerSelector, expectedValue);
+
+      await page.waitForFunction(() => {
+        const containers = [
+          document.querySelector('[data-testid="top-promotion-input-0"]'),
+          document.querySelector('[data-testid="top-promotion-input-1"]')
+        ];
+        return containers.every((container) => container && window.getComputedStyle(container).display !== "none");
+      }, { timeout: 15000 }).catch(() => { });
+
+      const daysResult = await chooseNumericOption('[data-testid="top-promotion-input-0"]', requestedDays);
+      if (!daysResult.found) {
+        await failTopStage("TOP_DAYS_NOT_SELECTED", `durata ${requestedDays} giorni non disponibile (${JSON.stringify(daysResult)})`);
+      }
+      await this.delay(400);
+      const climbsResult = await chooseNumericOption('[data-testid="top-promotion-input-1"]', requestedClimbs);
+      if (!climbsResult.found) {
+        await failTopStage("TOP_CLIMBS_NOT_SELECTED", `${requestedClimbs} risalite non disponibili (${JSON.stringify(climbsResult)})`);
+      }
+
+      try {
+        await page.waitForFunction((productId, productType) => Boolean(
+          document.querySelector(productId)?.value &&
+          `${document.querySelector(productType)?.value || ""}`.toLowerCase() === "top"
+        ), { timeout: 15000 }, productIdSelector, productTypeSelector);
+      } catch (error) {
+        await failTopStage("TOP_SELECTION_NOT_APPLIED", `Bakecaincontrii non ha confermato il prodotto Top (${error.message})`);
+      }
+      state = await captureState("selection-ready");
+    }
+
+    if (!isTopReady(state)) {
+      await failTopStage("TOP_SELECTION_NOT_APPLIED", "product_type o ctt_product_id Top non valorizzato");
+    }
+    try {
+      await page.waitForSelector(submitSelector, { visible: true, timeout: 15000 });
+      await page.waitForFunction((selector) => {
+        const button = document.querySelector(selector);
+        return Boolean(button && !button.disabled && button.getAttribute("aria-disabled") !== "true");
+      }, { timeout: 15000 }, submitSelector);
+    } catch (error) {
+      await failTopStage("TOP_PROMOTION_SUBMIT_NOT_READY", `Paga per pubblicare non disponibile (${error.message})`);
+    }
+
+    await this.acceptBakecaincontriiAdultConsent(page, "TOP");
+    const clickPaymentButton = async () => {
+      await page.click(submitSelector).catch(async () => {
+        await page.$eval(submitSelector, (button) => button.click());
+      });
+    };
+    let navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+    await clickPaymentButton();
+    await Promise.race([navigation, this.delay(2500)]);
+    const consentInterruptedPayment = await this.acceptBakecaincontriiAdultConsent(page, "TOP");
+    if (consentInterruptedPayment && /\/u\/post-promote\//i.test(page.url())) {
+      navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+      await clickPaymentButton();
+    }
+    await Promise.race([navigation, this.delay(30000)]);
+    await this.delay(1500);
+
+    if (/\/u\/post-promote\//i.test(page.url())) {
+      await failTopStage("TOP_PAYMENT_NOT_CONFIRMED", "Bakecaincontrii non ha aperto il checkout Top");
+    }
+
+    await this.completePaidCheckout(page, "TOP");
+    console.log("[bakecaincontrii:top] Payment completed", {
+      url: page.url(),
+      visibility,
+      schedule
+    });
+  }
+
   async activateStarPromotion(page, promo = {}, nickname = "", category = "") {
     if (!isStarCategoryEligible(category)) {
       throw new Error(`STAR_CATEGORY_NOT_ELIGIBLE: la categoria ${category || "non specificata"} non supporta Star.`);
@@ -1867,10 +2091,13 @@ class BakecaincontriiBot {
       );
     }
     if (Array.isArray(botResult.imageWarnings) && botResult.imageWarnings.length) {
-      console.warn("[bakecaincontrii:images] Publication continued with rejected images skipped", {
-        skipped: botResult.imageWarnings.length,
-        warnings: botResult.imageWarnings,
-      });
+      const skippedIndexes = botResult.imageWarnings
+        .map((warning) => Number.isInteger(warning?.imageIndex) ? warning.imageIndex + 1 : null)
+        .filter(Boolean);
+      throw new Error(
+        `BAKECAINCONTRII_IMAGE_UPLOAD_INCOMPLETE: ${botResult.imageWarnings.length} immagini rifiutate` +
+        `${skippedIndexes.length ? ` (posizioni: ${skippedIndexes.join(", ")})` : ""}; pubblicazione interrotta.`
+      );
     }
     if (!botResult.uri) {
       throw new Error("BKY_BOT_MISSING_URI: bky-bot non ha restituito la pagina di pubblicazione.");
@@ -1900,6 +2127,10 @@ class BakecaincontriiBot {
             await this.activateFlashPromotion(page);
           } else if (promotionType === "star") {
             await this.activateStarPromotion(page, info?.promo || {}, info?.nickname || "", info?.categorie || "");
+          } else if (promotionType === "top") {
+            await this.activateTopPromotion(page, info?.promo || {});
+          } else {
+            throw new Error(`BAKECAINCONTRII_PROMOTION_UNSUPPORTED: promozione ${promotionType || "vuota"} non supportata.`);
           }
           // Get the remote post ID
           remotePostID = await this.GetRemotePostID(page, 0);
