@@ -2094,10 +2094,27 @@ class BakecaincontriiBot {
       const skippedIndexes = botResult.imageWarnings
         .map((warning) => Number.isInteger(warning?.imageIndex) ? warning.imageIndex + 1 : null)
         .filter(Boolean);
-      throw new Error(
-        `BAKECAINCONTRII_IMAGE_UPLOAD_INCOMPLETE: ${botResult.imageWarnings.length} immagini rifiutate` +
-        `${skippedIndexes.length ? ` (posizioni: ${skippedIndexes.join(", ")})` : ""}; pubblicazione interrotta.`
+      const contentRejectionsOnly = botResult.imageWarnings.every((warning) =>
+        warning?.code === "BAKECAINCONTRII_IMAGE_SKIPPED_INVALID_CONTENT"
       );
+      const requestedImages = Number(botResult.requestedImages || 0);
+      const uploadedImages = Number(botResult.uploadedImages || 0);
+      const mayContinue = botResult.imagesComplete === false &&
+        contentRejectionsOnly &&
+        requestedImages > 0 &&
+        uploadedImages > 0 &&
+        uploadedImages + botResult.imageWarnings.length === requestedImages;
+      if (!mayContinue) {
+        throw new Error(
+          `BAKECAINCONTRII_IMAGE_UPLOAD_INCOMPLETE: ${botResult.imageWarnings.length} immagini rifiutate` +
+          `${skippedIndexes.length ? ` (posizioni: ${skippedIndexes.join(", ")})` : ""}; pubblicazione interrotta.`
+        );
+      }
+      console.warn("[bakecaincontrii:images] Publishing with accepted images", {
+        requested: requestedImages,
+        uploaded: uploadedImages,
+        skippedPositions: skippedIndexes,
+      });
     }
     if (!botResult.uri) {
       throw new Error("BKY_BOT_MISSING_URI: bky-bot non ha restituito la pagina di pubblicazione.");
