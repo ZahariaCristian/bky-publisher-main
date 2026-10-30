@@ -9,7 +9,7 @@ dotenv.config();
 console.log("DB CONNECTING WITH: ", {
     db:process.env.DATABASE,
     user:process.env.DBUSER,
-    pass:process.env.DBPASS,
+    passwordConfigured:Boolean(process.env.DBPASS),
 })
 var model = new Sequelize(process.env.DATABASE, process.env.DBUSER, process.env.DBPASS, {
     host: process.env.HOST,

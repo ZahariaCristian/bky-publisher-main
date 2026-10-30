@@ -1,5 +1,4 @@
 const { default: axios } = require("axios");
-const cheerio = require("cheerio");
 const signale = require("./logger");
 const fs = require("fs");
 const { imageProcessor, prepareUploadImage } = require("./imageProcessor");
@@ -27,6 +26,46 @@ function parseJsonIfPossible(text) {
   } catch (err) {
     return null;
   }
+}
+
+function decodeHtmlAttribute(value = "") {
+  return `${value}`
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number.parseInt(code, 10)))
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&amp;/gi, "&");
+}
+
+function escapeRegExp(value) {
+  return `${value}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function readHtmlAttribute(tag, attributeName) {
+  const pattern = new RegExp(
+    `(?:^|\\s)${escapeRegExp(attributeName)}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
+    "i"
+  );
+  const match = `${tag || ""}`.match(pattern);
+  return match ? decodeHtmlAttribute(match[1] ?? match[2] ?? match[3] ?? "") : undefined;
+}
+
+function findHtmlTag(html, tagName, attributeName, expectedValue) {
+  const tags = `${html || ""}`.match(new RegExp(`<${escapeRegExp(tagName)}\\b[^>]*>`, "gi")) || [];
+  return tags.find((tag) => readHtmlAttribute(tag, attributeName) === expectedValue);
+}
+
+function extractParamsFromHtml(html, params = []) {
+  const managerTags = `${html || ""}`.match(/<post-promote-manager\b[^>]*>/gi) || [];
+  const manager = managerTags[0] || "";
+  const values = params.map((name) => {
+    const input = findHtmlTag(html, "input", "name", name);
+    return readHtmlAttribute(input, "value") || readHtmlAttribute(manager, mappedParams[name]);
+  });
+  const meta = findHtmlTag(html, "meta", "property", "og:url");
+  return { values, ogUrl: readHtmlAttribute(meta, "content") };
 }
 
 function normalizeHeaders(headers) {
@@ -210,10 +249,8 @@ async function extract_csrf({ url, headers }) {
     return undefined;
   }
 
-  const $ = cheerio.load(await PAGE.text());
-  const csrfmiddlewaretoken = $('input[name="csrfmiddlewaretoken"]').attr(
-    "value"
-  );
+  const html = await PAGE.text();
+  const csrfmiddlewaretoken = extractParamsFromHtml(html, ["csrfmiddlewaretoken"]).values[0];
   if (!csrfmiddlewaretoken) {
     return undefined;
   }
@@ -237,24 +274,12 @@ async function extract_params({ url, headers, params }) {
     return undefined;
   }
 
-  const $ = cheerio.load(await PAGE.text());
-
-  // Find the meta tag with property="og:url"
-  const metaTag = $('meta[property="og:url"]');
-
-  // Get the value of the content attribute
-  const ogUrl = metaTag.attr("content");
+  const html = await PAGE.text();
+  const { values, ogUrl } = extractParamsFromHtml(html, params);
 
   console.log(ogUrl);
 
-  const results = params?.map((p) => {
-    let val = $(`input[name="${p}"]`).attr("value");
-    if(!val) {
-      val = $('post-promote-manager').attr(mappedParams[p]);
-    }
-    return val;
-  });
-  return results;
+  return values;
 }
 
 function extractEmail(text) {
@@ -358,5 +383,6 @@ module.exports = {
   extractEmail,
   extract_images,
   formatCrop,
+  extractParamsFromHtml,
 };
 
