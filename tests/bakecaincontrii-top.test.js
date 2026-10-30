@@ -31,22 +31,22 @@ test("keeps legacy Top schedules publishable during migration", () => {
   });
 });
 
-test("accepts the six-hour whole-period bundle only as one day and nine climbs", () => {
+test("accepts automatic climbs for the current Top workflow", () => {
   assert.deepEqual(normalizeTopPromotionConfig({
-    top: { timeRange: "MORNING", timeSlot: "MORNING", days: 1, climbs: 9 },
+    top: { timeRange: "MORNING", timeSlot: "MORNING", days: 1, climbs: null },
   }), {
     timeRange: "MORNING",
     timeSlot: "MORNING",
     days: 1,
-    climbs: 9,
+    climbs: null,
     valid: true,
   });
   assert.equal(normalizeTopPromotionConfig({
     top: { timeRange: "EVENING", timeSlot: "EVENING", days: 3, climbs: 9 },
   }).valid, false);
   assert.equal(normalizeTopPromotionConfig({
-    top: { timeRange: "AFTERNOON", timeSlot: "AFTERNOON", days: 1, climbs: 10 },
-  }).valid, false);
+    top: { timeRange: "AFTERNOON", timeSlot: "14:00 - 15:00", days: 3, climbs: null },
+  }).valid, true);
 });
 
 test("keeps an exact Top risalite option", () => {

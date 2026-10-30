@@ -1548,6 +1548,8 @@ class BakecaincontriiBot {
     const requestedDays = topConfig.days;
     const schedule = topConfig.timeSlot;
     const requestedTimeRange = topConfig.timeRange;
+    const automaticClimbs = Boolean(promo.top && typeof promo.top === "object");
+    const fullRangeBundle = requestedTimeRange !== "NIGHT" && schedule === requestedTimeRange;
     const requestedAddons = {
       supertop: Boolean(promo.premium),
       highlight: Boolean(promo.highlight),
@@ -1636,7 +1638,7 @@ class BakecaincontriiBot {
     if (!topConfig.valid) {
       await failTopStage(
         "TOP_CONFIGURATION_INVALID",
-        `configurazione Top non valida (fascia=${requestedTimeRange || "vuota"}, slot=${schedule || "vuoto"}, giorni=${requestedDays || "vuoto"}, risalite=${requestedClimbs || "vuoto"})`
+        `configurazione Top non valida (fascia=${requestedTimeRange || "vuota"}, slot=${schedule || "vuoto"}, giorni=${requestedDays || "vuoto"})`
       );
     }
 
@@ -1764,6 +1766,31 @@ class BakecaincontriiBot {
       });
     }, { timeout: 10000 }, containerSelector, expectedValue);
 
+    const readAutomaticNumericOption = async (containerSelector) => {
+      await page.waitForFunction((container) => {
+        const root = document.querySelector(container);
+        if (!root) return false;
+        const candidates = [...root.querySelectorAll('input, button, [role="button"]')];
+        return candidates.some((element) =>
+          (element.matches('input') && element.checked) ||
+          /--selected(?:\s|$)/.test(element.className || "") ||
+          element.getAttribute("aria-pressed") === "true"
+        ) || candidates.length === 1;
+      }, { timeout: 10000 }, containerSelector);
+      return page.evaluate((container) => {
+        const root = document.querySelector(container);
+        if (!root) return null;
+        const candidates = [...root.querySelectorAll('input, button, [role="button"]')];
+        const selected = candidates.find((element) =>
+          (element.matches('input') && element.checked) ||
+          /--selected(?:\s|$)/.test(element.className || "") ||
+          element.getAttribute("aria-pressed") === "true"
+        ) || (candidates.length === 1 ? candidates[0] : null);
+        const match = `${selected?.value || selected?.textContent || selected?.id || ""}`.match(/\d+/);
+        return match ? Number(match[0]) : null;
+      }, containerSelector);
+    };
+
     await page.waitForFunction(() => {
       const containers = [
         document.querySelector('[data-testid="top-promotion-input-0"]'),
@@ -1782,30 +1809,49 @@ class BakecaincontriiBot {
       await failTopStage("TOP_DAYS_NOT_SELECTED", `Bakecaincontrii non ha confermato ${requestedDays} giorni (${error.message})`);
     }
     await this.delay(400);
-    let effectiveClimbs = requestedClimbs;
-    let climbsResult = await chooseNumericOption('[data-testid="top-promotion-input-1"]', effectiveClimbs);
-    if (!climbsResult.found) {
-      const remoteClimbs = resolveRemoteTopClimbs(requestedClimbs, climbsResult.options);
-      if (remoteClimbs.adjusted) {
-        effectiveClimbs = remoteClimbs.value;
-        console.warn("[bakecaincontrii:top] Requested climbs adjusted to the current remote option", {
-          requested: requestedClimbs,
-          selected: effectiveClimbs,
-          available: remoteClimbs.available,
-        });
-        climbsResult = await chooseNumericOption('[data-testid="top-promotion-input-1"]', effectiveClimbs);
+    let effectiveClimbs = null;
+    if (automaticClimbs) {
+      try {
+        effectiveClimbs = await readAutomaticNumericOption('[data-testid="top-promotion-input-1"]');
+      } catch (error) {
+        await failTopStage("TOP_CLIMBS_NOT_DETECTED", `numero di risalite automatico non rilevato (${error.message})`);
       }
-    }
-    if (!climbsResult.found) {
-      await failTopStage(
-        "TOP_CLIMBS_NOT_SELECTED",
-        `${requestedClimbs} risalite non disponibili (${JSON.stringify(climbsResult)})`
-      );
-    }
-    try {
-      await waitForNumericOption('[data-testid="top-promotion-input-1"]', effectiveClimbs);
-    } catch (error) {
-      await failTopStage("TOP_CLIMBS_NOT_SELECTED", `Bakecaincontrii non ha confermato ${effectiveClimbs} risalite (${error.message})`);
+      if (!Number.isFinite(effectiveClimbs) || effectiveClimbs <= 0) {
+        await failTopStage("TOP_CLIMBS_NOT_DETECTED", "Bakecaincontrii non ha esposto il numero di risalite calcolato");
+      }
+      if (fullRangeBundle && effectiveClimbs !== 9) {
+        await failTopStage(
+          "TOP_CLIMBS_UNEXPECTED",
+          `la fascia completa richiede 9 risalite ma Bakecaincontrii ne ha calcolate ${effectiveClimbs}`
+        );
+      }
+      console.log("[bakecaincontrii:top] Automatic climbs detected", { climbs: effectiveClimbs });
+    } else {
+      effectiveClimbs = requestedClimbs;
+      let climbsResult = await chooseNumericOption('[data-testid="top-promotion-input-1"]', effectiveClimbs);
+      if (!climbsResult.found) {
+        const remoteClimbs = resolveRemoteTopClimbs(requestedClimbs, climbsResult.options);
+        if (remoteClimbs.adjusted) {
+          effectiveClimbs = remoteClimbs.value;
+          console.warn("[bakecaincontrii:top] Legacy climbs adjusted to the current remote option", {
+            requested: requestedClimbs,
+            selected: effectiveClimbs,
+            available: remoteClimbs.available,
+          });
+          climbsResult = await chooseNumericOption('[data-testid="top-promotion-input-1"]', effectiveClimbs);
+        }
+      }
+      if (!climbsResult.found) {
+        await failTopStage(
+          "TOP_CLIMBS_NOT_SELECTED",
+          `${requestedClimbs} risalite non disponibili (${JSON.stringify(climbsResult)})`
+        );
+      }
+      try {
+        await waitForNumericOption('[data-testid="top-promotion-input-1"]', effectiveClimbs);
+      } catch (error) {
+        await failTopStage("TOP_CLIMBS_NOT_SELECTED", `Bakecaincontrii non ha confermato ${effectiveClimbs} risalite (${error.message})`);
+      }
     }
 
     const setAddon = async (name, desired) => {
