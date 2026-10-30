@@ -1136,9 +1136,20 @@ async function mainLoop(group, platform) {
                     try { promotionDetails = JSON.parse(s.period || "{}"); } catch { promotionDetails = {}; }
                     s.promo = {
                         active: s.typeAnnuncio !== "Free",
-                        visibility: s.typeAnnuncio,
+                        visibility: s.typeAnnuncio === "Top"
+                            ? `${Number(promotionDetails.climbs || 1)}x${Number(promotionDetails.days || 1)}`
+                            : s.typeAnnuncio,
                         product: s.typeAnnuncio === "Flash" ? "flash" : (s.typeAnnuncio === "Star" ? "star" : "top"),
-                        schedule: s.period,
+                        schedule: s.typeAnnuncio === "Top" ? `${promotionDetails.timeSlot || ""}` : s.period,
+                        top: s.typeAnnuncio === "Top" ? {
+                            schemaVersion: Number(promotionDetails.schemaVersion || 2),
+                            product: "top",
+                            timeRange: `${promotionDetails.timeRange || ""}`,
+                            timeSlot: `${promotionDetails.timeSlot || ""}`,
+                            slotMode: `${promotionDetails.slotMode || ""}`,
+                            days: Number(promotionDetails.days || 1),
+                            climbs: Number(promotionDetails.climbs || 1)
+                        } : null,
                         slots: s.typeAnnuncio === "Star" && Array.isArray(promotionDetails.slots) ? promotionDetails.slots : [],
                         maxTotalCredits: s.typeAnnuncio === "Star" ? Number(promotionDetails.maxTotalCredits || 0) : 0,
                         premium: s.hasPremium,

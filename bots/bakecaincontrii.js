@@ -3,10 +3,14 @@ const RecaptchaPlugin = require("puppeteer-extra-plugin-recaptcha");
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const request = require("request");
 const fs = require("fs");
-const { default: axios } = require("axios");
 const path = require('path');
 const TwoCaptcha = require("@2captcha/captcha-solver")
 const logger = require("../lib/logger");
+const { resolveRemoteTopClimbs, normalizeTopPromotionConfig } = require("../lib/bakecaincontriiTop");
+const publishBakecaincontriiAd = require("../adsManage/bakecaincontrii/publishAds");
+const updateBakecaincontriiAd = require("../adsManage/bakecaincontrii/updateAds");
+const suspendBakecaincontriiAd = require("../adsManage/bakecaincontrii/suspendAds");
+const { assertBakecaincontriiSession } = require("../adsManage/bakecaincontrii/session");
 
 const API_KEY = fs.readFileSync(__dirname + "/settings/2captchaApiKey.txt", "utf-8", function read(error, data) {
   if (err) {
@@ -923,26 +927,23 @@ class BakecaincontriiBot {
     });
 
     try {
-      const response = await axios.post("http://localhost:9999/edit-adv", {
-        adv,
-        cookies,
-        remotePostID: info.remotePostID,
-        expectedEmail: this.email
-      });
-      if (!response?.data || response.data === "ERROR" || response.data?.ok === false) {
-        throw new Error(response?.data?.message || "bky-bot non ha confermato la modifica.");
+      assertBakecaincontriiSession(cookies, this.email);
+      const result = await updateBakecaincontriiAd(adv, cookies, info.remotePostID);
+      if (!result || result === "ERROR" || result?.ok === false) {
+        throw new Error(result?.message || "Bakecaincontrii non ha confermato la modifica.");
       }
       console.log("[bakecaincontrii:edit] Advertisement updated", {
         remotePostID: info.remotePostID,
-        status: response.status,
+        localWorkflow: true,
       });
-      return response.data;
+      return result;
     } catch (error) {
       const details = error?.response?.data || {};
       const code = details?.code || error?.code || "BAKECAINCONTRII_EDIT_FAILED";
       const message = details?.message || error?.message || "Modifica Bakecaincontrii non riuscita.";
-      const diagnosticDetails = details?.details && Object.keys(details.details).length
-        ? ` Dettagli: ${JSON.stringify(details.details)}`
+      const errorDetails = details?.details || error?.details || {};
+      const diagnosticDetails = Object.keys(errorDetails).length
+        ? ` Dettagli: ${JSON.stringify(errorDetails)}`
         : "";
       throw new Error(`${code}: ${message}${diagnosticDetails}`);
     }
@@ -955,11 +956,12 @@ class BakecaincontriiBot {
       let logged_cookie = cookie.find(c => c.name === "logged_cookie");
       let f_session_id = cookie.find(c => c.name === "f_session_id");
       return {
-        csrftoken: csrftoken.value,
-        logged_cookie: logged_cookie.value,
-        f_session_id: f_session_id.value
+        csrftoken: csrftoken?.value || "",
+        logged_cookie: logged_cookie?.value || "",
+        f_session_id: f_session_id?.value || ""
       }
     }
+    return null;
   }
 
   transformObject(tblSchedulazioni) {
@@ -1024,6 +1026,9 @@ class BakecaincontriiBot {
         visibility: tblSchedulazioni.promo.visibility || "",
         product: tblSchedulazioni.promo.product || "",
         schedule: tblSchedulazioni.promo.schedule || "",
+        top: tblSchedulazioni.promo.top && typeof tblSchedulazioni.promo.top === "object"
+          ? { ...tblSchedulazioni.promo.top }
+          : null,
         slots: Array.isArray(tblSchedulazioni.promo.slots) ? tblSchedulazioni.promo.slots : [],
         maxTotalCredits: Number(tblSchedulazioni.promo.maxTotalCredits || 0),
         premium: tblSchedulazioni.promo.premium || false,
@@ -1535,23 +1540,33 @@ class BakecaincontriiBot {
     const productTypeSelector = 'input[name="product_type"]';
     const submitSelector = '[data-testid="post-promote-summary-submit-button"]';
     const totalSelector = '[data-testid="post-promote-summary-total-price"]';
+    const timeSlotsSelector = '[data-testid="top-promotion-time-slots"] select';
     const screenshotDir = path.join(".", "screenshots", "bakecaincontrii-top");
     const visibility = `${promo.visibility || ""}`.trim().toLowerCase();
-    const optionMatch = visibility.match(/^(\d+)x(\d+)$/);
-    const requestedClimbs = optionMatch ? Number(optionMatch[1]) : null;
-    const requestedDays = optionMatch ? Number(optionMatch[2]) : null;
-    const schedule = `${promo.schedule || ""}`.trim();
-    const startHourMatch = schedule.match(/(?:^|\s)(\d{1,2}):\d{2}/);
-    const startHour = startHourMatch ? Number(startHourMatch[1]) : null;
-    const requestedTimeRange = Number.isFinite(startHour)
-      ? (startHour < 6 ? "NIGHT" : startHour < 12 ? "MORNING" : startHour < 18 ? "AFTERNOON" : "EVENING")
-      : "";
+    const topConfig = normalizeTopPromotionConfig(promo);
+    const requestedClimbs = topConfig.climbs;
+    const requestedDays = topConfig.days;
+    const schedule = topConfig.timeSlot;
+    const requestedTimeRange = topConfig.timeRange;
+    const requestedAddons = {
+      supertop: Boolean(promo.premium),
+      highlight: Boolean(promo.highlight),
+      new_label: Boolean(promo.etichetta),
+    };
 
     const getState = async () => page.evaluate((selectors) => {
       const card = document.querySelector(selectors.card);
       const submit = document.querySelector(selectors.submit);
+      const slotSelect = document.querySelector(selectors.timeSlots);
       const checkedRanges = [...document.querySelectorAll('[data-testid="top-promotion-time-ranges"] input:checked')]
         .map((input) => input.id || input.value || "");
+      const selectedNumericValues = (selector) => [...document.querySelectorAll(`${selector} input:checked`)]
+        .map((input) => input.value || input.dataset.value || input.id || "");
+      const addonSelected = (name) => {
+        const root = document.querySelector(`[data-testid="post-promote-addon-toggle-${name}"]`);
+        const input = root?.matches?.('input[type="checkbox"]') ? root : root?.querySelector?.('input[type="checkbox"]');
+        return Boolean(input?.checked || root?.getAttribute?.("aria-checked") === "true" || root?.classList?.contains("active"));
+      };
       return {
         url: window.location.href,
         cardPresent: Boolean(card),
@@ -1559,6 +1574,14 @@ class BakecaincontriiBot {
         productId: document.querySelector(selectors.productId)?.value || "",
         productType: document.querySelector(selectors.productType)?.value || "",
         checkedRanges,
+        selectedTimeSlot: slotSelect?.value || "",
+        selectedDays: selectedNumericValues('[data-testid="top-promotion-input-0"]'),
+        selectedClimbs: selectedNumericValues('[data-testid="top-promotion-input-1"]'),
+        addons: {
+          supertop: addonSelected("supertop"),
+          highlight: addonSelected("highlight"),
+          new_label: addonSelected("new_label"),
+        },
         submitPresent: Boolean(submit),
         submitDisabled: submit ? Boolean(
           submit.disabled || submit.getAttribute("aria-disabled") === "true"
@@ -1571,7 +1594,8 @@ class BakecaincontriiBot {
       productId: productIdSelector,
       productType: productTypeSelector,
       submit: submitSelector,
-      total: totalSelector
+      total: totalSelector,
+      timeSlots: timeSlotsSelector,
     }).catch((error) => ({ url: page.url(), evaluationError: error.message }));
 
     const captureState = async (stage, screenshot = false) => {
@@ -1609,21 +1633,21 @@ class BakecaincontriiBot {
       await failTopStage("TOP_CARD_NOT_FOUND", `la promozione Top non e disponibile (${error.message})`);
     }
 
+    if (!topConfig.valid) {
+      await failTopStage(
+        "TOP_CONFIGURATION_INVALID",
+        `configurazione Top non valida (fascia=${requestedTimeRange || "vuota"}, slot=${schedule || "vuoto"}, giorni=${requestedDays || "vuoto"}, risalite=${requestedClimbs || "vuoto"})`
+      );
+    }
+
     let state = await captureState("before-selection");
     const isTopReady = (currentState) => Boolean(
       `${currentState.productType || ""}`.toLowerCase() === "top" && currentState.productId
     );
 
-    // Current bky-bot versions preselect the exact Top product on the server. This
-    // fallback supports a fresh promotion page without the old generic selector.
-    if (!isTopReady(state)) {
-      if (!optionMatch || !requestedTimeRange) {
-        await failTopStage(
-          "TOP_CONFIGURATION_INVALID",
-          `configurazione Top non valida (prodotto=${visibility || "vuoto"}, fascia=${schedule || "vuota"})`
-        );
-      }
-
+    const cardAlreadySelected = /(^|\s)selected(\s|$)/.test(`${state.cardClasses || ""}`) &&
+      `${state.productType || ""}`.toLowerCase() === "top";
+    if (!cardAlreadySelected) {
       await page.$eval(cardSelector, (card) => card.scrollIntoView({ block: "center", inline: "center" }))
         .catch(() => { });
       await this.delay(250);
@@ -1631,85 +1655,203 @@ class BakecaincontriiBot {
         await page.$eval(cardSelector, (card) => card.click());
       });
       await this.delay(500);
+    }
 
-      const timeRangeSelector = `#input-range-${requestedTimeRange}`;
-      const timeRangeLabelSelector = `label[for="input-range-${requestedTimeRange}"]`;
-      try {
-        await page.waitForSelector(timeRangeSelector, { timeout: 15000 });
-        await page.waitForSelector(timeRangeLabelSelector, { visible: true, timeout: 15000 });
-        const alreadyChecked = await page.$eval(timeRangeSelector, (input) => input.checked).catch(() => false);
-        if (!alreadyChecked) {
-          await page.click(timeRangeLabelSelector).catch(async () => {
-            await page.$eval(timeRangeSelector, (input) => input.click());
-          });
-        }
-        await page.waitForFunction((selector) => Boolean(document.querySelector(selector)?.checked),
-          { timeout: 10000 }, timeRangeSelector);
-      } catch (error) {
-        await failTopStage(
-          "TOP_TIME_RANGE_NOT_SELECTED",
-          `impossibile selezionare ${requestedTimeRange} per la fascia ${schedule} (${error.message})`
-        );
+    const timeRangeSelector = `#input-range-${requestedTimeRange}`;
+    const timeRangeLabelSelector = `label[for="input-range-${requestedTimeRange}"]`;
+    try {
+      await page.waitForSelector(timeRangeSelector, { timeout: 15000 });
+      await page.waitForSelector(timeRangeLabelSelector, { visible: true, timeout: 15000 });
+      const alreadyChecked = await page.$eval(timeRangeSelector, (input) => input.checked).catch(() => false);
+      if (!alreadyChecked) {
+        await page.click(timeRangeLabelSelector).catch(async () => {
+          await page.$eval(timeRangeSelector, (input) => input.click());
+        });
       }
+      await page.waitForFunction((selector) => Boolean(document.querySelector(selector)?.checked),
+        { timeout: 10000 }, timeRangeSelector);
+    } catch (error) {
+      await failTopStage(
+        "TOP_TIME_RANGE_NOT_SELECTED",
+        `impossibile selezionare ${requestedTimeRange} per la fascia ${schedule} (${error.message})`
+      );
+    }
 
-      const chooseNumericOption = async (containerSelector, expectedValue) => page.evaluate((container, expected) => {
-        const root = document.querySelector(container);
-        if (!root) return { found: false, reason: "container-missing" };
-        const candidates = [...root.querySelectorAll('input, button, label, [role="button"]')];
-        const target = candidates.find((element) => {
-          const input = element.matches("input") ? element : element.querySelector("input");
-          const values = [
-            input?.value,
-            input?.dataset?.value,
-            input?.id,
-            element.dataset?.value,
-            element.getAttribute("value")
-          ].filter(Boolean).map((value) => `${value}`.trim().toLowerCase());
-          if (values.some((value) => value === `${expected}` || value.endsWith(`-${expected}`))) return true;
+    if (requestedTimeRange !== "NIGHT") {
+      try {
+        await page.waitForSelector(timeSlotsSelector, { visible: true, timeout: 15000 });
+        const slotResult = await page.$eval(timeSlotsSelector, (select, expected) => {
+          const options = [...select.options].map((option) => ({ value: option.value, text: option.textContent?.trim() || "" }));
+          const target = options.find((option) => option.value === expected) ||
+            options.find((option) => option.text === expected);
+          if (!target) return { found: false, options };
+          const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
+          descriptor?.set?.call(select, target.value);
+          select.dispatchEvent(new Event("input", { bubbles: true }));
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          return { found: true, value: target.value };
+        }, schedule);
+        if (!slotResult.found) {
+          await failTopStage("TOP_TIME_SLOT_NOT_SELECTED", `fascia oraria ${schedule} non disponibile (${JSON.stringify(slotResult.options)})`);
+        }
+        await page.waitForFunction((selector, expected) => {
+          const select = document.querySelector(selector);
+          if (!select) return false;
+          const selected = select.options[select.selectedIndex];
+          return select.value === expected || `${selected?.textContent || ""}`.trim() === expected;
+        }, { timeout: 10000 }, timeSlotsSelector, schedule);
+      } catch (error) {
+        if (`${error.message}`.startsWith("TOP_TIME_SLOT_NOT_SELECTED")) throw error;
+        await failTopStage("TOP_TIME_SLOT_NOT_SELECTED", `impossibile selezionare ${schedule} (${error.message})`);
+      }
+    } else {
+      const nightReady = await page.evaluate((selector) => {
+        const select = document.querySelector(selector);
+        if (!select) return true;
+        const option = [...select.options].find((item) => item.value === "NIGHT" || `${item.textContent || ""}`.includes("00:00 - 06:00"));
+        if (!option) return false;
+        const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
+        descriptor?.set?.call(select, option.value);
+        select.dispatchEvent(new Event("input", { bubbles: true }));
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        return true;
+      }, timeSlotsSelector).catch(() => false);
+      if (!nightReady) await failTopStage("TOP_TIME_SLOT_NOT_SELECTED", "fascia Notte 00:00 - 06:00 non disponibile");
+    }
+
+    const chooseNumericOption = async (containerSelector, expectedValue) => page.evaluate((container, expected) => {
+      const root = document.querySelector(container);
+      if (!root) return { found: false, reason: "container-missing" };
+      const inputs = [...root.querySelectorAll('input')];
+      const inputTarget = inputs.find((input) => {
+        const values = [input.value, input.dataset.value, input.id]
+          .filter(Boolean).map((value) => `${value}`.trim().toLowerCase());
+        return values.some((value) => value === `${expected}` || value.endsWith(`-${expected}`));
+      });
+      let target = inputTarget;
+      if (!target) {
+        const candidates = [...root.querySelectorAll('button, label, [role="button"]')];
+        target = candidates.find((element) => {
           const text = `${element.textContent || ""}`.replace(/\s+/g, " ").trim();
           return new RegExp(`(^|\\D)${expected}(\\D|$)`).test(text);
         });
-        if (!target) return {
-          found: false,
-          reason: "option-missing",
-          options: candidates.map((element) => `${element.textContent || element.getAttribute("value") || ""}`
-            .replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 20)
-        };
-        const clickable = target.matches("input") && target.id
-          ? (root.querySelector(`label[for="${CSS.escape(target.id)}"]`) || target)
-          : target;
-        clickable.click();
-        return { found: true, text: `${target.textContent || target.getAttribute("value") || ""}`.trim() };
-      }, containerSelector, expectedValue);
-
-      await page.waitForFunction(() => {
-        const containers = [
-          document.querySelector('[data-testid="top-promotion-input-0"]'),
-          document.querySelector('[data-testid="top-promotion-input-1"]')
-        ];
-        return containers.every((container) => container && window.getComputedStyle(container).display !== "none");
-      }, { timeout: 15000 }).catch(() => { });
-
-      const daysResult = await chooseNumericOption('[data-testid="top-promotion-input-0"]', requestedDays);
-      if (!daysResult.found) {
-        await failTopStage("TOP_DAYS_NOT_SELECTED", `durata ${requestedDays} giorni non disponibile (${JSON.stringify(daysResult)})`);
       }
-      await this.delay(400);
-      const climbsResult = await chooseNumericOption('[data-testid="top-promotion-input-1"]', requestedClimbs);
-      if (!climbsResult.found) {
-        await failTopStage("TOP_CLIMBS_NOT_SELECTED", `${requestedClimbs} risalite non disponibili (${JSON.stringify(climbsResult)})`);
-      }
+      if (!target) return {
+        found: false,
+        reason: "option-missing",
+        options: [...root.querySelectorAll('input, button, label, [role="button"]')]
+          .map((element) => `${element.value || element.textContent || element.id || ""}`.replace(/\s+/g, " ").trim())
+          .filter(Boolean).slice(0, 20)
+      };
+      const clickable = target.matches("input") && target.id
+        ? (root.querySelector(`label[for="${CSS.escape(target.id)}"]`) || target)
+        : target;
+      if (!(target.matches("input") && target.checked)) clickable.click();
+      return { found: true, text: `${target.value || target.textContent || ""}`.trim() };
+    }, containerSelector, expectedValue);
 
-      try {
-        await page.waitForFunction((productId, productType) => Boolean(
-          document.querySelector(productId)?.value &&
-          `${document.querySelector(productType)?.value || ""}`.toLowerCase() === "top"
-        ), { timeout: 15000 }, productIdSelector, productTypeSelector);
-      } catch (error) {
-        await failTopStage("TOP_SELECTION_NOT_APPLIED", `Bakecaincontrii non ha confermato il prodotto Top (${error.message})`);
-      }
-      state = await captureState("selection-ready");
+    const waitForNumericOption = async (containerSelector, expectedValue) => page.waitForFunction((container, expected) => {
+      const root = document.querySelector(container);
+      if (!root) return false;
+      const selected = [...root.querySelectorAll('input:checked, button, [role="button"]')].filter((element) =>
+        element.matches('input:checked') ||
+        /--selected(?:\s|$)/.test(element.className || "") ||
+        element.getAttribute("aria-pressed") === "true"
+      );
+      return selected.some((element) => {
+        const value = `${element.value || element.textContent || element.id || ""}`.replace(/\s+/g, " ").trim();
+        return new RegExp(`(^|\\D)${expected}(\\D|$)`).test(value);
+      });
+    }, { timeout: 10000 }, containerSelector, expectedValue);
+
+    await page.waitForFunction(() => {
+      const containers = [
+        document.querySelector('[data-testid="top-promotion-input-0"]'),
+        document.querySelector('[data-testid="top-promotion-input-1"]')
+      ];
+      return containers.every((container) => container && window.getComputedStyle(container).display !== "none");
+    }, { timeout: 15000 }).catch(() => { });
+
+    const daysResult = await chooseNumericOption('[data-testid="top-promotion-input-0"]', requestedDays);
+    if (!daysResult.found) {
+      await failTopStage("TOP_DAYS_NOT_SELECTED", `durata ${requestedDays} giorni non disponibile (${JSON.stringify(daysResult)})`);
     }
+    try {
+      await waitForNumericOption('[data-testid="top-promotion-input-0"]', requestedDays);
+    } catch (error) {
+      await failTopStage("TOP_DAYS_NOT_SELECTED", `Bakecaincontrii non ha confermato ${requestedDays} giorni (${error.message})`);
+    }
+    await this.delay(400);
+    let effectiveClimbs = requestedClimbs;
+    let climbsResult = await chooseNumericOption('[data-testid="top-promotion-input-1"]', effectiveClimbs);
+    if (!climbsResult.found) {
+      const remoteClimbs = resolveRemoteTopClimbs(requestedClimbs, climbsResult.options);
+      if (remoteClimbs.adjusted) {
+        effectiveClimbs = remoteClimbs.value;
+        console.warn("[bakecaincontrii:top] Requested climbs adjusted to the current remote option", {
+          requested: requestedClimbs,
+          selected: effectiveClimbs,
+          available: remoteClimbs.available,
+        });
+        climbsResult = await chooseNumericOption('[data-testid="top-promotion-input-1"]', effectiveClimbs);
+      }
+    }
+    if (!climbsResult.found) {
+      await failTopStage(
+        "TOP_CLIMBS_NOT_SELECTED",
+        `${requestedClimbs} risalite non disponibili (${JSON.stringify(climbsResult)})`
+      );
+    }
+    try {
+      await waitForNumericOption('[data-testid="top-promotion-input-1"]', effectiveClimbs);
+    } catch (error) {
+      await failTopStage("TOP_CLIMBS_NOT_SELECTED", `Bakecaincontrii non ha confermato ${effectiveClimbs} risalite (${error.message})`);
+    }
+
+    const setAddon = async (name, desired) => {
+      const selector = `[data-testid="post-promote-addon-toggle-${name}"]`;
+      const current = await page.evaluate((target) => {
+        const root = document.querySelector(target);
+        if (!root) return { present: false, selected: false };
+        const input = root.matches('input[type="checkbox"]') ? root : root.querySelector('input[type="checkbox"]');
+        return {
+          present: true,
+          selected: Boolean(input?.checked || root.getAttribute("aria-checked") === "true" || root.classList.contains("active"))
+        };
+      }, selector);
+      if (!current.present) {
+        if (desired) await failTopStage("TOP_ADDON_NOT_AVAILABLE", `extra ${name} non disponibile`);
+        return;
+      }
+      if (current.selected !== desired) {
+        await page.$eval(selector, (root) => {
+          const input = root.matches('input[type="checkbox"]') ? root : root.querySelector('input[type="checkbox"]');
+          const clickable = input?.id ? (root.querySelector(`label[for="${CSS.escape(input.id)}"]`) || input) : (input || root);
+          clickable.click();
+        });
+        await page.waitForFunction((target, expected) => {
+          const root = document.querySelector(target);
+          if (!root) return false;
+          const input = root.matches('input[type="checkbox"]') ? root : root.querySelector('input[type="checkbox"]');
+          const selected = Boolean(input?.checked || root.getAttribute("aria-checked") === "true" || root.classList.contains("active"));
+          return selected === expected;
+        }, { timeout: 10000 }, selector, desired);
+      }
+    };
+
+    await setAddon("supertop", requestedAddons.supertop);
+    await setAddon("highlight", requestedAddons.highlight);
+    await setAddon("new_label", requestedAddons.new_label);
+
+    try {
+      await page.waitForFunction((productId, productType) => Boolean(
+        document.querySelector(productId)?.value &&
+        `${document.querySelector(productType)?.value || ""}`.toLowerCase() === "top"
+      ), { timeout: 15000 }, productIdSelector, productTypeSelector);
+    } catch (error) {
+      await failTopStage("TOP_SELECTION_NOT_APPLIED", `Bakecaincontrii non ha confermato il prodotto Top (${error.message})`);
+    }
+    state = await captureState("selection-ready");
 
     if (!isTopReady(state)) {
       await failTopStage("TOP_SELECTION_NOT_APPLIED", "product_type o ctt_product_id Top non valorizzato");
@@ -1748,8 +1890,11 @@ class BakecaincontriiBot {
     await this.completePaidCheckout(page, "TOP");
     console.log("[bakecaincontrii:top] Payment completed", {
       url: page.url(),
-      visibility,
-      schedule
+      timeRange: requestedTimeRange,
+      timeSlot: schedule,
+      days: requestedDays,
+      climbs: effectiveClimbs,
+      addons: requestedAddons,
     });
   }
 
@@ -2056,57 +2201,52 @@ class BakecaincontriiBot {
     var remotePostID = null;
     const transformedAdv = this.transformObject(info);
     const formattedCookies = this.formatCookies(cookie);
-    console.log("[bakecaincontrii:publish] Sending external request", {
+    console.log("[bakecaincontrii:publish] Running local workflow", {
       category: transformedAdv.categorie || "",
       promotion: transformedAdv?.promo?.active ? (requestedPromotionType || "paid") : "free",
       images: Array.isArray(transformedAdv.picsAudit) ? transformedAdv.picsAudit.length : 0,
       city: transformedAdv.city || "",
     });
 
-    // Send the API request
-    const botServiceUrl = process.env.BKY_BOT_URL || "http://127.0.0.1:9999";
-    let API_RESPONSE;
+    let workflowResult;
     try {
-      API_RESPONSE = await axios.post(botServiceUrl, {
-        adv: transformedAdv,
-        cookies: formattedCookies,
-        expectedEmail: this.email
-      });
+      assertBakecaincontriiSession(formattedCookies, this.email);
+      workflowResult = await publishBakecaincontriiAd(transformedAdv, formattedCookies);
     } catch (error) {
       const response = error?.response;
       const details = response?.data || {};
-      const code = details?.code || error?.code || "BKY_BOT_REQUEST_FAILED";
-      const stage = details?.stage || "bot-request";
-      const message = details?.message || error?.message || "Nessuna risposta da bky-bot.";
-      const diagnosticDetails = details?.details && Object.keys(details.details).length
-        ? ` Dettagli: ${JSON.stringify(details.details)}`
+      const code = details?.code || error?.code || "BAKECAINCONTRII_LOCAL_WORKFLOW_FAILED";
+      const stage = details?.stage || error?.stage || "local-workflow";
+      const message = details?.message || error?.message || "Workflow locale Bakecaincontrii non riuscito.";
+      const errorDetails = details?.details || error?.details || {};
+      const diagnosticDetails = Object.keys(errorDetails).length
+        ? ` Dettagli: ${JSON.stringify(errorDetails)}`
         : "";
       throw new Error(`${code} (${stage}): ${message}${diagnosticDetails}`);
     }
 
-    const botResult = API_RESPONSE?.data;
-    if (!botResult || botResult === "ERROR" || botResult.ok === false) {
+    if (!workflowResult || workflowResult === "ERROR" || workflowResult.ok === false) {
       throw new Error(
-        `${botResult?.code || "BKY_BOT_INVALID_RESPONSE"}: ${botResult?.message || "bky-bot non ha restituito un risultato valido."}`
+        `${workflowResult?.code || "BAKECAINCONTRII_LOCAL_RESULT_INVALID"}: ${workflowResult?.message || "Il workflow locale non ha restituito un risultato valido."}`
       );
     }
-    if (Array.isArray(botResult.imageWarnings) && botResult.imageWarnings.length) {
-      const skippedIndexes = botResult.imageWarnings
+    if (Array.isArray(workflowResult.imageWarnings) && workflowResult.imageWarnings.length) {
+      const skippedIndexes = workflowResult.imageWarnings
         .map((warning) => Number.isInteger(warning?.imageIndex) ? warning.imageIndex + 1 : null)
         .filter(Boolean);
-      const contentRejectionsOnly = botResult.imageWarnings.every((warning) =>
+      const contentRejectionsOnly = workflowResult.imageWarnings.every((warning) =>
         warning?.code === "BAKECAINCONTRII_IMAGE_SKIPPED_INVALID_CONTENT"
       );
-      const requestedImages = Number(botResult.requestedImages || 0);
-      const uploadedImages = Number(botResult.uploadedImages || 0);
-      const mayContinue = botResult.imagesComplete === false &&
+      const requestedImages = Number(workflowResult.requestedImages || 0);
+      const uploadedImages = Number(workflowResult.uploadedImages || 0);
+      const mayContinue = workflowResult.imagesComplete === false &&
         contentRejectionsOnly &&
         requestedImages > 0 &&
         uploadedImages > 0 &&
-        uploadedImages + botResult.imageWarnings.length === requestedImages;
+        uploadedImages + workflowResult.imageWarnings.length === requestedImages;
       if (!mayContinue) {
         throw new Error(
-          `BAKECAINCONTRII_IMAGE_UPLOAD_INCOMPLETE: ${botResult.imageWarnings.length} immagini rifiutate` +
+          `BAKECAINCONTRII_IMAGE_UPLOAD_INCOMPLETE: ${workflowResult.imageWarnings.length} immagini rifiutate` +
           `${skippedIndexes.length ? ` (posizioni: ${skippedIndexes.join(", ")})` : ""}; pubblicazione interrotta.`
         );
       }
@@ -2116,17 +2256,17 @@ class BakecaincontriiBot {
         skippedPositions: skippedIndexes,
       });
     }
-    if (!botResult.uri) {
-      throw new Error("BKY_BOT_MISSING_URI: bky-bot non ha restituito la pagina di pubblicazione.");
+    if (!workflowResult.uri) {
+      throw new Error("BAKECAINCONTRII_MISSING_URI: il workflow locale non ha restituito la pagina di pubblicazione.");
     }
 
-    if (botResult.uri) {
+    if (workflowResult.uri) {
       try {
         const page = await otherBot.newPage();
         const cookies = JSON.parse(cookie);
         await page.setCookie(...cookies);
         try {
-          const consentUrl = new URL("/", botResult.uri).href;
+          const consentUrl = new URL("/", workflowResult.uri).href;
           await page.setCookie(
             { name: "adult_cookie", value: "1", url: consentUrl, secure: true, sameSite: "Lax" },
             { name: "privacy_cookie", value: "1", url: consentUrl, secure: true, sameSite: "Lax" }
@@ -2134,12 +2274,12 @@ class BakecaincontriiBot {
         } catch (error) {
           console.warn("[bakecaincontrii:consent] Unable to prepare consent cookies:", error.message);
         }
-        await page.goto(botResult.uri, { waitUntil: 'domcontentloaded' });
+        await page.goto(workflowResult.uri, { waitUntil: 'domcontentloaded' });
         await this.delay(1000);
 
-        if (botResult.promo) {
-          console.log("External promo req resolved");
-          const promotionType = `${botResult.promotionType || info?.promo?.product || info?.promo?.visibility || ""}`.trim().toLowerCase();
+        if (workflowResult.promo) {
+          console.log("[bakecaincontrii:promotion] Local workflow ready");
+          const promotionType = `${workflowResult.promotionType || info?.promo?.product || info?.promo?.visibility || ""}`.trim().toLowerCase();
           if (promotionType === "flash") {
             await this.activateFlashPromotion(page);
           } else if (promotionType === "star") {
@@ -2167,7 +2307,7 @@ class BakecaincontriiBot {
           await this.delay(500);
         } else {
           console.log("External free req resolved");
-          remotePostID = botResult.remotePostId;
+          remotePostID = workflowResult.remotePostId;
         }
       } catch (error) {
         throw new Error(`BAKECAINCONTRII_BROWSER_WORKFLOW_FAILED: ${error.message}`);
@@ -2386,35 +2526,15 @@ class BakecaincontriiBot {
 
   async sendRequestSuspend(private_code, callback, cookiesTMP) {
     try {
-      const response = await axios.post('http://localhost:9999/suspend-adv', {
-        private_code,
-        cookies: this.formatCookies(cookiesTMP),
-        expectedEmail: this.email
-      });
-
-      // Check if the response contains an error message
-      if (response.data !== "ERROR") {
-        callback(undefined);  // No error, send undefined to the callback
-      } else {
-        callback(response.data);  // If there's an error, pass the error message to the callback
-      }
+      const cookies = this.formatCookies(cookiesTMP);
+      assertBakecaincontriiSession(cookies, this.email);
+      const result = await suspendBakecaincontriiAd(private_code, cookies);
+      callback(result === "OK" ? undefined : result || "BAKECAINCONTRII_SUSPEND_NOT_CONFIRMED");
+      return result;
     } catch (error) {
       console.error('Error in sendRequestSuspend:', error.message);
-
-      // Handle Axios errors
-      if (error.response) {
-        console.error('Response error:', error.response.data);
-        callback('Server error: ' + error.response.data);
-      } else if (error.request) {
-        console.error('No response from server:', error.request);
-        callback('No response from server. Check if the API is running.');
-      } else {
-        console.error('Error setting up request:', error.message);
-        callback('Error in sending request: ' + error.message);
-      }
-
-      // Gracefully handle the error without crashing the application
-      callback('An unexpected error occurred, but the application will continue running.');
+      callback(error?.code || error?.message || "BAKECAINCONTRII_SUSPEND_FAILED");
+      throw error;
     }
   }
 
