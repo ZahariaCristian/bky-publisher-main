@@ -25,7 +25,16 @@ const {
   responseBodySnippet,
   summarizeImageResponse,
 } = require("./imageResponse");
-const BASE_URL = "https://bari.bakecaincontrii.com";
+const DEFAULT_BASE_URL = `${process.env.BAKECAINCONTRII_BASE_URL || "https://bari.bakecaincontrii.com"}`
+  .trim()
+  .replace(/\/+$/, "");
+const resolveWorkflowOrigin = (value = "") => {
+  try {
+    return new URL(value || DEFAULT_BASE_URL).origin;
+  } catch (error) {
+    return DEFAULT_BASE_URL;
+  }
+};
 const IMAGE_UPLOAD_MAX_ATTEMPTS = 3;
 const rawImageUploadDelay = Number.parseInt(
   process.env.BAKECAINCONTRII_IMAGE_UPLOAD_DELAY_MS || "750",
@@ -142,7 +151,7 @@ const createImageUploadForm = (image, temporaryCode) => {
   return formData;
 };
 
-const requestImageUpload = async (image, temporaryCode, i, jHeader) => {
+const requestImageUpload = async (image, temporaryCode, i, jHeader, baseUrl = DEFAULT_BASE_URL) => {
   let lastFailure = null;
 
   for (let attempt = 1; attempt <= IMAGE_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
@@ -151,16 +160,16 @@ const requestImageUpload = async (image, temporaryCode, i, jHeader) => {
     const formData = createImageUploadForm(image, temporaryCode);
     try {
       const response = await axios({
-        url: `${BASE_URL}/u/upload-image/`,
+        url: `${baseUrl}/u/upload-image/`,
         headers: {
-          authority: "bari.bakecaincontrii.com",
+          authority: new URL(baseUrl).host,
           accept: "application/json, text/plain, */*",
           "accept-language": "it",
           "cache-control": "no-cache",
           cookie: getCookie(jHeader),
-          origin: BASE_URL,
+          origin: baseUrl,
           pragma: "no-cache",
-          referer: `${BASE_URL}/u/post-insert-images/${temporaryCode}/`,
+          referer: `${baseUrl}/u/post-insert-images/${temporaryCode}/`,
           "upgrade-insecure-requests": "1",
           "x-csrftoken": jHeader.csrftoken,
           "x-requested-with": "XMLHttpRequest",
@@ -176,7 +185,7 @@ const requestImageUpload = async (image, temporaryCode, i, jHeader) => {
 
       const responseUrl = response?.request?.res?.responseUrl || "";
       const status = Number(response?.status || 0);
-      const candidates = collectPictureCandidates(response?.data);
+      const candidates = collectPictureCandidates(response?.data, baseUrl);
 
       // Some duplicate-image responses use a non-2xx status but still return
       // reusable picture metadata. Preserve that valid server-provided object.
@@ -263,9 +272,10 @@ const requestImageUpload = async (image, temporaryCode, i, jHeader) => {
 
 const firstStep = async (adv, jHeader) => {
   logger.debug("Initialized first-step on Bakeca (adv data)");
+  const baseUrl = DEFAULT_BASE_URL;
   //Getting firstStep csrf for post request
   const csrfmiddlewaretoken = await extract_csrf({
-    url: `${BASE_URL}/u/post-insert/`,
+    url: `${baseUrl}/u/post-insert/`,
     headers: pageGetHeader(getCookie(jHeader)),
   });
   if (!csrfmiddlewaretoken) {
@@ -274,9 +284,9 @@ const firstStep = async (adv, jHeader) => {
   }
   logger.debug("csrftoken obtained successfully!");
   const REQ_RESPONSE = await fetchWithRetry({
-    url: `${BASE_URL}/u/post-insert/`,
+    url: `${baseUrl}/u/post-insert/`,
     method: "POST",
-    headers: firstPostHeader(getCookie(jHeader), BASE_URL),
+    headers: firstPostHeader(getCookie(jHeader), baseUrl),
     body: firstStepBody(adv, csrfmiddlewaretoken, jHeader.logged_cookie),
   });
 
@@ -292,6 +302,7 @@ const firstStep = async (adv, jHeader) => {
 
 const secondStep = async (picsAudit, url, jHeader, adv) => {
   logger.debug("Initialized seconds-step on Bakeca(image upload)");
+  const baseUrl = resolveWorkflowOrigin(url);
   const TEMP_CODE = url.replace(/\/$/, "").split("/").pop();
 
   //Getting secondStep csrf for post request
@@ -326,7 +337,8 @@ const secondStep = async (picsAudit, url, jHeader, adv) => {
       i,
       jHeader,
       usedPictureUuids,
-      picsAudit?.[i]?.path
+      picsAudit?.[i]?.path,
+      baseUrl
     );
     if (uploadResult.temporaryImage) {
       extraTemporaryImages.push(uploadResult.temporaryImage);
@@ -387,9 +399,9 @@ const secondStep = async (picsAudit, url, jHeader, adv) => {
   }
 
   const REQ_RESPONSE = await fetchWithRetry({
-    url: `${BASE_URL}/u/post-insert-images/${TEMP_CODE}/`,
+    url: `${baseUrl}/u/post-insert-images/${TEMP_CODE}/`,
     method: "POST",
-    headers: secondPostHeader(getCookie(jHeader), BASE_URL, TEMP_CODE),
+    headers: secondPostHeader(getCookie(jHeader), baseUrl, TEMP_CODE),
     body: secondStepBody(
       IMAGE_STORE,
       csrfmiddlewaretoken,
@@ -445,6 +457,7 @@ const secondStep = async (picsAudit, url, jHeader, adv) => {
 const thirdStep = async (adv, url, jHeader) => {
   try {
     logger.debug("Initialized third-step on Bakeca (promo selection)");
+    const baseUrl = resolveWorkflowOrigin(url);
 
     console.log("[bakecaincontrii:promotion] Starting", {
       ...summarizeAdvertisement(adv),
@@ -464,16 +477,20 @@ const thirdStep = async (adv, url, jHeader) => {
     let reqUrl = "";
 
     if (adv.promo.active) {
-      reqUrl = `${BASE_URL}/u/post-promote/${private_code}/`;
+      reqUrl = `${baseUrl}/u/post-promote/${private_code}/`;
     } else {
-      reqUrl = `${BASE_URL}/u/post-publish/${private_code}`;
+      reqUrl = `${baseUrl}/u/post-publish/${private_code}`;
     }
 
     const requestedProduct = `${adv.promo.product || adv.promo.visibility || ""}`.trim().toLowerCase();
     if (adv.promo.active && ["flash", "star", "top"].includes(requestedProduct)) {
       logger.debug(`${requestedProduct} selected; handing the live promotion page to the browser workflow`);
       return {
-        uri: reqUrl,
+        // Star availability is calculated on the exact redirect returned after
+        // the gallery step. Opening a reconstructed private-code URL can lose
+        // the category/city-specific Star component.
+        uri: requestedProduct === "star" ? url : reqUrl,
+        promotionPrivateUrl: reqUrl,
         promo: true,
         promotionType: requestedProduct,
         remotePostId: "",
@@ -490,7 +507,7 @@ const thirdStep = async (adv, url, jHeader) => {
     const REQ_RESPONSE = await fetchWithRetry({
       url: reqUrl,
       method: "POST",
-      headers: thirdPostHeader(getCookie(jHeader), BASE_URL, private_code), // 👈 also here
+      headers: thirdPostHeader(getCookie(jHeader), baseUrl, private_code), // 👈 also here
       body: requestBody,
     });
 
@@ -510,12 +527,12 @@ const thirdStep = async (adv, url, jHeader) => {
     let remotePostId = "";
 
     if (adv.promo.active) {
-      const checkoutUrl = `${BASE_URL}/u/post-promote/${private_code}/`;
+      const checkoutUrl = `${baseUrl}/u/post-promote/${private_code}/`;
       console.log("➡️ Requesting checkout page...");
       console.log("Checkout URL:", checkoutUrl);
 
       try {
-        const headers = thirdPostHeader(getCookie(jHeader), BASE_URL, private_code);
+        const headers = thirdPostHeader(getCookie(jHeader), baseUrl, private_code);
         const CHECKOUT_RESPONSE = await fetchWithRetry({
           url: checkoutUrl,
           headers: headers,
@@ -536,7 +553,7 @@ const thirdStep = async (adv, url, jHeader) => {
         }
       } catch (err) {
         console.error("❌ Error fetching checkout page:", err);
-        RESP_URI = `${BASE_URL}/u/post-promote/${private_code}/`; // fallback
+        RESP_URI = `${baseUrl}/u/post-promote/${private_code}/`; // fallback
       }
     } else {
       RESP_URI = REQ_RESPONSE.url;
@@ -564,7 +581,8 @@ const uploadImage = async (
   i,
   jHeader,
   usedPictureUuids = new Set(),
-  sourcePath = ""
+  sourcePath = "",
+  baseUrl = DEFAULT_BASE_URL
 ) => {
   logger.debug(`Starting image ${i} upload`);
   if (!image || !fs.existsSync(image)) {
@@ -580,7 +598,7 @@ const uploadImage = async (
   let IMG_RESPONSE;
 
   try {
-    IMG_RESPONSE = await requestImageUpload(uploadPath, temporaryCode, i, jHeader);
+    IMG_RESPONSE = await requestImageUpload(uploadPath, temporaryCode, i, jHeader, baseUrl);
   } catch (error) {
     if (!isInvalidImageContentError(error)) throw error;
 
@@ -591,7 +609,7 @@ const uploadImage = async (
     uploadPath = temporaryImage;
 
     try {
-      IMG_RESPONSE = await requestImageUpload(uploadPath, temporaryCode, i, jHeader);
+      IMG_RESPONSE = await requestImageUpload(uploadPath, temporaryCode, i, jHeader, baseUrl);
     } catch (fallbackError) {
       if (!isInvalidImageContentError(fallbackError)) throw fallbackError;
 
@@ -607,7 +625,7 @@ const uploadImage = async (
     }
   }
 
-  const candidates = collectPictureCandidates(IMG_RESPONSE);
+  const candidates = collectPictureCandidates(IMG_RESPONSE, baseUrl);
   const picture = candidates.find((candidate) => !usedPictureUuids.has(candidate.uuid));
 
   if (!picture) {

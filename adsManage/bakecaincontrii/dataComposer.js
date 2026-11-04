@@ -250,8 +250,16 @@ const thirdStepBody = (
 };
 
 // HEADERS
+const getAuthority = (baseURL) => {
+  try {
+    return new URL(baseURL).host;
+  } catch (error) {
+    return "www.bakecaincontrii.com";
+  }
+};
+
 const firstPostHeader = (cookie, baseURL) => ({
-  authority: "bari.bakecaincontrii.com",
+  authority: getAuthority(baseURL),
   accept:
     "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
   "accept-language": "it",
@@ -273,7 +281,7 @@ const firstPostHeader = (cookie, baseURL) => ({
 });
 
 const secondPostHeader = (cookie, baseURL, temporaryCode) => ({
-  authority: "bari.bakecaincontrii.com",
+  authority: getAuthority(baseURL),
   accept:
     "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
   "accept-language": "it",
@@ -295,7 +303,7 @@ const secondPostHeader = (cookie, baseURL, temporaryCode) => ({
 });
 
 const thirdPostHeader = (cookie, baseURL, temporaryCode) => ({
-  authority: "bari.bakecaincontrii.com",
+  authority: getAuthority(baseURL),
   accept:
     "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
   "accept-language": "it",
@@ -333,7 +341,7 @@ const suspendPostBody = (private_code) => {
 };
 
 const suspendPostHeader = (cookie, baseURL, jHeader) => ({
-  authority: "bari.bakecaincontrii.com",
+  authority: getAuthority(baseURL),
   accept: "application/json, text/plain, */*",
   "accept-language": "it",
   "cache-control": "no-cache",
@@ -451,7 +459,7 @@ const editGetHeader = (cookie) => ({
 });
 
 const editPostHeader = (cookie, baseURL, private_code) => ({
-  authority: "bari.bakecaincontrii.com",
+  authority: getAuthority(baseURL),
   accept:
     "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
   "accept-language": "it",

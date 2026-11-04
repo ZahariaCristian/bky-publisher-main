@@ -28,12 +28,6 @@ const PAGE_DASHBOARD = "https://www.bakecaincontrii.com/u/account/dashboard/";
 const CREDIT_SELECTOR = "#app > main > div > div.row > div.col-md-7.order-md-0 > div:nth-child(1) > div:nth-child(2) > div > div > div > div > div > ul > li:nth-child(1) > span.badge";
 const AVAILABLE_ADS_SELECTOR = '[data-testid="dashboard-card-list-one-data-pacchetti-annunci"]';
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
-const isStarCategoryEligible = (category) => {
-  const compact = `${category || ""}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z]/gi, "").toUpperCase();
-  return compact === "DONNAUOMO" || compact === "DONNACERCAUOMO" || compact === "TRANS";
-};
-
 puppeteer.use(
   StealthPlugin(),
   RecaptchaPlugin({
@@ -1944,10 +1938,7 @@ class BakecaincontriiBot {
     });
   }
 
-  async activateStarPromotion(page, promo = {}, nickname = "", category = "") {
-    if (!isStarCategoryEligible(category)) {
-      throw new Error(`STAR_CATEGORY_NOT_ELIGIBLE: la categoria ${category || "non specificata"} non supporta Star.`);
-    }
+  async activateStarPromotion(page, promo = {}, nickname = "", category = "", city = "") {
     const cardSelector = '[data-testid="star-promotion-card"]';
     const managerSelector = '[data-testid="post-promote-manager-star-promotion"]';
     const selectedCodesSelector = '[data-testid="post-promote-form-star-slot-codes"]';
@@ -1979,6 +1970,8 @@ class BakecaincontriiBot {
       const totalMatch = totalText.replace(/\./g, "").match(/\d+/);
       return {
         url: window.location.href,
+        requestedCategory: selectors.category,
+        requestedCity: selectors.city,
         cardPresent: Boolean(card),
         cardClasses: card?.className || "",
         managerPresent: Boolean(manager),
@@ -1988,10 +1981,20 @@ class BakecaincontriiBot {
         selectedCount: document.querySelectorAll('[data-testid^="star-promotion-slot-"].slot--selected').length,
         totalText,
         totalCredits: totalMatch ? Number(totalMatch[0]) : null,
+        availableProducts: [...new Set(
+          [...document.querySelectorAll('[data-testid*="promotion-card"]')]
+            .map((element) => {
+              const testId = element.getAttribute("data-testid") || "";
+              const title = element.querySelector('[data-testid="post-promote-product-card-title"]')?.textContent?.trim() || "";
+              return title || testId;
+            })
+            .filter(Boolean)
+        )],
         submitDisabled: Boolean(
           document.querySelector(selectors.submit)?.disabled ||
           document.querySelector(selectors.submit)?.getAttribute("aria-disabled") === "true"
-        )
+        ),
+        bodyExcerpt: `${document.body?.innerText || ""}`.replace(/\s+/g, " ").trim().slice(0, 500)
       };
     }, {
       card: cardSelector,
@@ -2000,7 +2003,9 @@ class BakecaincontriiBot {
       productId: productIdSelector,
       selectedCodes: selectedCodesSelector,
       total: totalSelector,
-      submit: submitSelector
+      submit: submitSelector,
+      category,
+      city
     }).catch((error) => ({ url: page.url(), evaluationError: error.message }));
 
     const captureState = async (stage, screenshot = false) => {
@@ -2041,7 +2046,10 @@ class BakecaincontriiBot {
       await page.waitForSelector(managerSelector, { timeout: 30000 });
       await page.waitForSelector(cardSelector, { visible: true, timeout: 30000 });
     } catch (error) {
-      await failStarStage("STAR_CARD_NOT_FOUND", `la promozione Star non e disponibile (${error.message})`);
+      await failStarStage(
+        "STAR_NOT_AVAILABLE_FOR_THIS_AD",
+        `Bakecaincontrii non offre Star per questo annuncio (categoria=${category || "non specificata"}, città=${city || "non specificata"}; ${error.message})`
+      );
     }
 
     let state = await captureState("before-selection");
@@ -2218,11 +2226,6 @@ class BakecaincontriiBot {
   async publish(info, cookie) {
     this.lastPublishedResult = null;
     const requestedPromotionType = `${info?.promo?.product || info?.promo?.visibility || ""}`.trim().toLowerCase();
-    if (requestedPromotionType === "star" && !isStarCategoryEligible(info?.categorie)) {
-      throw new Error(
-        `STAR_CATEGORY_NOT_ELIGIBLE: Star è disponibile solo per Donna Cerca Uomo e Trans (categoria: ${info?.categorie || "non specificata"}).`
-      );
-    }
     const selectedImages = Array.isArray(info?.picsAudit)
       ? info.picsAudit.filter((image) => `${image?.path || ""}`.trim())
       : [];
@@ -2329,7 +2332,13 @@ class BakecaincontriiBot {
           if (promotionType === "flash") {
             await this.activateFlashPromotion(page);
           } else if (promotionType === "star") {
-            await this.activateStarPromotion(page, info?.promo || {}, info?.nickname || "", info?.categorie || "");
+            await this.activateStarPromotion(
+              page,
+              info?.promo || {},
+              info?.nickname || "",
+              info?.categorie || "",
+              info?.city || ""
+            );
           } else if (promotionType === "top") {
             await this.activateTopPromotion(page, info?.promo || {});
           } else {

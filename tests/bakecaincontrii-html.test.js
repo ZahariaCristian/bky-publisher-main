@@ -1,6 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { extractParamsFromHtml } = require("../adsManage/bakecaincontrii/common");
+const {
+  firstPostHeader,
+  secondPostHeader,
+  thirdPostHeader,
+} = require("../adsManage/bakecaincontrii/dataComposer");
 
 test("extracts Bakecaincontrii form parameters without Cheerio", () => {
   const html = `
@@ -21,4 +26,14 @@ test("falls back to post-promote-manager attributes", () => {
     values: ["remote-code", "remote-csrf"],
     ogUrl: undefined,
   });
+});
+
+test("uses the active Bakecaincontrii origin in workflow headers", () => {
+  const origin = "https://milano.bakecaincontrii.com";
+  assert.equal(firstPostHeader("cookie", origin).authority, "milano.bakecaincontrii.com");
+  assert.equal(secondPostHeader("cookie", origin, "temporary").origin, origin);
+  assert.equal(
+    thirdPostHeader("cookie", origin, "temporary").referer,
+    `${origin}/u/post-insert-images/temporary/`
+  );
 });
