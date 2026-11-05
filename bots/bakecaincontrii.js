@@ -1165,8 +1165,10 @@ class BakecaincontriiBot {
     ];
     const paySelectors = [
       '[data-testid="checkout-pay-button-desktop"]',
-      '[data-testid="checkout-pay-button-mobile"]'
+      '[data-testid="checkout-pay-button-mobile"]',
+      '[data-testid="checkout-pay-button-mobile-star"]'
     ];
+    const reservationExpiredSelector = "#reservation-expired-modal";
 
     if (!/\/u\/order-checkout\//i.test(page.url())) return false;
 
@@ -1261,29 +1263,85 @@ class BakecaincontriiBot {
     }
 
     const checkoutUrl = page.url();
-    const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+    const getCheckoutProgress = async () => page.evaluate((startingUrl, pay, expiredModal) => {
+      const modal = document.querySelector(expiredModal);
+      const modalStyle = modal ? window.getComputedStyle(modal) : null;
+      const modalRect = modal?.getBoundingClientRect();
+      const reservationExpired = Boolean(
+        modal && modalStyle?.display !== "none" && modalStyle?.visibility !== "hidden" &&
+        modalStyle?.opacity !== "0" && modalRect?.width > 0 && modalRect?.height > 0
+      );
+      const button = document.querySelector(pay);
+      return {
+        url: window.location.href,
+        leftCheckout: window.location.href !== startingUrl || !/\/u\/order-checkout\//i.test(window.location.pathname),
+        reservationExpired,
+        payPresent: Boolean(button),
+        payDisabled: Boolean(button?.disabled || button?.getAttribute("aria-disabled") === "true")
+      };
+    }, checkoutUrl, paySelector, reservationExpiredSelector).catch(() => ({
+      url: page.url(),
+      leftCheckout: !/\/u\/order-checkout\//i.test(page.url()),
+      reservationExpired: false,
+      payPresent: false,
+      payDisabled: false
+    }));
+
+    let progress = await getCheckoutProgress();
+    if (progress.reservationExpired) {
+      throw new Error(`${codePrefix}_CHECKOUT_RESERVATION_EXPIRED: la prenotazione della promozione e scaduta prima del pagamento.`);
+    }
+
+    const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => null);
+    console.log(`[bakecaincontrii:${logScope}] Clicking checkout payment button`, { selector: paySelector });
     await page.click(paySelector).catch(async () => {
       await page.$eval(paySelector, (button) => button.click());
     });
 
+    // Vue occasionally leaves the first trusted click unapplied. Verify it
+    // quickly so the short Star reservation is not consumed by a long wait.
+    await this.delay(1200);
+    progress = await getCheckoutProgress();
+    if (!progress.leftCheckout && !progress.reservationExpired && progress.payPresent && !progress.payDisabled) {
+      console.warn(`[bakecaincontrii:${logScope}] Checkout click was not applied; retrying once.`);
+      await page.$eval(paySelector, (button) => button.click());
+    }
+
     await Promise.race([
       navigation,
-      page.waitForFunction((startingUrl) => window.location.href !== startingUrl,
-        { timeout: 60000 }, checkoutUrl).catch(() => null),
-      this.delay(60000)
+      page.waitForFunction((startingUrl, expiredModal) => {
+        if (window.location.href !== startingUrl || !/\/u\/order-checkout\//i.test(window.location.pathname)) return true;
+        const modal = document.querySelector(expiredModal);
+        if (!modal) return false;
+        const style = window.getComputedStyle(modal);
+        const rect = modal.getBoundingClientRect();
+        return style.display !== "none" && style.visibility !== "hidden" &&
+          style.opacity !== "0" && rect.width > 0 && rect.height > 0;
+      }, { timeout: 30000 }, checkoutUrl, reservationExpiredSelector).catch(() => null),
+      this.delay(30000)
     ]);
-    await this.delay(1500);
+    await this.delay(500);
 
     if (/\/u\/order-checkout\//i.test(page.url())) {
       const failure = await page.evaluate(() => {
         const alert = document.querySelector("#error-top-alert");
         const style = alert ? window.getComputedStyle(alert) : null;
         const visible = Boolean(alert && style?.display !== "none" && style?.visibility !== "hidden");
+        const expiredModal = document.querySelector("#reservation-expired-modal");
+        const expiredStyle = expiredModal ? window.getComputedStyle(expiredModal) : null;
+        const expiredRect = expiredModal?.getBoundingClientRect();
+        const reservationExpired = Boolean(expiredModal && expiredStyle?.display !== "none" &&
+          expiredStyle?.visibility !== "hidden" && expiredStyle?.opacity !== "0" &&
+          expiredRect?.width > 0 && expiredRect?.height > 0);
         return {
           error: visible ? `${alert.textContent || ""}`.replace(/\s+/g, " ").trim() : "",
+          reservationExpired,
           bodyExcerpt: `${document.body?.innerText || ""}`.replace(/\s+/g, " ").trim().slice(0, 500)
         };
-      }).catch(() => ({ error: "", bodyExcerpt: "" }));
+      }).catch(() => ({ error: "", reservationExpired: false, bodyExcerpt: "" }));
+      if (failure.reservationExpired) {
+        throw new Error(`${codePrefix}_CHECKOUT_RESERVATION_EXPIRED: la prenotazione della promozione e scaduta durante il checkout.`);
+      }
       throw new Error(
         `${codePrefix}_CHECKOUT_PAYMENT_NOT_CONFIRMED: Bakecaincontrii e rimasto nella pagina checkout` +
         `${failure.error ? ` (${failure.error})` : ""}. Contenuto: ${failure.bodyExcerpt}`
