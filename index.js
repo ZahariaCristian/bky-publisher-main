@@ -1393,11 +1393,15 @@ async function propagateMoscarossaRemoteTarget(ad) {
 }
 
 async function postThis(ad, group, platform) {
-    let remotePostID = null;
+    // Management actions (CLOSE/REPUBLISH/DELETE) operate on an existing
+    // publication. Keep its identifiers as the baseline so a later state
+    // update cannot erase them merely because that action did not create a
+    // new remote post or scrape the public URL again.
+    let remotePostID = `${ad?.remotePostID || ""}`.trim() || null;
     let pubStatus = "OK";
     let errorReason = null;
-    let uriDateTimes = { uri: "", datetimes: [], err: null };
-    let dateGetted = "";
+    let uriDateTimes = { uri: `${ad?.urlBK || ""}`.trim(), datetimes: [], err: null };
+    let dateGetted = `${ad?.dateTimeTop || ""}`;
 
     console.log(`${new Date()} Starting postThis for ad ID: ${ad.state}-${ad.id}-${platform.platform}`);
     if (platform.platform == 'bakecaincontrii') {
@@ -1421,18 +1425,13 @@ async function postThis(ad, group, platform) {
                 case "CLOSE":
                     logger.Write(`Publisher: Suspending ad n. ${ad.annuncio}, schedule n. ${ad.id}, group ${group.id}`);
                     console.log(`${new Date()} Suspending publication: ${ad.id}`);
-                    if (ad.remotePostID) {
-                        try {
-                            await group.bot.sendRequestSuspend(ad.remotePostID, (error) => {
-                                if (error) console.error("Suspension error:", error);
-                                console.log(`${new Date()} Publication suspended for ${ad.id}`);
-                            }, group.cookie);
-                        } catch (suspendError) {
-                            console.error("Failed to suspend ad:", suspendError);
-                        }
-                    } else {
-                        console.log(`${new Date()} remotePostID not found for schedule ${ad.id}`);
+                    if (!remotePostID) {
+                        throw new Error(`Bakecaincontrii remotePostID missing for CLOSE state on schedule ${ad.id}`);
                     }
+                    await group.bot.sendRequestSuspend(remotePostID, (error) => {
+                        if (error) console.error("Suspension error:", error);
+                        console.log(`${new Date()} Publication suspended for ${ad.id}`);
+                    }, group.cookie);
                     pubStatus = "CLOSED";
                     break;
                 case "REPUBLISH": {
@@ -1564,10 +1563,12 @@ async function postThis(ad, group, platform) {
 
         try {
             // Final state update
+            const finalRemotePostID = `${remotePostID || ad.remotePostID || ""}`.trim() || null;
+            const finalUrlBK = `${uriDateTimes?.uri || ad.urlBK || ""}`.trim() || null;
             await ad.update({
                 state: pubStatus,
-                remotePostID: remotePostID,
-                urlBK: uriDateTimes.uri,
+                remotePostID: finalRemotePostID,
+                urlBK: finalUrlBK,
                 dateTimeTop: dateGetted,
                 ...(pubStatus === "OK" && ad._topPromotionSelectionAdjusted ? { period: ad.period } : {}),
                 errorReason: pubStatus === "KO" ? errorReason : null
