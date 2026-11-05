@@ -8,7 +8,6 @@ const TwoCaptcha = require("@2captcha/captcha-solver")
 const logger = require("../lib/logger");
 const {
   resolveRemoteTopClimbs,
-  resolveRemoteTopTimeSlot,
   normalizeTopPromotionConfig,
 } = require("../lib/bakecaincontriiTop");
 const publishBakecaincontriiAd = require("../adsManage/bakecaincontrii/publishAds");
@@ -1540,6 +1539,7 @@ class BakecaincontriiBot {
     const submitSelector = '[data-testid="post-promote-summary-submit-button"]';
     const totalSelector = '[data-testid="post-promote-summary-total-price"]';
     const timeSlotsSelector = '[data-testid="top-promotion-time-slots"] select';
+    const sixHoursToggleSelector = '[data-testid="top-promotion-six-hours-toggle"] input[type="checkbox"]';
     const screenshotDir = path.join(".", "screenshots", "bakecaincontrii-top");
     const visibility = `${promo.visibility || ""}`.trim().toLowerCase();
     const topConfig = normalizeTopPromotionConfig(promo);
@@ -1548,9 +1548,8 @@ class BakecaincontriiBot {
     const requestedSchedule = topConfig.timeSlot;
     const requestedTimeRange = topConfig.timeRange;
     const automaticClimbs = Boolean(promo.top && typeof promo.top === "object");
-    let effectiveSchedule = requestedSchedule;
-    let effectiveFullRangeBundle = requestedTimeRange !== "NIGHT" && requestedSchedule === requestedTimeRange;
-    let timeSlotAdjusted = false;
+    const effectiveSchedule = requestedSchedule;
+    const effectiveFullRangeBundle = requestedTimeRange !== "NIGHT" && requestedSchedule === requestedTimeRange;
     const requestedAddons = {
       supertop: Boolean(promo.premium),
       highlight: Boolean(promo.highlight),
@@ -1578,6 +1577,7 @@ class BakecaincontriiBot {
         productType: document.querySelector(selectors.productType)?.value || "",
         checkedRanges,
         selectedTimeSlot: slotSelect?.value || "",
+        sixHoursSelected: Boolean(document.querySelector(selectors.sixHoursToggle)?.checked),
         selectedDays: selectedNumericValues('[data-testid="top-promotion-input-0"]'),
         selectedClimbs: selectedNumericValues('[data-testid="top-promotion-input-1"]'),
         addons: {
@@ -1599,6 +1599,7 @@ class BakecaincontriiBot {
       submit: submitSelector,
       total: totalSelector,
       timeSlots: timeSlotsSelector,
+      sixHoursToggle: sixHoursToggleSelector,
     }).catch((error) => ({ url: page.url(), evaluationError: error.message }));
 
     const captureState = async (stage, screenshot = false) => {
@@ -1683,6 +1684,22 @@ class BakecaincontriiBot {
     if (requestedTimeRange !== "NIGHT") {
       try {
         await page.waitForSelector(timeSlotsSelector, { visible: true, timeout: 15000 });
+        try {
+          await page.waitForFunction((selector, expected) => {
+            const select = document.querySelector(selector);
+            return Boolean(select && [...select.options].some((option) =>
+              option.value === expected || `${option.textContent || ""}`.trim() === expected
+            ));
+          }, { timeout: 10000 }, timeSlotsSelector, requestedSchedule);
+        } catch (error) {
+          const unavailableCode = effectiveFullRangeBundle
+            ? "TOP_FULL_RANGE_NOT_AVAILABLE"
+            : "TOP_TIME_SLOT_NOT_SELECTED";
+          await failTopStage(
+            unavailableCode,
+            `Bakecaincontrii non espone la fascia richiesta ${requestedSchedule} (${error.message})`
+          );
+        }
         const slotResult = await page.$eval(timeSlotsSelector, (select, expected) => {
           const options = [...select.options].map((option) => ({ value: option.value, text: option.textContent?.trim() || "" }));
           const target = options.find((option) => option.value === expected) ||
@@ -1695,32 +1712,10 @@ class BakecaincontriiBot {
           return { found: true, value: target.value };
         }, requestedSchedule);
         if (!slotResult.found) {
-          const fallback = resolveRemoteTopTimeSlot(requestedTimeRange, requestedSchedule, slotResult.options);
-          if (!fallback.value || !fallback.adjusted) {
-            await failTopStage("TOP_TIME_SLOT_NOT_SELECTED", `fascia oraria ${requestedSchedule} non disponibile (${JSON.stringify(slotResult.options)})`);
-          }
-          const fallbackResult = await page.$eval(timeSlotsSelector, (select, expected) => {
-            const target = [...select.options].find((option) =>
-              option.value === expected || `${option.textContent || ""}`.trim() === expected
-            );
-            if (!target) return { found: false };
-            const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
-            descriptor?.set?.call(select, target.value);
-            select.dispatchEvent(new Event("input", { bubbles: true }));
-            select.dispatchEvent(new Event("change", { bubbles: true }));
-            return { found: true, value: target.value, text: `${target.textContent || ""}`.trim() };
-          }, fallback.value);
-          if (!fallbackResult.found) {
-            await failTopStage("TOP_TIME_SLOT_NOT_SELECTED", `fascia alternativa ${fallback.value} non selezionabile`);
-          }
-          effectiveSchedule = fallbackResult.value || fallback.value;
-          effectiveFullRangeBundle = false;
-          timeSlotAdjusted = true;
-          console.warn("[bakecaincontrii:top] Full-range slot unavailable; selected the first offered hour in the same range", {
-            timeRange: requestedTimeRange,
-            requested: requestedSchedule,
-            selected: effectiveSchedule,
-          });
+          await failTopStage(
+            effectiveFullRangeBundle ? "TOP_FULL_RANGE_NOT_AVAILABLE" : "TOP_TIME_SLOT_NOT_SELECTED",
+            `fascia oraria ${requestedSchedule} non disponibile (${JSON.stringify(slotResult.options)})`
+          );
         }
         await page.waitForFunction((selector, expected) => {
           const select = document.querySelector(selector);
@@ -1730,6 +1725,7 @@ class BakecaincontriiBot {
         }, { timeout: 10000 }, timeSlotsSelector, effectiveSchedule);
       } catch (error) {
         if (`${error.message}`.startsWith("TOP_TIME_SLOT_NOT_SELECTED")) throw error;
+        if (`${error.message}`.startsWith("TOP_FULL_RANGE_NOT_AVAILABLE")) throw error;
         await failTopStage("TOP_TIME_SLOT_NOT_SELECTED", `impossibile selezionare ${effectiveSchedule} (${error.message})`);
       }
     } else {
@@ -1745,6 +1741,24 @@ class BakecaincontriiBot {
         return true;
       }, timeSlotsSelector).catch(() => false);
       if (!nightReady) await failTopStage("TOP_TIME_SLOT_NOT_SELECTED", "fascia Notte 00:00 - 06:00 non disponibile");
+    }
+
+    if (requestedTimeRange !== "NIGHT") {
+      try {
+        await page.waitForSelector(sixHoursToggleSelector, { timeout: 10000 });
+        const sixHoursSelected = await page.$eval(sixHoursToggleSelector, (input) => input.checked).catch(() => false);
+        if (sixHoursSelected !== effectiveFullRangeBundle) {
+          await page.$eval(sixHoursToggleSelector, (input) => input.click());
+        }
+        await page.waitForFunction((selector, expected) =>
+          Boolean(document.querySelector(selector)?.checked) === expected,
+          { timeout: 10000 }, sixHoursToggleSelector, effectiveFullRangeBundle);
+      } catch (error) {
+        await failTopStage(
+          effectiveFullRangeBundle ? "TOP_FULL_RANGE_TOGGLE_NOT_CONFIRMED" : "TOP_HOURLY_TOGGLE_NOT_CONFIRMED",
+          `Bakecaincontrii non ha confermato la modalita ${effectiveFullRangeBundle ? "9 risalite in 6 ore" : "oraria"} (${error.message})`
+        );
+      }
     }
 
     const chooseNumericOption = async (containerSelector, expectedValue) => page.evaluate((container, expected) => {
@@ -1928,6 +1942,12 @@ class BakecaincontriiBot {
     if (!isTopReady(state)) {
       await failTopStage("TOP_SELECTION_NOT_APPLIED", "product_type o ctt_product_id Top non valorizzato");
     }
+    if (effectiveFullRangeBundle && (!state.sixHoursSelected || state.selectedTimeSlot !== requestedSchedule)) {
+      await failTopStage(
+        "TOP_FULL_RANGE_NOT_CONFIRMED",
+        `Bakecaincontrii non ha mantenuto la fascia completa ${requestedSchedule}`
+      );
+    }
     try {
       await page.waitForSelector(submitSelector, { visible: true, timeout: 15000 });
       await page.waitForFunction((selector) => {
@@ -1965,7 +1985,7 @@ class BakecaincontriiBot {
       timeRange: requestedTimeRange,
       requestedTimeSlot: requestedSchedule,
       timeSlot: effectiveSchedule,
-      timeSlotAdjusted,
+      timeSlotAdjusted: false,
       days: requestedDays,
       climbs: effectiveClimbs,
       addons: requestedAddons,
@@ -1974,7 +1994,7 @@ class BakecaincontriiBot {
       timeRange: requestedTimeRange,
       requestedTimeSlot: requestedSchedule,
       timeSlot: effectiveSchedule,
-      adjusted: timeSlotAdjusted,
+      adjusted: false,
     };
   }
 
