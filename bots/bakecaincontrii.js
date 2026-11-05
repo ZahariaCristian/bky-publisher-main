@@ -1293,7 +1293,7 @@ class BakecaincontriiBot {
 
     let progress = await getCheckoutProgress();
     if (progress.reservationExpired) {
-      throw new Error(`${codePrefix}_CHECKOUT_RESERVATION_EXPIRED: la prenotazione della promozione e scaduta prima del pagamento.`);
+      console.warn(`[bakecaincontrii:${logScope}] Reservation modal is marked open; attempting the enabled checkout payment button before failing.`);
     }
 
     const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => null);
@@ -1306,24 +1306,17 @@ class BakecaincontriiBot {
     // quickly so the short Star reservation is not consumed by a long wait.
     await this.delay(1200);
     progress = await getCheckoutProgress();
-    if (!progress.leftCheckout && !progress.reservationExpired && progress.payPresent && !progress.payDisabled) {
+    if (!progress.leftCheckout && progress.payPresent && !progress.payDisabled) {
       console.warn(`[bakecaincontrii:${logScope}] Checkout click was not applied; retrying once.`);
       await page.$eval(paySelector, (button) => button.click());
     }
 
     await Promise.race([
       navigation,
-      page.waitForFunction((startingUrl, expiredModal) => {
-        if (window.location.href !== startingUrl || !/\/u\/order-checkout\//i.test(window.location.pathname)) return true;
-        const modal = document.querySelector(expiredModal);
-        if (!modal) return false;
-        const style = window.getComputedStyle(modal);
-        const rect = modal.getBoundingClientRect();
-        const markedOpen = modal.classList.contains("show") || modal.getAttribute("aria-hidden") === "false";
-        return markedOpen && style.display !== "none" && style.visibility !== "hidden" &&
-          style.opacity !== "0" && rect.width > 0 && rect.height > 0;
-      }, { timeout: 30000 }, checkoutUrl, reservationExpiredSelector).catch(() => null),
-      this.delay(30000)
+      page.waitForFunction((startingUrl) => (
+        window.location.href !== startingUrl || !/\/u\/order-checkout\//i.test(window.location.pathname)
+      ), { timeout: 15000 }, checkoutUrl).catch(() => null),
+      this.delay(15000)
     ]);
     await this.delay(500);
 
@@ -2088,7 +2081,8 @@ class BakecaincontriiBot {
     };
   }
 
-  async activateStarPromotion(page, promo = {}, nickname = "", category = "", city = "") {
+  async activateStarPromotion(page, promo = {}, nickname = "", category = "", city = "", reservationRetry = 0) {
+    const starPromotionUrl = page.url();
     const cardSelector = '[data-testid="star-promotion-card"]';
     const managerSelector = '[data-testid="post-promote-manager-star-promotion"]';
     const selectedCodesSelector = '[data-testid="post-promote-form-star-slot-codes"]';
@@ -2388,7 +2382,21 @@ class BakecaincontriiBot {
       await failStarStage("STAR_PAYMENT_NOT_CONFIRMED", "Bakecaincontrii non ha aperto il checkout Star");
     }
 
-    await this.completePaidCheckout(page, "STAR");
+    try {
+      await this.completePaidCheckout(page, "STAR");
+    } catch (error) {
+      const reservationExpired = /STAR_CHECKOUT_RESERVATION_EXPIRED/.test(`${error?.message || error || ""}`);
+      if (!reservationExpired || reservationRetry >= 1) throw error;
+
+      console.warn("[bakecaincontrii:star] Star reservation expired; reloading the promotion and retrying the exact slots once.");
+      try {
+        await page.goto(starPromotionUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+      } catch (navigationError) {
+        if (!/\/u\/post-promote\//i.test(page.url())) throw error;
+      }
+      await this.delay(300);
+      return this.activateStarPromotion(page, promo, nickname, category, city, reservationRetry + 1);
+    }
     console.log("[bakecaincontrii:star] Payment completed", {
       url: page.url(),
       slots: requestedSlots.length,
