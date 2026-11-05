@@ -1,6 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { resolveRemoteTopClimbs, normalizeTopPromotionConfig } = require("../lib/bakecaincontriiTop");
+const {
+  resolveRemoteTopClimbs,
+  resolveRemoteTopTimeSlot,
+  normalizeTopPromotionConfig,
+} = require("../lib/bakecaincontriiTop");
 
 test("normalizes the current versioned Top configurator payload", () => {
   assert.deepEqual(normalizeTopPromotionConfig({
@@ -76,4 +80,39 @@ test("does not silently select an unrelated or expensive Top option", () => {
     adjusted: false,
     available: [3],
   });
+});
+
+test("keeps an exact remotely available Top time slot", () => {
+  assert.deepEqual(resolveRemoteTopTimeSlot("MORNING", "07:00 - 08:00", [
+    { value: "06:00 - 07:00", text: "06:00 - 07:00" },
+    { value: "07:00 - 08:00", text: "07:00 - 08:00" },
+  ]), {
+    value: "07:00 - 08:00",
+    text: "07:00 - 08:00",
+    adjusted: false,
+    reason: null,
+    options: [
+      { value: "06:00 - 07:00", text: "06:00 - 07:00" },
+      { value: "07:00 - 08:00", text: "07:00 - 08:00" },
+    ],
+  });
+});
+
+test("uses the first offered hour when a requested full-range bundle is unavailable", () => {
+  const resolved = resolveRemoteTopTimeSlot("MORNING", "MORNING", [
+    { value: "", text: "Seleziona fascia oraria" },
+    { value: "06:00 - 07:00", text: "06:00 - 07:00" },
+    { value: "07:00 - 08:00", text: "07:00 - 08:00" },
+  ]);
+  assert.equal(resolved.value, "06:00 - 07:00");
+  assert.equal(resolved.adjusted, true);
+  assert.equal(resolved.reason, "full-range-unavailable");
+});
+
+test("does not replace a missing hourly Top selection with another hour", () => {
+  const resolved = resolveRemoteTopTimeSlot("MORNING", "08:00 - 09:00", [
+    { value: "06:00 - 07:00", text: "06:00 - 07:00" },
+  ]);
+  assert.equal(resolved.value, null);
+  assert.equal(resolved.adjusted, false);
 });

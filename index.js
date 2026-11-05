@@ -1541,6 +1541,7 @@ async function postThis(ad, group, platform) {
                 remotePostID: remotePostID,
                 urlBK: uriDateTimes.uri,
                 dateTimeTop: dateGetted,
+                ...(pubStatus === "OK" && ad._topPromotionSelectionAdjusted ? { period: ad.period } : {}),
                 errorReason: pubStatus === "KO" ? errorReason : null
             });
         } catch (finalStateUpdateError) {
