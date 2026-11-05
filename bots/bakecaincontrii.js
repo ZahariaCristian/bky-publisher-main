@@ -2034,6 +2034,13 @@ class BakecaincontriiBot {
     })).filter((slot) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(slot.start) &&
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(slot.end));
     const maxTotalCredits = Number(promo.maxTotalCredits || 0);
+    const normalizedCategory = `${category || ""}`.trim().toUpperCase();
+
+    if (!["DONNAUOMO", "TRANS"].includes(normalizedCategory)) {
+      throw new Error(
+        `STAR_CATEGORY_UNSUPPORTED: la promozione Star richiede la categoria DONNAUOMO oppure TRANS (categoria ricevuta=${category || "non specificata"}).`
+      );
+    }
 
     if (!requestedSlots.length) {
       throw new Error("STAR_SLOTS_MISSING: nessuno slot Star valido e stato richiesto.");
