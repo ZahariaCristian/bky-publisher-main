@@ -1254,7 +1254,8 @@ class BakecaincontriiBot {
         document.querySelector(pay)?.disabled ||
         document.querySelector(pay)?.getAttribute("aria-disabled") === "true"
       ),
-      total: document.querySelector('[data-testid="checkout-summary-basket"] .price.sel')?.textContent?.trim() || ""
+      total: document.querySelector('[data-testid="checkout-summary-basket"] .price.sel')?.textContent?.trim() || "",
+      reservationText: document.querySelector('[data-testid="checkout-star-order-section"] .alert__title')?.textContent?.replace(/\s+/g, " ").trim() || ""
     }), creditSelector, termsSelector, paySelector);
     console.log(`[bakecaincontrii:${logScope}] Checkout ready`, checkoutState);
 
@@ -1267,8 +1268,11 @@ class BakecaincontriiBot {
       const modal = document.querySelector(expiredModal);
       const modalStyle = modal ? window.getComputedStyle(modal) : null;
       const modalRect = modal?.getBoundingClientRect();
+      const modalMarkedOpen = Boolean(
+        modal?.classList.contains("show") || modal?.getAttribute("aria-hidden") === "false"
+      );
       const reservationExpired = Boolean(
-        modal && modalStyle?.display !== "none" && modalStyle?.visibility !== "hidden" &&
+        modal && modalMarkedOpen && modalStyle?.display !== "none" && modalStyle?.visibility !== "hidden" &&
         modalStyle?.opacity !== "0" && modalRect?.width > 0 && modalRect?.height > 0
       );
       const button = document.querySelector(pay);
@@ -1315,7 +1319,8 @@ class BakecaincontriiBot {
         if (!modal) return false;
         const style = window.getComputedStyle(modal);
         const rect = modal.getBoundingClientRect();
-        return style.display !== "none" && style.visibility !== "hidden" &&
+        const markedOpen = modal.classList.contains("show") || modal.getAttribute("aria-hidden") === "false";
+        return markedOpen && style.display !== "none" && style.visibility !== "hidden" &&
           style.opacity !== "0" && rect.width > 0 && rect.height > 0;
       }, { timeout: 30000 }, checkoutUrl, reservationExpiredSelector).catch(() => null),
       this.delay(30000)
@@ -1330,12 +1335,20 @@ class BakecaincontriiBot {
         const expiredModal = document.querySelector("#reservation-expired-modal");
         const expiredStyle = expiredModal ? window.getComputedStyle(expiredModal) : null;
         const expiredRect = expiredModal?.getBoundingClientRect();
-        const reservationExpired = Boolean(expiredModal && expiredStyle?.display !== "none" &&
+        const expiredMarkedOpen = Boolean(
+          expiredModal?.classList.contains("show") || expiredModal?.getAttribute("aria-hidden") === "false"
+        );
+        const reservationExpired = Boolean(expiredModal && expiredMarkedOpen && expiredStyle?.display !== "none" &&
           expiredStyle?.visibility !== "hidden" && expiredStyle?.opacity !== "0" &&
           expiredRect?.width > 0 && expiredRect?.height > 0);
         return {
           error: visible ? `${alert.textContent || ""}`.replace(/\s+/g, " ").trim() : "",
           reservationExpired,
+          reservationModal: expiredModal ? {
+            classes: expiredModal.className || "",
+            ariaHidden: expiredModal.getAttribute("aria-hidden") || "",
+            display: expiredStyle?.display || ""
+          } : null,
           bodyExcerpt: `${document.body?.innerText || ""}`.replace(/\s+/g, " ").trim().slice(0, 500)
         };
       }).catch(() => ({ error: "", reservationExpired: false, bodyExcerpt: "" }));
