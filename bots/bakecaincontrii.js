@@ -1743,20 +1743,39 @@ class BakecaincontriiBot {
       if (!nightReady) await failTopStage("TOP_TIME_SLOT_NOT_SELECTED", "fascia Notte 00:00 - 06:00 non disponibile");
     }
 
-    if (requestedTimeRange !== "NIGHT") {
+    if (effectiveFullRangeBundle) {
       try {
         await page.waitForSelector(sixHoursToggleSelector, { timeout: 10000 });
         const sixHoursSelected = await page.$eval(sixHoursToggleSelector, (input) => input.checked).catch(() => false);
-        if (sixHoursSelected !== effectiveFullRangeBundle) {
+        if (!sixHoursSelected) {
           await page.$eval(sixHoursToggleSelector, (input) => input.click());
         }
-        await page.waitForFunction((selector, expected) =>
-          Boolean(document.querySelector(selector)?.checked) === expected,
-          { timeout: 10000 }, sixHoursToggleSelector, effectiveFullRangeBundle);
+        await page.waitForFunction((selector) =>
+          Boolean(document.querySelector(selector)?.checked),
+          { timeout: 10000 }, sixHoursToggleSelector);
       } catch (error) {
         await failTopStage(
-          effectiveFullRangeBundle ? "TOP_FULL_RANGE_TOGGLE_NOT_CONFIRMED" : "TOP_HOURLY_TOGGLE_NOT_CONFIRMED",
-          `Bakecaincontrii non ha confermato la modalita ${effectiveFullRangeBundle ? "9 risalite in 6 ore" : "oraria"} (${error.message})`
+          "TOP_FULL_RANGE_TOGGLE_NOT_CONFIRMED",
+          `Bakecaincontrii non ha confermato la modalita 9 risalite in 6 ore (${error.message})`
+        );
+      }
+    } else if (requestedTimeRange !== "NIGHT") {
+      try {
+        const hourlyToggle = await page.$(sixHoursToggleSelector);
+        if (hourlyToggle) {
+          const sixHoursSelected = await page.$eval(sixHoursToggleSelector, (input) => input.checked).catch(() => false);
+          if (sixHoursSelected) {
+            await page.$eval(sixHoursToggleSelector, (input) => input.click());
+          }
+          await page.waitForFunction((selector) => {
+            const input = document.querySelector(selector);
+            return !input || !input.checked;
+          }, { timeout: 10000 }, sixHoursToggleSelector);
+        }
+      } catch (error) {
+        await failTopStage(
+          "TOP_HOURLY_TOGGLE_NOT_CONFIRMED",
+          `Bakecaincontrii non ha confermato la modalita oraria (${error.message})`
         );
       }
     }

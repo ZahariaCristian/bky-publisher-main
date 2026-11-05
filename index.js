@@ -7,6 +7,11 @@ const appDir = dirname(require.main.filename);
 // const { where } = require("sequelize");
 
 const logger = require("./lib/logger");
+const {
+    fromRomeWallClockStorage,
+    toRomeWallClockStorage,
+    formatRomeWallClockTime
+} = require("./lib/romeScheduleTime");
 const ctx = require("./ctx/model");
 const { decryptPassword, wait, sleep, closeBotBrowser, isTurnstileUnsolvableError, updateOperation } = require("./utils");
 
@@ -944,8 +949,12 @@ async function mainLoop(group, platform) {
         group.overBusyBot = 0;
         var adss = [];
         const loopNow = new Date();
-        const recoveryStart = new Date(loopNow.getTime() - (PUBLISH_OVERDUE_GRACE_HOURS * 60 * 60 * 1000));
-        const scheduleLookAhead = new Date(loopNow.getTime() + PUBLISH_SCHEDULE_LOOKAHEAD_MS);
+        const recoveryStart = toRomeWallClockStorage(
+            new Date(loopNow.getTime() - (PUBLISH_OVERDUE_GRACE_HOURS * 60 * 60 * 1000))
+        );
+        const scheduleLookAhead = toRomeWallClockStorage(
+            new Date(loopNow.getTime() + PUBLISH_SCHEDULE_LOOKAHEAD_MS)
+        );
         console.log(`[i] Get Annunci ${new Date}`);
 
         await blockSchedulesOutsideRecoveryWindow(group, platform.platform, recoveryStart);
@@ -997,7 +1006,7 @@ async function mainLoop(group, platform) {
 
                 var pics = [];
                 var picsAudit = []
-                const scheduleTime = new Date(s.data);
+                const scheduleTime = fromRomeWallClockStorage(s.data);
                 if (Number.isNaN(scheduleTime.getTime())) {
                     await s.update({
                         state: "BLOCKED",
@@ -1131,7 +1140,7 @@ async function mainLoop(group, platform) {
 
                     s.sono = annuncio.sono; //add by zaharia
 
-                    s.time = scheduleTime.toISOString().split("T")[1].split(":00.")[0];
+                    s.time = formatRomeWallClockTime(s.data);
                     let promotionDetails = {};
                     try { promotionDetails = JSON.parse(s.period || "{}"); } catch { promotionDetails = {}; }
                     s.promo = {
@@ -1180,7 +1189,7 @@ async function mainLoop(group, platform) {
                 //add in tblSchedulazioni expiry date based on the package they got 
                 //Bakecaincontrii -> Free, 1x1, 1x3, 1x7, 10x1, 10x3, 10x7
                 //Bakeca -> Free, 1x1, 1x3, 1x7, 1x14, 1x28, 3x1, 3x3, 3x7, 3x14, 3x28
-                var expiryDate = new Date(ad.data);
+                var expiryDate = fromRomeWallClockStorage(ad.data);
 
                 //Update expireDate
                 // if (ad.typeAnnuncio !== 'Free') {

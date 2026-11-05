@@ -4,6 +4,7 @@ const {
     asArray,
     normalizeAdType
 } = require("./client");
+const { fromRomeWallClockStorage } = require("../../lib/romeScheduleTime");
 
 function log(step, message, data) {
     const prefix = `[megaescort:${step}]`;
@@ -74,7 +75,7 @@ function buildVetrina(adData = {}) {
 
     return {
         days,
-        ...(adData.data ? { start: new Date(adData.data).toISOString() } : {})
+        ...(adData.data ? { start: fromRomeWallClockStorage(adData.data).toISOString() } : {})
     };
 }
 
