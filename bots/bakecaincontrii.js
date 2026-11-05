@@ -2263,7 +2263,62 @@ class BakecaincontriiBot {
       await failStarStage("STAR_SELECTION_NOT_APPLIED", `la scheda Star non e stata selezionata (${error.message})`);
     }
 
+    const getVisibleStarDates = async () => page.evaluate(() => [...new Set(
+      [...document.querySelectorAll('[data-testid^="star-promotion-slot-"]')]
+        .map((element) => `${element.getAttribute("data-testid") || ""}`.match(/(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}/)?.[1])
+        .filter(Boolean)
+    )].sort()).catch(() => []);
+
+    const navigateStarCalendarToDate = async (requestedDate) => {
+      for (let attempt = 0; attempt < 32; attempt += 1) {
+        const visibleDates = await getVisibleStarDates();
+        if (visibleDates.includes(requestedDate)) return { found: true, visibleDates };
+        if (!visibleDates.length) return { found: false, reason: "calendar-empty", visibleDates };
+
+        const firstVisible = visibleDates[0];
+        const lastVisible = visibleDates[visibleDates.length - 1];
+        const direction = requestedDate > lastVisible ? "next" : (requestedDate < firstVisible ? "prev" : "");
+        if (!direction) return { found: false, reason: "date-has-no-slots", visibleDates };
+
+        const selector = `[data-testid="star-promotion-carousel-${direction}"]`;
+        const control = await page.evaluate((controlSelector) => {
+          const button = document.querySelector(controlSelector);
+          return {
+            present: Boolean(button),
+            disabled: Boolean(button?.disabled || button?.getAttribute("aria-disabled") === "true")
+          };
+        }, selector).catch(() => ({ present: false, disabled: true }));
+        if (!control.present || control.disabled) {
+          return { found: false, reason: `${direction}-disabled`, visibleDates };
+        }
+
+        const previousSignature = visibleDates.join("|");
+        await page.$eval(selector, (button) => {
+          button.scrollIntoView({ block: "center", inline: "center" });
+          button.click();
+        });
+        await page.waitForFunction((signature) => {
+          const dates = [...new Set(
+            [...document.querySelectorAll('[data-testid^="star-promotion-slot-"]')]
+              .map((element) => `${element.getAttribute("data-testid") || ""}`.match(/(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}/)?.[1])
+              .filter(Boolean)
+          )].sort();
+          return dates.join("|") !== signature;
+        }, { timeout: 6000 }, previousSignature).catch(() => { });
+        await this.delay(200);
+      }
+      return { found: false, reason: "navigation-limit", visibleDates: await getVisibleStarDates() };
+    };
+
     for (const requested of requestedSlots) {
+      const requestedDate = requested.start.slice(0, 10);
+      const calendarResult = await navigateStarCalendarToDate(requestedDate);
+      if (!calendarResult.found) {
+        await failStarStage(
+          "STAR_SLOT_DATE_NOT_AVAILABLE",
+          `la data ${requestedDate} non e raggiungibile nel calendario Star remoto (${calendarResult.reason}; date visibili=${calendarResult.visibleDates.join(", ") || "nessuna"})`
+        );
+      }
       const suffix = `${requested.start}-${requested.end}`;
       const slotState = await page.evaluate((expectedSuffix) => {
         const slot = [...document.querySelectorAll('[data-testid^="star-promotion-slot-"]')]
