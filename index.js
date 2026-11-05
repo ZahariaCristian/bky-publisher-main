@@ -1435,6 +1435,34 @@ async function postThis(ad, group, platform) {
                     }
                     pubStatus = "CLOSED";
                     break;
+                case "REPUBLISH": {
+                    logger.Write(`Publisher: Republishing Bakecaincontrii ad n. ${ad.annuncio}, schedule n. ${ad.id}, group ${group.id}`);
+                    remotePostID = `${ad.remotePostID || ""}`.trim();
+                    if (!remotePostID) {
+                        throw new Error(`Bakecaincontrii remotePostID missing for REPUBLISH state on schedule ${ad.id}`);
+                    }
+                    const republishResult = await group.bot.republish(remotePostID, group.cookie);
+                    if (!republishResult?.ok) {
+                        throw new Error(`Bakecaincontrii did not confirm REPUBLISH for schedule ${ad.id}`);
+                    }
+                    console.log(`${new Date()} Bakecaincontrii republish confirmed for schedule ${ad.id}`, republishResult);
+                    pubStatus = "OK";
+                    break;
+                }
+                case "DELETE": {
+                    logger.Write(`Publisher: Deleting Bakecaincontrii ad n. ${ad.annuncio}, schedule n. ${ad.id}, group ${group.id}`);
+                    remotePostID = `${ad.remotePostID || ""}`.trim();
+                    if (!remotePostID) {
+                        throw new Error(`Bakecaincontrii remotePostID missing for DELETE state on schedule ${ad.id}`);
+                    }
+                    const deleteResult = await group.bot.delete(remotePostID, group.cookie);
+                    if (!deleteResult?.ok) {
+                        throw new Error(`Bakecaincontrii did not confirm DELETE for schedule ${ad.id}`);
+                    }
+                    console.log(`${new Date()} Bakecaincontrii delete confirmed for schedule ${ad.id}`, deleteResult);
+                    pubStatus = "DELETED";
+                    break;
+                }
                 default:
                     logger.Write(`Publisher: Publishing ad n. ${ad.annuncio}, schedule n. ${ad.id}, group ${group.id} at ${new Date()}`);
                     console.log(`${new Date()} Inserting schedule ${ad.id}`);
@@ -1471,7 +1499,7 @@ async function postThis(ad, group, platform) {
         }
 
         try {
-            if (pubStatus !== "CLOSED") {
+            if (!["CLOSED", "DELETED", "KO"].includes(pubStatus)) {
                 console.log(`${new Date()} Starting URI capture for schedule ${ad.id}`);
                 if (remotePostID) {
                     console.log("Cattura URI e Date");

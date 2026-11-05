@@ -14,6 +14,7 @@ const {
 const publishBakecaincontriiAd = require("../adsManage/bakecaincontrii/publishAds");
 const updateBakecaincontriiAd = require("../adsManage/bakecaincontrii/updateAds");
 const suspendBakecaincontriiAd = require("../adsManage/bakecaincontrii/suspendAds");
+const { manageBakecaincontriiAd } = require("../adsManage/bakecaincontrii/manageAds");
 const { assertBakecaincontriiSession } = require("../adsManage/bakecaincontrii/session");
 
 const API_KEY = fs.readFileSync(__dirname + "/settings/2captchaApiKey.txt", "utf-8", function read(error, data) {
@@ -2644,6 +2645,49 @@ class BakecaincontriiBot {
       callback(error?.code || error?.message || "BAKECAINCONTRII_SUSPEND_FAILED");
       throw error;
     }
+  }
+
+  async runManageAction(remoteId, action, cookiesTMP) {
+    const formattedCookies = this.formatCookies(cookiesTMP);
+    assertBakecaincontriiSession(formattedCookies, this.email);
+
+    const browserCookies = typeof cookiesTMP === "string" ? JSON.parse(cookiesTMP) : cookiesTMP;
+    if (!Array.isArray(browserCookies) || !browserCookies.length) {
+      const error = new Error("Cookie browser Bakecaincontrii non disponibili per la gestione dell'annuncio.");
+      error.code = "BAKECAINCONTRII_BROWSER_COOKIES_MISSING";
+      throw error;
+    }
+
+    const executablePath = await puppeteer.executablePath();
+    const browser = await puppeteer.launch({
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      headless: true,
+      defaultViewport: { width: 1920, height: 1080 },
+      executablePath,
+    });
+    try {
+      const page = await browser.newPage();
+      await page.setUserAgent(USER_AGENT);
+      await page.setExtraHTTPHeaders({
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7",
+      });
+      await page.setCookie(...browserCookies);
+      await page.setCookie(
+        { name: "adult_cookie", value: "1", url: "https://www.bakecaincontrii.com/", secure: true, sameSite: "Lax" },
+        { name: "privacy_cookie", value: "1", url: "https://www.bakecaincontrii.com/", secure: true, sameSite: "Lax" }
+      );
+      return await manageBakecaincontriiAd(page, remoteId, action);
+    } finally {
+      await browser.close().catch(() => null);
+    }
+  }
+
+  async republish(remoteId, cookiesTMP) {
+    return this.runManageAction(remoteId, "republish", cookiesTMP);
+  }
+
+  async delete(remoteId, cookiesTMP) {
+    return this.runManageAction(remoteId, "delete", cookiesTMP);
   }
 
   async sendRequest(data, callback, cookiesTMP) {
