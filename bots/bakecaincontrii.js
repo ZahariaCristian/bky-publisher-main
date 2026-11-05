@@ -2341,21 +2341,37 @@ class BakecaincontriiBot {
         await page.$eval(submitSelector, (button) => button.click());
       });
     };
-    let navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
-    await clickPaymentButton();
-    await Promise.race([navigation, this.delay(2500)]);
-    const consentInterruptedPayment = await this.acceptBakecaincontriiAdultConsent(page, "STAR");
-    if (consentInterruptedPayment) {
-      navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => null);
+    const checkoutReadySelector = '[data-testid="checkout-order-manager"], [data-testid="checkout-main-row"]';
+    const isCheckoutOpen = () => /\/u\/order-checkout\//i.test(page.url());
+    const clickAndWaitForCheckout = async () => {
+      const startingUrl = page.url();
+      const navigation = page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 12000 }).catch(() => null);
       await clickPaymentButton();
+      await Promise.race([
+        navigation,
+        page.waitForFunction((url, selector) => (
+          window.location.href !== url ||
+          /\/u\/order-checkout\//i.test(window.location.pathname) ||
+          Boolean(document.querySelector(selector))
+        ), { timeout: 12000 }, startingUrl, checkoutReadySelector).catch(() => null),
+        this.delay(12000)
+      ]);
+      return isCheckoutOpen();
+    };
+
+    let checkoutOpened = await clickAndWaitForCheckout();
+    if (!checkoutOpened) {
+      const consentInterruptedPayment = await this.acceptBakecaincontriiAdultConsent(page, "STAR");
+      if (consentInterruptedPayment || /\/u\/post-promote\//i.test(page.url())) {
+        console.warn("[bakecaincontrii:star] Checkout did not open after the first click; retrying once.");
+        checkoutOpened = await clickAndWaitForCheckout();
+      }
     }
-    await Promise.race([navigation, this.delay(30000)]);
-    await this.delay(1500);
 
     const stillPending = await page.evaluate((submit) => (
       /\/u\/post-promote\//i.test(window.location.pathname) && Boolean(document.querySelector(submit))
     ), submitSelector).catch(() => false);
-    if (stillPending) {
+    if (!checkoutOpened || stillPending) {
       await failStarStage("STAR_PAYMENT_NOT_CONFIRMED", "Bakecaincontrii non ha aperto il checkout Star");
     }
 
