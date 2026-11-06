@@ -1143,6 +1143,12 @@ async function mainLoop(group, platform) {
                     s.time = formatRomeWallClockTime(s.data);
                     let promotionDetails = {};
                     try { promotionDetails = JSON.parse(s.period || "{}"); } catch { promotionDetails = {}; }
+                    if (s.typeAnnuncio === "Top") {
+                        const forcedTopCategory = `${promotionDetails.category || ""}`.trim().toUpperCase();
+                        if (["UOMOUOMO", "UOMODONNA"].includes(forcedTopCategory)) {
+                            s.categorie = forcedTopCategory;
+                        }
+                    }
                     s.promo = {
                         active: s.typeAnnuncio !== "Free",
                         visibility: s.typeAnnuncio,
