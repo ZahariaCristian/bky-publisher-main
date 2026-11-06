@@ -1421,6 +1421,18 @@ async function postThis(ad, group, platform) {
     console.log(`${new Date()} Starting postThis for ad ID: ${ad.state}-${ad.id}-${platform.platform}`);
     if (platform.platform == 'bakecaincontrii') {
         try {
+            let bakecaincontriiPeriod = {};
+            try { bakecaincontriiPeriod = JSON.parse(ad.period || "{}"); } catch { bakecaincontriiPeriod = {}; }
+            const createOnlyTop = ad.typeAnnuncio === "Top" &&
+                ["UOMOUOMO", "UOMODONNA"].includes(`${bakecaincontriiPeriod.category || ""}`.trim().toUpperCase());
+            const requestedAction = `${ad.state || ""}`.toUpperCase();
+            const managementAction = ["CLOSE", "REPUBLISH", "DELETE"].includes(requestedAction);
+            if (createOnlyTop && (requestedAction === "EDIT" || (!managementAction && remotePostID))) {
+                throw new Error(
+                    "BAKECAINCONTRII_TOP_CREATE_ONLY: UCU/UCD non può modificare una pubblicazione esistente. " +
+                    "Crea una nuova schedulazione senza remotePostID."
+                );
+            }
             // Start the state handling
             switch (ad.state) {
                 case "EDIT":
